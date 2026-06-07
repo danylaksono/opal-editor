@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
 import {
   EditorView,
+  drawSelection,
   keymap,
   lineNumbers,
   highlightActiveLine,
@@ -620,6 +621,7 @@ export function LatexEditor() {
       extensions: [
         compileKeymap,
         lineNumbers(),
+        drawSelection(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
         history(),
