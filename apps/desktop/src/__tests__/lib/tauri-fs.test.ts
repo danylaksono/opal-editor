@@ -52,7 +52,7 @@ describe("tauri fs helpers", () => {
 
   describe("scanProjectFolder", () => {
     it("does not recurse into generated cache directories", async () => {
-      vi.mocked(readDir).mockImplementation(async (dir: string) => {
+      vi.mocked(readDir).mockImplementation(async (dir: string | URL) => {
         if (dir === "/project") {
           return [
             { name: "__pycache__", isDirectory: true },

@@ -123,7 +123,7 @@ describe("useDocumentStore", () => {
 
     it("skips Python cache directories and bytecode files during open", async () => {
       vi.mocked(invoke).mockResolvedValue(undefined as never);
-      vi.mocked(readDir).mockImplementation(async (dir: string) => {
+      vi.mocked(readDir).mockImplementation(async (dir: string | URL) => {
         if (dir === "/project") {
           return [
             { name: "__pycache__", isDirectory: true },
@@ -136,7 +136,7 @@ describe("useDocumentStore", () => {
         throw new Error(`Unexpected readDir path: ${dir}`);
       });
       vi.mocked(stat).mockResolvedValue({ size: 32 } as any);
-      vi.mocked(readTextFile).mockImplementation(async (path: string) => {
+      vi.mocked(readTextFile).mockImplementation(async (path: string | URL) => {
         if (path === "/project/main.tex") {
           return "\\documentclass{article}";
         }
