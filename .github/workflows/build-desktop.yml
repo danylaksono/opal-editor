@@ -447,42 +447,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            autoconf autoconf-archive automake libtool pkg-config mold
-
-      # vcpkg provides ICU/harfbuzz/graphite2/freetype/fontconfig as dynamic libs.
-      # This avoids runtime dependency on system ICU version (issue #91).
-      # graphite2 overlay fixes hidden symbol visibility for rust-lld compat.
-      - name: Setup vcpkg
-        run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg $HOME/vcpkg
-          $HOME/vcpkg/bootstrap-vcpkg.sh
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
-
-      - name: Restore vcpkg cache
-        id: vcpkg-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/vcpkg/installed
-          key: vcpkg-linux-x64-mold-v1
-
-      - name: Install Linux dependencies (vcpkg)
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        env:
-          VCPKG_BINARY_SOURCES: "clear"
-        run: |
-          $HOME/vcpkg/vcpkg install \
-            --overlay-ports=$GITHUB_WORKSPACE/.github/vcpkg-overlays \
-            "harfbuzz[graphite2]:x64-linux" \
-            fontconfig:x64-linux \
-            freetype:x64-linux \
-            icu:x64-linux
-
-      - name: Save vcpkg cache
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/vcpkg/installed
-          key: vcpkg-linux-x64-mold-v1
+            autoconf autoconf-archive automake libtool pkg-config \
+            libgraphite2-dev libicu-dev libfontconfig1-dev libharfbuzz-dev \
+            libssl-dev libfreetype-dev libpng-dev zlib1g-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -505,26 +472,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ZOTERO_CONSUMER_KEY: ${{ secrets.ZOTERO_CONSUMER_KEY }}
           ZOTERO_CONSUMER_SECRET: ${{ secrets.ZOTERO_CONSUMER_SECRET }}
-          TECTONIC_DEP_BACKEND: vcpkg
-          CXXFLAGS: "-std=c++17 -DU_DISABLE_RENAMING=1"
-          CFLAGS: "-DU_DISABLE_RENAMING=1"
-          # mold handles both graphite2 hidden symbols and Rust version scripts.
-          # Prepend vcpkg lib path so ICU/harfbuzz from vcpkg are found before
-          # system versions (prevents ICU version suffix mismatch).
-          RUSTFLAGS: "-C link-arg=-fuse-ld=mold -C link-arg=-L${{ env.VCPKG_ROOT }}/installed/x64-linux/lib"
-        run: |
-          # Diagnose: check if vcpkg ICU has versioned or unversioned symbols
-          echo "=== vcpkg ICU symbols ==="
-          nm -D $HOME/vcpkg/installed/x64-linux/lib/libicuuc.so 2>/dev/null | grep "ucnv_fromUChars" | head -3 || echo "NOT FOUND"
-          echo "=== vcpkg ICU renaming config ==="
-          grep -E "U_DISABLE_RENAMING|U_ICU_VERSION_SUFFIX" $HOME/vcpkg/installed/x64-linux/include/unicode/uvernum.h $HOME/vcpkg/installed/x64-linux/include/unicode/uconfig.h 2>/dev/null | head -5 || echo "NOT FOUND"
-
-          # Move system ICU .so out of the way so linker finds vcpkg's ICU first.
-          sudo mkdir -p /usr/lib/x86_64-linux-gnu/icu-system-backup
-          sudo mv /usr/lib/x86_64-linux-gnu/libicu*.so* /usr/lib/x86_64-linux-gnu/icu-system-backup/ 2>/dev/null || true
-          pnpm --filter @claude-prism/desktop tauri build --target x86_64-unknown-linux-gnu
-          # Restore system ICU
-          sudo mv /usr/lib/x86_64-linux-gnu/icu-system-backup/libicu*.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+          # Use pkg-config (same as tectonic's own CI) with semi-static linking.
+          # AppImage bundles .so files automatically for portable distribution.
+          TECTONIC_DEP_BACKEND: pkg-config
+          TECTONIC_PKGCONFIG_FORCE_SEMI_STATIC: "true"
+          CXXFLAGS: "-std=c++17"
+          CFLAGS: ""
+        run: pnpm --filter @claude-prism/desktop tauri build --target x86_64-unknown-linux-gnu
 
       - name: Collect updater artifacts
         id: collect
