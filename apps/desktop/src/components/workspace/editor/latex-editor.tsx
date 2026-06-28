@@ -164,6 +164,7 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
+  const aiProvider = useSettingsStore((s) => s.aiProvider);
 
   const compileRef = useRef<() => void>(() => {});
   const isSearchOpenRef = useRef(false);
@@ -641,25 +642,31 @@ export function LatexEditor() {
                 }
                 const baseLinter = latexLinter();
                 const diagnostics = baseLinter(view);
+                const showAiActions =
+                  useSettingsStore.getState().aiProvider !== "none";
                 return diagnostics.map((d: Diagnostic) => ({
                   ...d,
                   actions: [
                     ...(d.actions ?? []),
-                    {
-                      name: "Fix with chat",
-                      apply: (v: EditorView, from: number, _to: number) => {
-                        const line = v.state.doc.lineAt(from);
-                        const docState = useDocumentStore.getState();
-                        const file = docState.files.find(
-                          (f) => f.id === docState.activeFileId,
-                        );
-                        const fileName = file?.relativePath ?? "main.tex";
-                        const ctx = `[Lint error in ${fileName}:${line.number}]\n[Error: ${d.message}]`;
-                        useClaudeChatStore
-                          .getState()
-                          .sendPrompt(`${ctx}\n\nFix this lint error.`);
-                      },
-                    },
+                    ...(showAiActions
+                      ? [
+                          {
+                            name: "Fix with chat",
+                            apply: (v: EditorView, from: number, _to: number) => {
+                              const line = v.state.doc.lineAt(from);
+                              const docState = useDocumentStore.getState();
+                              const file = docState.files.find(
+                                (f) => f.id === docState.activeFileId,
+                              );
+                              const fileName = file?.relativePath ?? "main.tex";
+                              const ctx = `[Lint error in ${fileName}:${line.number}]\n[Error: ${d.message}]`;
+                              useClaudeChatStore
+                                .getState()
+                                .sendPrompt(`${ctx}\n\nFix this lint error.`);
+                            },
+                          },
+                        ]
+                      : []),
                   ],
                 }));
               }),
@@ -997,14 +1004,17 @@ export function LatexEditor() {
   );
 
   const editorToolbarActions: ToolbarAction[] = useMemo(
-    () => [
-      {
-        id: "proofread",
-        label: "Proofread",
-        icon: <SpellCheckIcon className="size-4" />,
-      },
-    ],
-    [],
+    () =>
+      aiProvider !== "none"
+        ? [
+            {
+              id: "proofread",
+              label: "Proofread",
+              icon: <SpellCheckIcon className="size-4" />,
+            },
+          ]
+        : [],
+    [aiProvider],
   );
 
   const handleToolbarAction = useCallback(
@@ -1315,8 +1325,8 @@ export function LatexEditor() {
             )}
           </>
         )}
-        {/* Chat drawer — single stable instance across all file types */}
-        <ClaudeChatDrawer />
+        {/* Chat drawer — shown only when AI provider is configured */}
+        {aiProvider !== "none" && <ClaudeChatDrawer />}
       </div>
       {/* Text-editor-only bottom panels */}
       {!isPdf &&
@@ -1335,24 +1345,32 @@ export function LatexEditor() {
               });
               view.focus();
             }}
-            onFixWithChat={(message, line) => {
-              const fileName = activeFile?.relativePath ?? "main.tex";
-              const ctx = `[Lint error in ${fileName}:${line}]\n[Error: ${message}]`;
-              useClaudeChatStore
-                .getState()
-                .sendPrompt(`${ctx}\n\nFix this lint error.`);
-            }}
-            onFixAllWithChat={() => {
-              const fileName = activeFile?.relativePath ?? "main.tex";
-              const errorList = diagnostics
-                .map((d) => `- ${fileName}:${d.line} — ${d.message}`)
-                .join("\n");
-              useClaudeChatStore
-                .getState()
-                .sendPrompt(
-                  `[Lint errors in ${fileName}]\n${errorList}\n\nFix all these lint errors.`,
-                );
-            }}
+            onFixWithChat={
+              aiProvider !== "none"
+                ? (message, line) => {
+                    const fileName = activeFile?.relativePath ?? "main.tex";
+                    const ctx = `[Lint error in ${fileName}:${line}]\n[Error: ${message}]`;
+                    useClaudeChatStore
+                      .getState()
+                      .sendPrompt(`${ctx}\n\nFix this lint error.`);
+                  }
+                : undefined
+            }
+            onFixAllWithChat={
+              aiProvider !== "none"
+                ? () => {
+                    const fileName = activeFile?.relativePath ?? "main.tex";
+                    const errorList = diagnostics
+                      .map((d) => `- ${fileName}:${d.line} — ${d.message}`)
+                      .join("\n");
+                    useClaudeChatStore
+                      .getState()
+                      .sendPrompt(
+                        `[Lint errors in ${fileName}]\n${errorList}\n\nFix all these lint errors.`,
+                      );
+                  }
+                : undefined
+            }
           />
         )}
       {!isPdf && !isImage && !isLargeFileNotLoaded && activeFileChange && (

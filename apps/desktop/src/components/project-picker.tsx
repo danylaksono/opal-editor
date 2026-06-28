@@ -21,6 +21,7 @@ import { useProjectStore } from "@/stores/project-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { useClaudeSetupStore } from "@/stores/claude-setup-store";
 import { useUvSetupStore } from "@/stores/uv-setup-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useUpdater } from "@/hooks/use-updater";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { ProjectWizard, type CreationMode } from "./project-wizard";
 import { ClaudeSetup } from "./claude-setup";
+import { AiSettings } from "./ai-settings";
 import { cn } from "@/lib/utils";
 
 export function ProjectPicker() {
@@ -47,12 +49,17 @@ export function ProjectPicker() {
 
   const claudeStatus = useClaudeSetupStore((s) => s.status);
   const checkClaudeStatus = useClaudeSetupStore((s) => s.checkStatus);
+  const aiProvider = useSettingsStore((s) => s.aiProvider);
   const isClaudeReady = claudeStatus === "ready";
+  const needsClaudeSetup =
+    aiProvider === "claude-cli" && !isClaudeReady;
 
   useEffect(() => {
-    checkClaudeStatus();
+    if (aiProvider === "claude-cli") {
+      checkClaudeStatus();
+    }
     getVersion().then(setAppVersion);
-  }, [checkClaudeStatus]);
+  }, [checkClaudeStatus, aiProvider]);
 
   const handleOpenFolder = async () => {
     const selected = await open({
@@ -86,8 +93,8 @@ export function ProjectPicker() {
     <div className="flex h-full items-center justify-center bg-background">
       <div className="flex w-full max-w-md flex-col items-center gap-8 px-8">
         <div className="flex flex-col items-center gap-2">
-          <img src="/icon-192.png" alt="ClaudePrism" className="size-16" />
-          <h1 className="font-bold text-2xl">ClaudePrism</h1>
+          <img src="/icon-192.png" alt="TectonicEditor" className="size-16" />
+          <h1 className="font-bold text-2xl">TectonicEditor</h1>
           <VersionBadge
             version={appVersion}
             updateStatus={updateStatus}
@@ -99,18 +106,23 @@ export function ProjectPicker() {
           </p>
         </div>
 
-        {!isClaudeReady ? <ClaudeSetup /> : <EnvironmentStatus />}
+        {needsClaudeSetup ? <ClaudeSetup /> : <EnvironmentStatus />}
 
-        <div
-          className={`flex w-full gap-3 ${!isClaudeReady ? "pointer-events-none opacity-50" : ""}`}
-        >
+        {/* AI Provider settings */}
+        <div className="w-full max-w-md">
+          <AiSettings />
+        </div>
+
+        <div className="flex w-full gap-3">
           <Button
             onClick={() => setShowModeDialog(true)}
             size="lg"
             variant="outline"
             className="flex-1 gap-2"
-            disabled={!isClaudeReady}
           >
+            <FolderPlusIcon className="size-5" />
+            New Project
+          </Button>
             <FolderPlusIcon className="size-5" />
             New Project
           </Button>

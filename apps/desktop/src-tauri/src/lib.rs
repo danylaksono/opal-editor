@@ -1,3 +1,4 @@
+mod ai;
 mod claude;
 mod history;
 mod latex;
@@ -7,8 +8,12 @@ mod uv;
 mod zotero;
 
 use std::path::Path;
+use std::sync::Arc;
 use tauri_plugin_fs::FsExt;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+
+use ai::registry::ProviderRegistry;
+use ai::{AiProvider, AiProviderInfo, AiRequest, AiSessionInfo};
 
 /// Entry point for the `--tectonic-compile` subprocess mode.
 /// Runs tectonic compilation in an isolated process so that C-level global state
@@ -180,7 +185,7 @@ fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
 
     #[allow(unused_mut)]
     let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
-        .title("ClaudePrism")
+        .title("TectonicEditor")
         .inner_size(1400.0, 900.0)
         .min_inner_size(800.0, 600.0)
         .visible(false);
@@ -233,7 +238,7 @@ fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
 
     let url = WebviewUrl::App("index.html?debug=1".into());
     WebviewWindowBuilder::new(&app, "debug", url)
-        .title("ClaudePrism — Debug")
+        .title("TectonicEditor — Debug")
         .inner_size(560.0, 700.0)
         .min_inner_size(400.0, 400.0)
         .visible(true)
@@ -327,10 +332,237 @@ async fn read_clipboard_file_paths() -> Result<Vec<String>, String> {
     }
 }
 
+// ─── AI Provider Commands ───
+
+#[tauri::command]
+async fn ai_list_providers(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+) -> Result<Vec<AiProviderInfo>, String> {
+    Ok(registry.list_providers())
+}
+
+#[tauri::command]
+async fn ai_get_active_provider(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+) -> Result<Option<String>, String> {
+    Ok(registry.active_id().await)
+}
+
+#[tauri::command]
+async fn ai_set_active_provider(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    provider_id: Option<String>,
+) -> Result<(), String> {
+    registry.set_active(provider_id).await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn ai_status(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    provider_id: Option<String>,
+) -> Result<AiProviderInfo, String> {
+    let id = match provider_id {
+        Some(id) => id,
+        None => registry
+            .active_id()
+            .await
+            .ok_or_else(|| "No AI provider configured".to_string())?,
+    };
+
+    let provider = registry
+        .create_provider(&id)
+        .ok_or_else(|| format!("Provider '{}' not found", id))?;
+    Ok(provider.check_status().await)
+}
+
+#[tauri::command]
+async fn ai_execute(
+    window: WebviewWindow,
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    request: AiRequest,
+) -> Result<(), String> {
+    let provider_id = registry
+        .active_id()
+        .await
+        .ok_or_else(|| "No AI provider configured. Select one in Settings.".to_string())?;
+
+    let provider = registry
+        .create_provider(&provider_id)
+        .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
+
+    provider.execute(window, request).await
+}
+
+#[tauri::command]
+async fn ai_cancel(
+    window: WebviewWindow,
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    tab_id: String,
+) -> Result<(), String> {
+    let provider_id = match registry.active_id().await {
+        Some(id) => id,
+        None => return Ok(()),
+    };
+
+    let provider = registry
+        .create_provider(&provider_id)
+        .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
+
+    provider.cancel(&window, &tab_id).await
+}
+
+#[tauri::command]
+async fn ai_list_sessions(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    project_path: String,
+) -> Result<Vec<AiSessionInfo>, String> {
+    let provider_id = match registry.active_id().await {
+        Some(id) => id,
+        None => return Ok(Vec::new()),
+    };
+
+    let provider = registry
+        .create_provider(&provider_id)
+        .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
+
+    provider.list_sessions(&project_path).await
+}
+
+#[tauri::command]
+async fn ai_load_session(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    project_path: String,
+    session_id: String,
+) -> Result<Vec<ai::AiMessage>, String> {
+    let provider_id = registry
+        .active_id()
+        .await
+        .ok_or_else(|| "No AI provider configured".to_string())?;
+
+    let provider = registry
+        .create_provider(&provider_id)
+        .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
+
+    provider.load_session(&project_path, &session_id).await
+}
+
+// ─── API Key Management ───
+
+fn get_env_path() -> Result<std::path::PathBuf, String> {
+    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    Ok(home.join(".tectonic").join(".env"))
+}
+
+#[tauri::command]
+async fn ai_get_api_key(key_name: String) -> Result<Option<String>, String> {
+    let path = get_env_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read: {}", e))?;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((k, v)) = trimmed.split_once('=') {
+            if k.trim() == key_name {
+                let val = v.trim().trim_matches('"').trim_matches('\'');
+                return Ok(Some(val.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+async fn ai_set_api_key(key_name: String, value: String) -> Result<(), String> {
+    let path = get_env_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config dir: {}", e))?;
+    }
+
+    let mut content = if path.exists() {
+        std::fs::read_to_string(&path).unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    // Replace existing key or append
+    let mut found = false;
+    let new_lines: Vec<String> = content
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return line.to_string();
+            }
+            if let Some((k, _)) = trimmed.split_once('=') {
+                if k.trim() == key_name {
+                    found = true;
+                    return format!("{}=\"{}\"", key_name, value);
+                }
+            }
+            line.to_string()
+        })
+        .collect();
+
+    content = if found {
+        new_lines.join("\n")
+    } else {
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        format!("{}{}=\"{}\"\n", content, key_name, value)
+    };
+
+    std::fs::write(&path, content)
+        .map_err(|e| format!("Failed to write: {}", e))?;
+
+    // Also set in current process environment
+    std::env::set_var(&key_name, &value);
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Load .env file (walks up from cwd to find it)
     let _ = dotenvy::dotenv();
+
+    // Initialize AI provider registry
+    let mut registry = ProviderRegistry::new();
+    registry.register(
+        || Box::new(ai::providers::claude_cli::ClaudeCliProvider),
+        AiProviderInfo {
+            id: "claude-cli".to_string(),
+            name: "Claude Code CLI".to_string(),
+            ready: false,
+            message: Some("Check status to verify installation".to_string()),
+        },
+    );
+    registry.register(
+        || Box::new(ai::providers::anthropic::AnthropicProvider),
+        AiProviderInfo {
+            id: "anthropic".to_string(),
+            name: "Anthropic API".to_string(),
+            ready: false,
+            message: Some("Set ANTHROPIC_API_KEY to enable".to_string()),
+        },
+    );
+    registry.register(
+        || Box::new(ai::providers::openai::OpenAiProvider),
+        AiProviderInfo {
+            id: "openai".to_string(),
+            name: "OpenAI API".to_string(),
+            ready: false,
+            message: Some("Set OPENAI_API_KEY to enable".to_string()),
+        },
+    );
+    let registry = Arc::new(registry);
 
     #[allow(clippy::expect_used)]
     let app = tauri::Builder::default()
@@ -342,6 +574,7 @@ pub fn run() {
         .manage(claude::ClaudeProcessState::default())
         .manage(latex::LatexCompilerState::default())
         .manage(zotero::ZoteroOAuthState::default())
+        .manage(registry)
         .setup(|app| {
             // Safety net: force-show the main window after a timeout if the
             // frontend JS never calls `getCurrentWindow().show()`.
@@ -373,6 +606,7 @@ pub fn run() {
             latex::compile_latex,
             latex::synctex_edit,
             latex::detect_texlive,
+            // Legacy Claude CLI commands (backward compat)
             claude::check_claude_status,
             claude::install_claude_cli,
             claude::login_claude,
@@ -385,6 +619,17 @@ pub fn run() {
             claude::set_claude_fast_mode,
             claude::list_claude_sessions,
             claude::load_session_history,
+            // New unified AI provider commands
+            ai_list_providers,
+            ai_get_active_provider,
+            ai_set_active_provider,
+            ai_status,
+            ai_execute,
+            ai_cancel,
+            ai_list_sessions,
+            ai_load_session,
+            ai_get_api_key,
+            ai_set_api_key,
             zotero::zotero_start_oauth,
             zotero::zotero_complete_oauth,
             zotero::zotero_cancel_oauth,
@@ -468,7 +713,7 @@ pub fn run() {
                 event: tauri::WindowEvent::Destroyed,
                 ..
             } => {
-                // Kill Claude process associated with this window
+                // Kill AI processes associated with this window
                 let claude_state = app_handle.state::<claude::ClaudeProcessState>();
                 let label_clone = label.clone();
                 let state_clone = claude_state.inner().clone();

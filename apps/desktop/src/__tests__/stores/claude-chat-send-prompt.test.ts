@@ -105,16 +105,18 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
     });
 
     expect(invoke).toHaveBeenCalledWith(
-      "execute_claude_code",
+      "ai_execute",
       expect.objectContaining({
-        projectPath: "/project",
-        tabId: "tab-default",
-        prompt: expect.stringContaining("[Selection: @main.tex]"),
+        request: expect.objectContaining({
+          projectPath: "/project",
+          tabId: "tab-default",
+          prompt: expect.stringContaining("[Selection: @main.tex]"),
+        }),
       }),
     );
 
-    const prompt = (vi.mocked(invoke).mock.calls[0]?.[1] as any)
-      ?.prompt as string;
+    const callArgs = vi.mocked(invoke).mock.calls[0]?.[1] as any;
+    const prompt = callArgs?.request?.prompt as string;
     expect(prompt).toContain("[Currently open file: main.tex]");
     expect(prompt).toContain("[Selection: @main.tex]");
     expect(prompt).toContain(wholeFileText);
@@ -143,21 +145,23 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
     await useClaudeChatStore.getState().sendPrompt("Please revise this");
 
     expect(invoke).toHaveBeenCalledWith(
-      "execute_claude_code",
+      "ai_execute",
       expect.objectContaining({
-        projectPath: "/project",
-        tabId: "tab-default",
-        prompt: expect.stringContaining("[Selection: @main.tex:2:1-3:6]"),
+        request: expect.objectContaining({
+          projectPath: "/project",
+          tabId: "tab-default",
+          prompt: expect.stringContaining("[Selection: @main.tex:2:1-3:6]"),
+        }),
       }),
     );
 
-    const prompt = (vi.mocked(invoke).mock.calls[0]?.[1] as any)
-      ?.prompt as string;
-    expect(prompt).toContain("[Currently open file: main.tex]");
-    expect(prompt).toContain("[Selection: @main.tex:2:1-3:6]");
-    expect(prompt).toContain("[Selected text:\nbeta\ngamma\n]");
-    expect(prompt).not.toContain("alpha\na");
-    expect(prompt).not.toContain("\ndelta");
+    const callArgs2 = vi.mocked(invoke).mock.calls[0]?.[1] as any;
+    const prompt2 = callArgs2?.request?.prompt as string;
+    expect(prompt2).toContain("[Currently open file: main.tex]");
+    expect(prompt2).toContain("[Selection: @main.tex:2:1-3:6]");
+    expect(prompt2).toContain("[Selected text:\nbeta\ngamma\n]");
+    expect(prompt2).not.toContain("alpha\na");
+    expect(prompt2).not.toContain("\ndelta");
 
     const userText =
       useClaudeChatStore.getState().messages[0].message?.content?.[0].text;

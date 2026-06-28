@@ -45,7 +45,7 @@ export const useProjectStore = create<ProjectState>()(
       },
     }),
     {
-      name: "claude-prism-projects",
+      name: "tectonic-editor-projects",
     },
   ),
 );

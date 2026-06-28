@@ -1,6 +1,6 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
-export const APP_ZOOM_STORAGE_KEY = "claude-prism-app-zoom";
+export const APP_ZOOM_STORAGE_KEY = "tectonic-editor-app-zoom";
 export const LOCAL_ZOOM_SHORTCUTS_ATTR = "data-local-zoom-shortcuts";
 export const DEFAULT_APP_ZOOM = 1;
 export const MIN_APP_ZOOM = 0.5;

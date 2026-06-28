@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useDocumentStore } from "./document-store";
 import { useHistoryStore } from "./history-store";
 import { createLogger } from "@/lib/debug/logger";
+import type { AiRequest, AiContext } from "@/lib/ai/types";
 
 const log = createLogger("claude");
 
@@ -185,6 +186,7 @@ interface ClaudeChatState {
   sendPrompt: (
     userPrompt: string,
     contextOverride?: { label: string; filePath: string; selectedText: string },
+    aiContext?: AiContext,
   ) => Promise<void>;
   cancelExecution: () => Promise<void>;
   clearMessages: () => void;
@@ -259,6 +261,7 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
   sendPrompt: async (
     userPrompt: string,
     contextOverride?: { label: string; filePath: string; selectedText: string },
+    aiContext?: AiContext,
   ) => {
     const state = get();
     const { activeTabId } = state;
@@ -266,7 +269,7 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     // Guard: prevent sending from a tab that's already streaming
     if (activeTab?.isStreaming) return;
 
-    const { sessionId, selectedModel, effortLevel } = state;
+    const { sessionId, selectedModel } = state;
 
     const sendStart = performance.now();
     log.info("sendPrompt start", {
@@ -380,26 +383,35 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     });
 
     try {
-      if (sessionId) {
-        // Resume existing session
-        await invoke("resume_claude_code", {
-          projectPath,
-          sessionId,
-          prompt,
-          tabId: activeTabId,
-          model: selectedModel,
-          effortLevel,
-        });
-      } else {
-        // New session
-        await invoke("execute_claude_code", {
-          projectPath,
-          prompt,
-          tabId: activeTabId,
-          model: selectedModel,
-          effortLevel,
-        });
-      }
+      const aiRequest: AiRequest = {
+        tabId: activeTabId,
+        projectPath,
+        prompt,
+        model: selectedModel,
+        messages: [],
+        context:
+          aiContext ??
+          (contextOverride
+            ? {
+                scope: "selection",
+                files: [contextOverride.filePath],
+                action: "chat",
+                selection: contextOverride.selectedText,
+              }
+            : activeFile
+              ? {
+                  scope: "selection",
+                  files: [activeFile.relativePath],
+                  action: "chat",
+                }
+              : {
+                  scope: "project",
+                  files: [],
+                  action: "chat",
+                }),
+      };
+
+      await invoke("ai_execute", { request: aiRequest });
       log.info(
         `sendPrompt complete in ${(performance.now() - sendStart).toFixed(0)}ms`,
       );
@@ -421,9 +433,14 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     const { activeTabId } = get();
     set({ _cancelledByUser: true });
     try {
-      await invoke("cancel_claude_execution", { tabId: activeTabId });
+      await invoke("ai_cancel", { tabId: activeTabId });
     } catch {
-      // ignore
+      // Fallback to legacy command
+      try {
+        await invoke("cancel_claude_execution", { tabId: activeTabId });
+      } catch {
+        // ignore
+      }
     }
     set((s) => applyTabUpdate(s, activeTabId, { isStreaming: false }));
   },
@@ -476,10 +493,20 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     // Load session history from JSONL file
     if (projectPath) {
       try {
-        const history = await invoke<any[]>("load_session_history", {
-          projectPath,
-          sessionId,
-        });
+        let history: any[];
+
+        // Try new unified command first, fall back to legacy
+        try {
+          history = await invoke<any[]>("ai_load_session", {
+            projectPath,
+            sessionId,
+          });
+        } catch {
+          history = await invoke<any[]>("load_session_history", {
+            projectPath,
+            sessionId,
+          });
+        }
 
         // Filter to displayable message types and map to ClaudeStreamMessage
         const messages: ClaudeStreamMessage[] = [];

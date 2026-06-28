@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui-unofficial/nicegui-tauri-template/main/src-tauri/tauri.conf-v2-schema.json",
-  "identifier": "com.claude-prism.desktop",
-  "productName": "ClaudePrism",
+  "identifier": "com.tectonic-editor.desktop",
+  "productName": "TectonicEditor",
   "version": "1.2.0",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ClaudePrism",
+        "title": "TectonicEditor",
         "fullscreen": false,
         "maximized": true,
         "width": 1400,
@@ -61,7 +61,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENBNjAzOTI2NzdDQjdBNkMKUldSc2VzdDNKamxneXMzUnZIK0h3TzZ4WVo4QVFVQlRaSFA1TEhCcGtUYW53ZkhNaDluaWgwZWQK",
       "endpoints": [
-        "https://github.com/delibae/claude-prism/releases/latest/download/latest.json"
+        "https://github.com/anomalyco/tectonic-editor/releases/latest/download/latest.json"
       ]
     }
   }

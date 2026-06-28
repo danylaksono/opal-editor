@@ -410,7 +410,7 @@ export const useZoteroStore = create<ZoteroState>()(
       },
     }),
     {
-      name: "claude-prism-zotero",
+      name: "tectonic-editor-zotero",
       partialize: (state) => ({
         apiKey: state.apiKey,
         userID: state.userID,

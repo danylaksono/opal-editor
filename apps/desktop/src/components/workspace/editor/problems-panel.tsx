@@ -21,7 +21,7 @@ interface ProblemsPanelProps {
   diagnostics: DiagnosticItem[];
   fileName: string;
   onNavigate: (from: number) => void;
-  onFixWithChat: (message: string, line: number) => void;
+  onFixWithChat?: (message: string, line: number) => void;
   onFixAllWithChat?: () => void;
 }
 
@@ -109,16 +109,18 @@ export function ProblemsPanel({
               <span className="shrink-0 text-muted-foreground">
                 {fileName}:{d.line}
               </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFixWithChat(d.message, d.line);
-                }}
-                className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                title="Fix with chat"
-              >
-                <MessageSquareIcon className="size-3.5" />
-              </button>
+              {onFixWithChat && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFixWithChat(d.message, d.line);
+                  }}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  title="Fix with chat"
+                >
+                  <MessageSquareIcon className="size-3.5" />
+                </button>
+              )}
             </div>
           ))}
         </div>

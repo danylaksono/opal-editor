@@ -150,6 +150,10 @@ fn expand_env_vars(s: &str) -> String {
 /// Search order: ~/.local/bin → NVM_BIN → which → registry PATH (Windows) →
 /// login shell (Unix) → npm/nvm global → standard paths → user-specific paths.
 /// Returns Err if not found.
+pub(crate) fn find_claude_binary_internal() -> Result<String, String> {
+    find_claude_binary()
+}
+
 fn find_claude_binary() -> Result<String, String> {
     // 1. Check the native installer's default location first
     //    (GUI apps often don't have ~/.local/bin in PATH)
@@ -644,6 +648,15 @@ fn new_sync_command(program: &str) -> std::process::Command {
 }
 
 /// Create a tokio Command with appropriate environment variables.
+pub(crate) fn create_command_internal(
+    program: &str,
+    args: Vec<String>,
+    cwd: &str,
+    effort_level: Option<&str>,
+) -> Command {
+    create_command(program, args, cwd, effort_level)
+}
+
 fn create_command(
     program: &str,
     args: Vec<String>,
@@ -783,6 +796,12 @@ fn create_command(
     cmd.env("PATH", current_path);
 
     cmd
+}
+
+pub(crate) fn build_prompt_args(args: &mut Vec<String>, prompt: &str) -> Option<String> {
+    let (new_args, stdin) = with_prompt_transport(std::mem::take(args), prompt.to_string());
+    *args = new_args;
+    stdin
 }
 
 fn with_prompt_transport(mut args: Vec<String>, prompt: String) -> (Vec<String>, Option<String>) {
@@ -1010,6 +1029,154 @@ async fn spawn_claude_process(
             ClaudeCompleteEvent {
                 tab_id: tab_id_wait,
                 success,
+            },
+        );
+    });
+
+    Ok(())
+}
+
+/// Generic spawn function for AI providers. Same as spawn_claude_process but
+/// emits `ai-output` / `ai-complete` / `ai-error` events with a provider tag.
+pub(crate) async fn spawn_provider_process_internal(
+    window: WebviewWindow,
+    mut cmd: Command,
+    tab_id: String,
+    stdin_payload: Option<String>,
+    provider_id: String,
+) -> Result<(), String> {
+    let window_label = window.label().to_string();
+    let process_key = format!("{}:{}", window_label, tab_id);
+
+    if stdin_payload.is_some() {
+        cmd.stdin(std::process::Stdio::piped());
+    }
+
+    let mut child = cmd.spawn().map_err(|e| {
+        eprintln!(
+            "[ai-spawn] Failed to spawn process for tab {}: {}",
+            tab_id, e
+        );
+        format!("Failed to spawn AI process: {}", e)
+    })?;
+
+    if let Some(payload) = stdin_payload {
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "Failed to acquire stdin for AI process".to_string())?;
+        stdin
+            .write_all(payload.as_bytes())
+            .await
+            .map_err(|e| format!("Failed to write prompt to process stdin: {}", e))?;
+        stdin
+            .shutdown()
+            .await
+            .map_err(|e| format!("Failed to close process stdin: {}", e))?;
+    }
+
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    let process_arc = window
+        .state::<ClaudeProcessState>()
+        .inner()
+        .processes
+        .clone();
+
+    {
+        let mut processes = process_arc.lock().await;
+        if let Some(mut existing) = processes.remove(&process_key) {
+            let _ = existing.kill().await;
+        }
+        processes.insert(process_key.clone(), child);
+    }
+
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+    let start_time = std::time::Instant::now();
+
+    let win_stdout = window.clone();
+    let tab_id_stdout = tab_id.clone();
+    let provider_stdout = provider_id.clone();
+    let stdout_task = tokio::spawn(async move {
+        let mut lines = stdout_reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let _ = win_stdout.emit(
+                "ai-output",
+                crate::ai::AiOutputEvent {
+                    tab_id: tab_id_stdout.clone(),
+                    data: line,
+                    provider: provider_stdout.clone(),
+                },
+            );
+        }
+    });
+
+    let win_stderr = window.clone();
+    let tab_id_stderr = tab_id.clone();
+    let provider_stderr = provider_id.clone();
+    let stderr_task = tokio::spawn(async move {
+        let mut lines = stderr_reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            eprintln!(
+                "[ai-stderr] [{}] {}",
+                tab_id_stderr,
+                &line[..line.len().min(200)]
+            );
+            let _ = win_stderr.emit(
+                "ai-error",
+                crate::ai::AiErrorEvent {
+                    tab_id: tab_id_stderr.clone(),
+                    data: line,
+                    provider: provider_stderr.clone(),
+                },
+            );
+        }
+    });
+
+    let process_arc_wait = process_arc.clone();
+    let win_wait = window;
+    let process_key_wait = process_key;
+    let tab_id_wait = tab_id;
+    let provider_wait = provider_id;
+    tokio::spawn(async move {
+        let _ = stdout_task.await;
+        let _ = stderr_task.await;
+
+        let mut processes = process_arc_wait.lock().await;
+        let success = if let Some(mut child) = processes.remove(&process_key_wait) {
+            match child.wait().await {
+                Ok(status) => {
+                    eprintln!(
+                        "[ai-process] [{}] exited with status={} ({:.1}s)",
+                        tab_id_wait,
+                        status,
+                        start_time.elapsed().as_secs_f64()
+                    );
+                    status.success()
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[ai-process] [{}] wait error: {} ({:.1}s)",
+                        tab_id_wait,
+                        e,
+                        start_time.elapsed().as_secs_f64()
+                    );
+                    false
+                }
+            }
+        } else {
+            false
+        };
+        drop(processes);
+
+        let _ = win_wait.emit(
+            "ai-complete",
+            crate::ai::AiCompleteEvent {
+                tab_id: tab_id_wait,
+                success,
+                provider: provider_wait,
             },
         );
     });
@@ -1473,6 +1640,10 @@ pub async fn login_claude(window: WebviewWindow) -> Result<(), String> {
 }
 
 /// Common CLI flags shared across all Claude invocations.
+pub(crate) fn common_claude_args_internal() -> Vec<String> {
+    common_claude_args()
+}
+
 fn common_claude_args() -> Vec<String> {
     vec![
         "--output-format".to_string(),

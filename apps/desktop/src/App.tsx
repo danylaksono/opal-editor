@@ -5,6 +5,7 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 import { useDocumentStore } from "@/stores/document-store";
 import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { ProjectPicker } from "@/components/project-picker";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -34,8 +35,8 @@ function WorkspaceWithClaude() {
   // Update window title
   useEffect(() => {
     if (projectRoot) {
-      const name = projectRoot.split(/[/\\]/).pop() || "ClaudePrism";
-      getCurrentWindow().setTitle(`${name} - ClaudePrism`);
+      const name = projectRoot.split(/[/\\]/).pop() || "TectonicEditor";
+      getCurrentWindow().setTitle(`${name} - TectonicEditor`);
     }
   }, [projectRoot]);
 
@@ -66,10 +67,12 @@ function WorkspaceWithClaude() {
       });
   }, [initialized, projectRoot]);
 
-  // Consume pending initial prompt from project wizard
+  // Consume pending initial prompt from project wizard (only when AI is configured)
   useEffect(() => {
     if (!initialized) return;
-    // Delay to let ClaudeChatDrawer mount and register event listeners
+    const aiProvider = useSettingsStore.getState().aiProvider;
+    if (aiProvider === "none") return;
+    // Delay to let AI chat drawer mount and register event listeners
     const timer = setTimeout(() => {
       const prompt = useClaudeChatStore
         .getState()

@@ -24,7 +24,10 @@ import {
   SparklesIcon,
   RabbitIcon,
   LayersIcon,
+  TargetIcon,
+  Wand2Icon,
 } from "lucide-react";
+import type { AiContext } from "@/lib/ai/types";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -86,6 +89,14 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     left: 0,
     bottom: 0,
   });
+
+  // Context scope & action selectors (for smart AI context)
+  const [selectedScope, setSelectedScope] =
+    useState<AiContext["scope"]>("selection");
+  const [selectedAction, setSelectedAction] =
+    useState<AiContext["action"]>("chat");
+  const [scopePickerOpen, setScopePickerOpen] = useState(false);
+  const [actionPickerOpen, setActionPickerOpen] = useState(false);
 
   // Recalculate popup position when it opens
   useLayoutEffect(() => {
@@ -511,6 +522,17 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     setMentionQuery(null);
     setSlashQuery(null);
     slashSelectedRef.current = false;
+
+    const ctx: AiContext = {
+      scope: selectedScope,
+      files: pinnedContexts.length > 0 ? pinnedContexts.map((c) => c.filePath) : [],
+      action: selectedAction,
+      selection:
+        pinnedContexts.length > 0
+          ? pinnedContexts.map((c) => c.selectedText).join("\n\n---\n\n")
+          : undefined,
+    };
+
     // Send with pinned context override
     if (pinnedContexts.length > 0) {
       const combinedLabel = pinnedContexts.map((c) => c.label).join(", ");
@@ -521,9 +543,9 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         label: combinedLabel,
         filePath: pinnedContexts[0].filePath,
         selectedText: combinedText,
-      });
+      }, ctx);
     } else {
-      sendPrompt(finalPrompt);
+      sendPrompt(finalPrompt, undefined, ctx);
     }
     // Reset textarea height
     if (textareaRef.current) {
@@ -780,6 +802,85 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
           document.body,
         )}
 
+      {/* Scope picker dropdown */}
+      {scopePickerOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50" onClick={() => setScopePickerOpen(false)}>
+            <div
+              className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+              style={{ left: pickerPos.left, bottom: pickerPos.bottom + 320 }}
+            >
+              <div className="p-1">
+                {(
+                  [
+                    { id: "selection", label: "Selection", desc: "Selected text only" },
+                    { id: "file", label: "File", desc: "Current file" },
+                    { id: "chapter", label: "Chapter", desc: "Current section" },
+                    { id: "preamble", label: "Preamble", desc: "Setup only" },
+                    { id: "bibliography", label: "Bibliography", desc: "References" },
+                    { id: "project", label: "Project", desc: "Full project" },
+                  ] as const
+                ).map((s) => (
+                  <button
+                    key={s.id}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                    onClick={() => {
+                      setSelectedScope(s.id);
+                      setScopePickerOpen(false);
+                    }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-xs">{s.label}</div>
+                      <div className="truncate text-muted-foreground text-xs">{s.desc}</div>
+                    </div>
+                    {selectedScope === s.id && <CheckIcon className="size-3 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Action picker dropdown */}
+      {actionPickerOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50" onClick={() => setActionPickerOpen(false)}>
+            <div
+              className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+              style={{ left: pickerPos.left + 120, bottom: pickerPos.bottom + 320 }}
+            >
+              <div className="p-1">
+                {(
+                  [
+                    { id: "chat", label: "Chat", desc: "General conversation" },
+                    { id: "proofread", label: "Proofread", desc: "Check & fix text" },
+                    { id: "fix", label: "Fix", desc: "Fix errors only" },
+                    { id: "complete", label: "Complete", desc: "Continue writing" },
+                    { id: "explain", label: "Explain", desc: "Explain code" },
+                  ] as const
+                ).map((a) => (
+                  <button
+                    key={a.id}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                    onClick={() => {
+                      setSelectedAction(a.id);
+                      setActionPickerOpen(false);
+                    }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-xs">{a.label}</div>
+                      <div className="truncate text-muted-foreground text-xs">{a.desc}</div>
+                    </div>
+                    {selectedAction === a.id && <CheckIcon className="size-3 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {/* @ mention dropdown */}
       {slashQuery === null &&
         mentionQuery !== null &&
@@ -895,8 +996,33 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         )}
 
         <div className="flex items-center justify-between px-2 pb-2">
-          {/* Model & settings selector */}
-          <div>
+          {/* Model, scope, and action selectors */}
+          <div className="flex items-center gap-0.5">
+            {/* Scope selector */}
+            <button
+              type="button"
+              onClick={() => setScopePickerOpen((v) => !v)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+              title={`Scope: ${selectedScope}`}
+            >
+              <TargetIcon className="size-3" />
+              <span className="capitalize">{selectedScope}</span>
+              <ChevronDownIcon className="size-2.5" />
+            </button>
+
+            {/* Action selector */}
+            <button
+              type="button"
+              onClick={() => setActionPickerOpen((v) => !v)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+              title={`Action: ${selectedAction}`}
+            >
+              <Wand2Icon className="size-3" />
+              <span className="capitalize">{selectedAction}</span>
+              <ChevronDownIcon className="size-2.5" />
+            </button>
+
+            {/* Model & settings selector */}
             <button
               ref={modelButtonRef}
               type="button"

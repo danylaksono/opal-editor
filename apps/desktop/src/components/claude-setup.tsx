@@ -423,7 +423,7 @@ export function ClaudeSetup() {
           <div>
             <p className="font-medium text-sm">Claude Code Required</p>
             <p className="text-muted-foreground text-xs">
-              ClaudePrism needs Claude Code CLI to power AI features.
+              TectonicEditor needs Claude Code CLI to power AI features.
             </p>
           </div>
         </div>
