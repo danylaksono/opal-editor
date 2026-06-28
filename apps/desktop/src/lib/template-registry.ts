@@ -3182,24 +3182,96 @@ Summarize the key findings and their significance. State the main contributions 
   {
     id: "blank",
     name: "Blank Document",
-    description: "Minimal template to start from scratch",
+    description: "Clean academic starter for writing and previewing quickly",
     category: "starter",
     subcategory: "blank",
-    tags: ["blank", "empty", "minimal", "scratch", "custom"],
+    tags: ["blank", "academic", "article", "starter", "scratch", "custom"],
     icon: "File",
     documentClass: "article",
     mainFileName: "main.tex",
     accentColor: "#71717a",
     hasBibliography: false,
     aspectRatio: "3/4",
-    packages: [],
-    content: `\\documentclass[12pt]{article}
-\\usepackage[utf8]{inputenc}
+    packages: [
+      { name: "geometry", description: "Page layout customization" },
+      { name: "microtype", description: "Subtle typographic refinement" },
+      { name: "amsmath", description: "Mathematical typesetting" },
+      { name: "graphicx", description: "Image and figure support" },
+      { name: "booktabs", description: "Professional table formatting" },
+      { name: "hyperref", description: "Links and PDF metadata" },
+    ],
+    content: `\\documentclass[11pt]{article}
+
+\\usepackage[a4paper,margin=1in]{geometry}
 \\usepackage[T1]{fontenc}
+\\usepackage{microtype}
+\\usepackage{amsmath}
+\\usepackage{graphicx}
+\\usepackage{booktabs}
+\\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+
+\\title{Working Title}
+\\author{Your Name}
+\\date{\\today}
 
 \\begin{document}
 
-% Start writing here.
+\\maketitle
+
+\\begin{abstract}
+Write a concise summary of the research question, method, and main finding.
+Keep the abstract self-contained so it can be read before the rest of the paper.
+\\end{abstract}
+
+\\section{Introduction}
+\\label{sec:introduction}
+
+Use this section to introduce the problem and motivate why it matters.
+The editor outline follows section headings, while the PDF preview lets you check
+the compiled result as you write.
+
+\\section{Method}
+\\label{sec:method}
+
+Describe the data, assumptions, and procedure. For example, Equation~\\ref{eq:model}
+defines a simple model with an observed outcome $y_i$ and predictors $x_i$:
+
+\\begin{equation}
+  y_i = \\alpha + \\beta x_i + \\varepsilon_i .
+  \\label{eq:model}
+\\end{equation}
+
+\\section{Results}
+\\label{sec:results}
+
+Summarize the main results in prose, then use tables or figures where they help.
+Table~\\ref{tab:summary} is a small placeholder you can replace with your own
+estimates.
+
+\\begin{table}[h]
+  \\centering
+  \\begin{tabular}{lrr}
+    \\toprule
+    Measure & Baseline & Proposed \\\\
+    \\midrule
+    Accuracy & 0.72 & 0.81 \\\\
+    Error rate & 0.28 & 0.19 \\\\
+    \\bottomrule
+  \\end{tabular}
+  \\caption{Example summary table.}
+  \\label{tab:summary}
+\\end{table}
+
+\\section{Discussion}
+\\label{sec:discussion}
+
+Explain what the results mean, where the limitations are, and what should be
+checked next.
+
+\\section{Conclusion}
+\\label{sec:conclusion}
+
+State the contribution in one or two clear paragraphs.
 
 \\end{document}
 `,
@@ -3264,6 +3336,8 @@ export function searchTemplates(query: string): TemplateDefinition[] {
  * gallery preview / example rendering.
  */
 export function getTemplateSkeleton(template: TemplateDefinition): string {
+  if (template.id === "blank") return template.content;
+
   const marker = "\\begin{document}";
   const idx = template.content.indexOf(marker);
   if (idx === -1) return template.content;

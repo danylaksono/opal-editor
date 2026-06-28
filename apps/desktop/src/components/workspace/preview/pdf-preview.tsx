@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   FileTextIcon,
+  CheckCircle2Icon,
   SpellCheckIcon,
   AlertCircleIcon,
   LoaderIcon,
@@ -89,10 +90,12 @@ const ZOOM_OPTIONS = [
 export function PdfPreview() {
   const compilerBackend = useSettingsStore((s) => s.compilerBackend);
   const setCompilerBackend = useSettingsStore((s) => s.setCompilerBackend);
+  const aiProvider = useSettingsStore((s) => s.aiProvider);
   const pdfRevision = useDocumentStore((s) => s.pdfRevision);
   const compileError = useDocumentStore((s) => s.compileError);
   const isCompiling = useDocumentStore((s) => s.isCompiling);
   const isSaving = useDocumentStore((s) => s.isSaving);
+  const contentGeneration = useDocumentStore((s) => s.contentGeneration);
   const setPdfData = useDocumentStore((s) => s.setPdfData);
   const setCompileError = useDocumentStore((s) => s.setCompileError);
   const setIsCompiling = useDocumentStore((s) => s.setIsCompiling);
@@ -135,6 +138,18 @@ export function PdfPreview() {
 
   // Keep-alive: track which root files have PdfViewer instances alive (LRU order)
   const currentRootFileId = resolveTexRoot(activeFile?.id ?? "", files);
+  const lastCompiledGeneration = useDocumentStore((s) =>
+    currentRootFileId
+      ? s.lastCompiledGenerations.get(currentRootFileId)
+      : undefined,
+  );
+  const rootFileName =
+    files.find((f) => f.id === currentRootFileId)?.relativePath ?? "main.tex";
+  const previewIsStale =
+    !!pdfData &&
+    isTexActive &&
+    lastCompiledGeneration !== undefined &&
+    contentGeneration !== lastCompiledGeneration;
   const [aliveOrder, setAliveOrder] = useState<string[]>([]);
   const prevRootRef = useRef(currentRootFileId);
 
@@ -644,12 +659,23 @@ export function PdfPreview() {
       return (
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-6">
           <div className="w-full max-w-lg">
-            <div className="mb-4 flex items-center gap-2 text-destructive">
-              <AlertCircleIcon className="size-5" />
-              <h2 className="font-semibold text-base">Compilation Failed</h2>
-              <span className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-xs">
-                {errors.length} {errors.length === 1 ? "error" : "errors"}
-              </span>
+            <div className="mb-4 flex items-start gap-3">
+              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+                <AlertCircleIcon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold text-base text-destructive">
+                    Compilation failed
+                  </h2>
+                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive text-xs">
+                    {errors.length} {errors.length === 1 ? "error" : "errors"}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-muted-foreground text-xs">
+                  {rootFileName} with {compilerBackend}
+                </p>
+              </div>
             </div>
             <div className="rounded-lg border border-destructive/20 bg-background">
               <div className="max-h-60 divide-y divide-border overflow-y-auto">
@@ -662,22 +688,42 @@ export function PdfPreview() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <button
-                onClick={handleFixWithChat}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs shadow-sm transition-colors hover:bg-primary/90"
-              >
-                <MousePointerClickIcon className="size-3.5" />
-                Fix with Chat
-              </button>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => handleCompile(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 font-medium text-foreground text-xs transition-colors hover:bg-muted"
+                className="h-7 gap-1.5 px-2.5 text-xs"
               >
                 <RefreshCwIcon className="size-3.5" />
                 Retry
-              </button>
+              </Button>
+              {aiProvider !== "none" && (
+                <Button
+                  size="sm"
+                  onClick={handleFixWithChat}
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                >
+                  <MousePointerClickIcon className="size-3.5" />
+                  Fix with Chat
+                </Button>
+              )}
             </div>
           </div>
+        </div>
+      );
+    }
+    if (!pdfData && isCompiling) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-8">
+          <div className="mb-4 flex size-14 items-center justify-center rounded-md bg-background text-muted-foreground shadow-xs">
+            <LoaderIcon className="size-6 animate-spin" />
+          </div>
+          <h2 className="mb-2 font-medium text-foreground text-lg">
+            Building preview
+          </h2>
+          <p className="max-w-sm text-center text-muted-foreground text-sm">
+            Compiling {rootFileName} with {compilerBackend}.
+          </p>
         </div>
       );
     }
@@ -689,7 +735,7 @@ export function PdfPreview() {
             PDF Preview
           </h2>
           <p className="mb-4 text-center text-muted-foreground text-sm">
-            Press ⌘+Enter to compile your document
+            Compile {rootFileName} to inspect the PDF.
           </p>
           {isTexActive && (
             <Button
@@ -816,6 +862,13 @@ export function PdfPreview() {
               <SelectItem value="texlive">TeXLive</SelectItem>
             </SelectContent>
           </Select>
+          <div
+            className="@[34rem]/pv:flex hidden max-w-32 items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1 text-muted-foreground text-xs"
+            title={`Compile target: ${rootFileName}`}
+          >
+            <FileTextIcon className="size-3.5 shrink-0" />
+            <span className="truncate">{rootFileName}</span>
+          </div>
           {isSaving && (
             <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
@@ -832,6 +885,28 @@ export function PdfPreview() {
               </span>
             </div>
           )}
+          {!isSaving &&
+            !isCompiling &&
+            !compileError &&
+            pdfData &&
+            isTexActive && (
+              <div
+                className={
+                  previewIsStale
+                    ? "@[42rem]/pv:flex hidden items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 font-medium text-amber-700 text-xs dark:text-amber-300"
+                    : "@[42rem]/pv:flex hidden items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 font-medium text-emerald-700 text-xs dark:text-emerald-300"
+                }
+              >
+                {previewIsStale ? (
+                  <FileTextIcon className="size-3.5" />
+                ) : (
+                  <CheckCircle2Icon className="size-3.5" />
+                )}
+                <span>
+                  {previewIsStale ? "Edited since compile" : "Preview current"}
+                </span>
+              </div>
+            )}
           {!isSaving && !isCompiling && !compileError && isTexActive && (
             <Button
               variant="ghost"

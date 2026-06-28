@@ -97,5 +97,13 @@ describe("template-registry", () => {
       };
       expect(getTemplateSkeleton(fakeTemplate)).toBe(fakeTemplate.content);
     });
+
+    it("keeps blank document starter content", () => {
+      const blank = getTemplateById("blank")!;
+      const skeleton = getTemplateSkeleton(blank);
+      expect(skeleton).toBe(blank.content);
+      expect(skeleton).toContain("\\maketitle");
+      expect(skeleton).toContain("\\section{Introduction}");
+    });
   });
 });
