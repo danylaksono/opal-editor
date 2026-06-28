@@ -5,118 +5,91 @@
 <h1 align="center">TectonicEditor</h1>
 
 <p align="center">
-  A beautiful offline-first LaTeX editor with pluggable AI.<br/>
-  LaTeX + Python + 100+ scientific skills — runs on your desktop.
+  A beautiful, offline-first LaTeX editor.<br/>
+  Compile locally. Add AI when you want it. No accounts required.
 </p>
 
 <p align="center">
-  <a href="./README.md">English</a> ·
-  <a href="./README.ko.md">한국어</a> ·
-  <a href="./README.ja.md">日本語</a> ·
-  <a href="./README.zh-CN.md">简体中文</a>
-</p>
-
-<p align="center">
-  <img src="./assets/demo/main.webp" alt="TectonicEditor Demo" width="800" />
+  <img src="./assets/demo/main.webp" alt="TectonicEditor" width="800" />
 </p>
 
 <p align="center">
   <a href="https://github.com/anomalyco/tectonic-editor/releases/latest">
-    <img src="https://img.shields.io/github/v/release/anomalyco/tectonic-editor?style=flat-square&label=Latest%20Release&color=green" alt="Latest Release" />
+    <img src="https://img.shields.io/github/v/release/anomalyco/tectonic-editor?style=flat-square&label=latest&color=green" alt="Latest Release" />
   </a>
 </p>
 
 ---
 
-TectonicEditor is a **local-first** LaTeX scientific writing workspace. It compiles documents offline
-with an embedded [Tectonic](https://tectonic-typesetting.github.io/) engine (no TeX Live required),
-includes a built-in Python environment via [uv](https://docs.astral.sh/uv/), and supports **optional
-AI assistants** through a pluggable provider system.
-
-AI is entirely optional — the editor works beautifully on its own. When you want AI assistance, choose
-from multiple providers:
-
-| Provider | Setup |
-|---|---|
-| **Anthropic API** | Set `ANTHROPIC_API_KEY` |
-| **OpenAI API** | Set `OPENAI_API_KEY` (supports any OpenAI-compatible endpoint, including local models like Hermes) |
-| **Claude Code CLI** | Install `claude` CLI locally |
-
----
+TectonicEditor compiles LaTeX documents offline with an embedded [Tectonic](https://tectonic-typesetting.github.io/) engine — no TeX Live required. AI is **optional** and pluggable: bring your own API key for Anthropic, OpenAI (or any compatible endpoint like Hermes), or use the Claude Code CLI.
 
 ## Features
 
-### Live LaTeX Editor
-CodeMirror 6 with LaTeX/BibTeX syntax highlighting, real-time error linting, find & replace (regex),
-vim mode, dark/light themes, and multi-file project support with auto-save. Live PDF preview via
-MuPDF with SyncTeX — click in the PDF to jump to the source line.
+**Editor** — CodeMirror 6 with LaTeX/BibTeX highlighting, real-time linting, regex search, vim mode, dark/light themes, auto-save.
 
-### Offline Compilation
-Tectonic is embedded directly in the app. Packages are downloaded once on first use and cached
-locally — compilation works fully offline.
+**PDF Preview** — Native MuPDF rendering with SyncTeX. Click in the PDF to jump to the source line. Zoom, select, capture.
 
-### Built-in Python Environment
-One-click [uv](https://docs.astral.sh/uv/) setup creates a project-level virtual environment.
-Run Python scripts, generate plots, and process data without leaving the editor.
+**Offline Compilation** — Tectonic is embedded. Packages download once, then everything runs without internet.
 
-### 100+ Scientific Skills
-Browse and install domain-specific skills from [K-Dense Scientific Skills](https://github.com/K-Dense-AI/claude-scientific-skills) —
-curated prompts and tool configurations for bioinformatics, cheminformatics, machine learning,
-clinical research, and more.
+**Version History** — Every save creates a Git snapshot. Label checkpoints, browse diffs, restore any version.
 
-### Version History
-Every save creates a snapshot in a local Git repository. Label important checkpoints, browse diffs
-between any two snapshots, and restore previous versions.
+**AI Assistant** *(optional)* — Choose your provider, then pick a **scope** (selection, file, chapter, project) and **action** (chat, proofread, fix, complete, explain). The AI only sees what you send.
 
-### Smart AI Context
-When using AI, choose your **scope** (selection, current file, chapter, preamble, bibliography,
-or full project) and **action** (chat, proofread, fix, complete, explain). The AI only receives
-what you want it to see.
+**Python Environment** — Built-in [uv](https://docs.astral.sh/uv/) setup. One click creates a `.venv`. Run scripts, generate plots, process data without leaving the app.
 
-### More
-- **Zotero Integration** — OAuth-based bibliography management and citation insertion
-- **Capture & Ask** — `Cmd+X` to capture PDF regions and ask AI about them
-- **Slash Commands** — Built-in (`/review`, `/init`) + custom commands
-- **Template Gallery** — Quick-start templates: paper, thesis, presentation, poster, letter
-- **External Editors** — Open projects in Cursor, VS Code, Zed, or Sublime Text
+**More** — Zotero integration, template gallery (paper, thesis, slides, poster, letter), slash commands, capture & ask, external editor support (VS Code, Cursor, Zed, Sublime).
 
----
+## AI Providers
 
-## Installation
+| Provider | Setup |
+|---|---|
+| None | Default — editor works standalone |
+| Anthropic API | Set `ANTHROPIC_API_KEY` |
+| OpenAI API | Set `OPENAI_API_KEY` + optional `OPENAI_BASE_URL` |
+| Claude Code CLI | Install the `claude` CLI locally |
 
-Download the latest build from [GitHub Releases](https://github.com/anomalyco/tectonic-editor/releases).
+## Install
 
-## Development
+Download from [GitHub Releases](https://github.com/anomalyco/tectonic-editor/releases).
+
+## Develop
 
 ```bash
-# Prerequisites: pnpm, Rust toolchain, system deps for Tectonic
+# Prerequisites: pnpm 10+, Rust stable, Tectonic system deps
 # macOS:   brew install icu4c harfbuzz pkg-config
 # Linux:   apt install libicu-dev libgraphite2-dev libharfbuzz-dev libfreetype-dev libfontconfig-dev
+# Windows: see scripts/build-windows.ps1
 
 pnpm install
-pnpm dev:desktop        # Start Vite + Tauri in dev mode
-pnpm build:desktop      # Production build
-pnpm lint               # Run Biome linter
+pnpm dev:desktop       # dev mode (Vite + Tauri)
+pnpm build:desktop     # production build
+pnpm lint              # Biome linter
+pnpm --filter @tectonic-editor/desktop test   # Vitest
 ```
-
-## Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup, testing,
-and guidelines.
 
 ## Architecture
 
-TectonicEditor uses a **pluggable AI provider** system. Each provider implements the `AiProvider`
-trait (Rust) / `AiClient` interface (TypeScript). New providers can be added without touching
-core editor code.
+```
+apps/desktop/
+├── src/                    # React + TypeScript frontend
+│   ├── lib/ai/             # AI provider types, SSE parser
+│   ├── stores/             # Zustand state management
+│   ├── hooks/              # Custom hooks
+│   └── components/         # UI components
+└── src-tauri/              # Rust backend (Tauri 2)
+    └── src/
+        ├── ai/             # AiProvider trait + registry + providers
+        ├── latex.rs        # Tectonic compilation & SyncTeX
+        ├── history.rs      # Git version history
+        ├── zotero.rs       # Zotero OAuth integration
+        └── lib.rs          # Tauri command registration
+```
 
-See `apps/desktop/src-tauri/src/ai/` for the Rust provider API and
-`apps/desktop/src/lib/ai/` for the TypeScript types.
+New AI providers implement the `AiProvider` trait. See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
 
 ## Acknowledgments
 
-Originally forked from [Open Prism](https://github.com/assistant-ui/open-prism) by
-[assistant-ui](https://github.com/assistant-ui).
+Forked from [Open Prism](https://github.com/assistant-ui/open-prism) by [assistant-ui](https://github.com/assistant-ui).
 
 ## License
 
