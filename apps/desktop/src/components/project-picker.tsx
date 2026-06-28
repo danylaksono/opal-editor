@@ -51,8 +51,7 @@ export function ProjectPicker() {
   const checkClaudeStatus = useClaudeSetupStore((s) => s.checkStatus);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const isClaudeReady = claudeStatus === "ready";
-  const needsClaudeSetup =
-    aiProvider === "claude-cli" && !isClaudeReady;
+  const needsClaudeSetup = aiProvider === "claude-cli" && !isClaudeReady;
 
   useEffect(() => {
     if (aiProvider === "claude-cli") {
@@ -120,9 +119,6 @@ export function ProjectPicker() {
             variant="outline"
             className="flex-1 gap-2"
           >
-            <FolderPlusIcon className="size-5" />
-            New Project
-          </Button>
             <FolderPlusIcon className="size-5" />
             New Project
           </Button>

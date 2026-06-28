@@ -525,7 +525,8 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
 
     const ctx: AiContext = {
       scope: selectedScope,
-      files: pinnedContexts.length > 0 ? pinnedContexts.map((c) => c.filePath) : [],
+      files:
+        pinnedContexts.length > 0 ? pinnedContexts.map((c) => c.filePath) : [],
       action: selectedAction,
       selection:
         pinnedContexts.length > 0
@@ -539,11 +540,15 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       const combinedText = pinnedContexts
         .map((c) => c.selectedText)
         .join("\n\n---\n\n");
-      sendPrompt(finalPrompt, {
-        label: combinedLabel,
-        filePath: pinnedContexts[0].filePath,
-        selectedText: combinedText,
-      }, ctx);
+      sendPrompt(
+        finalPrompt,
+        {
+          label: combinedLabel,
+          filePath: pinnedContexts[0].filePath,
+          selectedText: combinedText,
+        },
+        ctx,
+      );
     } else {
       sendPrompt(finalPrompt, undefined, ctx);
     }
@@ -805,7 +810,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       {/* Scope picker dropdown */}
       {scopePickerOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50" onClick={() => setScopePickerOpen(false)}>
+          <div
+            className="fixed inset-0 z-50"
+            onClick={() => setScopePickerOpen(false)}
+          >
             <div
               className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
               style={{ left: pickerPos.left, bottom: pickerPos.bottom + 320 }}
@@ -813,11 +821,23 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
               <div className="p-1">
                 {(
                   [
-                    { id: "selection", label: "Selection", desc: "Selected text only" },
+                    {
+                      id: "selection",
+                      label: "Selection",
+                      desc: "Selected text only",
+                    },
                     { id: "file", label: "File", desc: "Current file" },
-                    { id: "chapter", label: "Chapter", desc: "Current section" },
+                    {
+                      id: "chapter",
+                      label: "Chapter",
+                      desc: "Current section",
+                    },
                     { id: "preamble", label: "Preamble", desc: "Setup only" },
-                    { id: "bibliography", label: "Bibliography", desc: "References" },
+                    {
+                      id: "bibliography",
+                      label: "Bibliography",
+                      desc: "References",
+                    },
                     { id: "project", label: "Project", desc: "Full project" },
                   ] as const
                 ).map((s) => (
@@ -831,9 +851,13 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-xs">{s.label}</div>
-                      <div className="truncate text-muted-foreground text-xs">{s.desc}</div>
+                      <div className="truncate text-muted-foreground text-xs">
+                        {s.desc}
+                      </div>
                     </div>
-                    {selectedScope === s.id && <CheckIcon className="size-3 shrink-0" />}
+                    {selectedScope === s.id && (
+                      <CheckIcon className="size-3 shrink-0" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -845,18 +869,32 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       {/* Action picker dropdown */}
       {actionPickerOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50" onClick={() => setActionPickerOpen(false)}>
+          <div
+            className="fixed inset-0 z-50"
+            onClick={() => setActionPickerOpen(false)}
+          >
             <div
               className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
-              style={{ left: pickerPos.left + 120, bottom: pickerPos.bottom + 320 }}
+              style={{
+                left: pickerPos.left + 120,
+                bottom: pickerPos.bottom + 320,
+              }}
             >
               <div className="p-1">
                 {(
                   [
                     { id: "chat", label: "Chat", desc: "General conversation" },
-                    { id: "proofread", label: "Proofread", desc: "Check & fix text" },
+                    {
+                      id: "proofread",
+                      label: "Proofread",
+                      desc: "Check & fix text",
+                    },
                     { id: "fix", label: "Fix", desc: "Fix errors only" },
-                    { id: "complete", label: "Complete", desc: "Continue writing" },
+                    {
+                      id: "complete",
+                      label: "Complete",
+                      desc: "Continue writing",
+                    },
                     { id: "explain", label: "Explain", desc: "Explain code" },
                   ] as const
                 ).map((a) => (
@@ -870,9 +908,13 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-xs">{a.label}</div>
-                      <div className="truncate text-muted-foreground text-xs">{a.desc}</div>
+                      <div className="truncate text-muted-foreground text-xs">
+                        {a.desc}
+                      </div>
                     </div>
-                    {selectedAction === a.id && <CheckIcon className="size-3 shrink-0" />}
+                    {selectedAction === a.id && (
+                      <CheckIcon className="size-3 shrink-0" />
+                    )}
                   </button>
                 ))}
               </div>

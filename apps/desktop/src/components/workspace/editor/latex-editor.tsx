@@ -652,7 +652,11 @@ export function LatexEditor() {
                       ? [
                           {
                             name: "Fix with chat",
-                            apply: (v: EditorView, from: number, _to: number) => {
+                            apply: (
+                              v: EditorView,
+                              from: number,
+                              _to: number,
+                            ) => {
                               const line = v.state.doc.lineAt(from);
                               const docState = useDocumentStore.getState();
                               const file = docState.files.find(
