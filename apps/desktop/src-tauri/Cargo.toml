@@ -1,11 +1,11 @@
 [package]
-name = "claude-prism-desktop"
+name = "tectonic-editor-desktop"
 version = "1.2.0"
-description = "AI-powered LaTeX writing workspace"
+description = "Offline-first LaTeX editor with pluggable AI"
 edition = "2021"
 
 [lib]
-name = "claude_prism_desktop_lib"
+name = "tectonic_editor_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

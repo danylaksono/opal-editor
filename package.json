@@ -1,10 +1,10 @@
 {
-  "name": "@claude-prism/root",
-  "description": "Open-Source AI LaTeX writing workspace",
+  "name": "@tectonic-editor/root",
+  "description": "Offline-first LaTeX editor with pluggable AI",
   "version": "1.2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/delibae/claude-prism"
+    "url": "https://github.com/anomalyco/tectonic-editor"
   },
   "private": true,
   "workspaces": [
@@ -12,9 +12,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "pnpm turbo dev --filter=@claude-prism/web --filter=@claude-prism/latex-api",
-    "dev:desktop": "pnpm --filter=@claude-prism/desktop-sidecar dev & pnpm --filter=@claude-prism/desktop tauri dev",
-    "build:desktop": "pnpm --filter=@claude-prism/desktop tauri build",
+    "dev:desktop": "pnpm --filter=@tectonic-editor/desktop tauri dev",
+    "build:desktop": "pnpm --filter=@tectonic-editor/desktop tauri build",
     "lint": "pnpm exec biome check",
     "lint:fix": "pnpm exec biome check --fix",
     "release": "echo 'To release: git tag v<version> && git push origin v<version>'",
