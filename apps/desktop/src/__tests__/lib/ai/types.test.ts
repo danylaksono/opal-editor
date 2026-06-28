@@ -40,9 +40,9 @@ describe("AiContext", () => {
       },
     };
 
-    expect(request.context.scope).toBe("file");
-    expect(request.context.action).toBe("fix");
-    expect(request.context.files).toEqual(["main.tex"]);
+    expect(request.context?.scope).toBe("file");
+    expect(request.context?.action).toBe("fix");
+    expect(request.context?.files).toEqual(["main.tex"]);
   });
 
   it("AiRequest without context defaults to project/chat", () => {

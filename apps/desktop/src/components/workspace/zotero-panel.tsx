@@ -166,14 +166,14 @@ export function ZoteroHeader() {
             isAuthenticated ? "bg-foreground" : "bg-muted-foreground/30",
           )}
         />
-        <span className="font-medium text-xs">Zotero</span>
+        <span className="font-medium text-xs">Citations</span>
       </div>
       {isAuthenticated && (
         <div className="absolute right-3 flex items-center gap-1">
           <button
             className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             onClick={loadCollections}
-            title="Refresh"
+            title="Refresh citations"
           >
             <RefreshCwIcon
               className={cn("size-3.5", isLoadingCollections && "animate-spin")}
@@ -226,7 +226,7 @@ function NotConnectedView({
         <LinkIcon className="size-4 text-muted-foreground" />
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Connect Zotero to import references.
+        Connect Zotero to import citation collections.
       </p>
       {isValidating ? (
         <div className="flex flex-col items-center gap-1">

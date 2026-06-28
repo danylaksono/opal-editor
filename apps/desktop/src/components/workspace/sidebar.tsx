@@ -38,10 +38,10 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTheme } from "next-themes";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
+import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
 import { cn } from "@/lib/utils";
 import { ZoteroPanel, ZoteroHeader } from "@/components/workspace/zotero-panel";
 import { Button } from "@/components/ui/button";
@@ -206,7 +206,11 @@ function useAppVersion() {
 
 // ─── Sidebar ───
 
-export function Sidebar() {
+interface SidebarProps {
+  activePanel: WorkspaceSidePanel;
+}
+
+export function Sidebar({ activePanel }: SidebarProps) {
   const appVersion = useAppVersion();
   const files = useDocumentStore((s) => s.files);
   const activeFileId = useDocumentStore((s) => s.activeFileId);
@@ -641,10 +645,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Resizable sections */}
-      <PanelGroup direction="vertical" className="min-h-0 flex-1">
-        {/* Files */}
-        <Panel defaultSize={50} minSize={15}>
+      <div className="min-h-0 flex-1">
+        {activePanel === "files" && (
           <div
             ref={sidebarFilesRef}
             className="flex h-full flex-col"
@@ -759,14 +761,11 @@ export function Sidebar() {
               </DragOverlay>
             </DndContext>
           </div>
-        </Panel>
+        )}
 
-        <PanelResizeHandle className="h-px bg-sidebar-border transition-colors hover:bg-ring data-resize-handle-active:bg-ring" />
-
-        {/* Outline */}
-        <Panel defaultSize={20} minSize={10}>
+        {activePanel === "outline" && (
           <div className="flex h-full flex-col">
-            <div className="flex h-8 shrink-0 items-center justify-center gap-2 px-3">
+            <div className="flex h-8 shrink-0 items-center justify-center gap-2 border-sidebar-border border-b px-3">
               <ListIcon className="size-3.5 text-muted-foreground" />
               <span className="font-medium text-xs">Outline</span>
             </div>
@@ -790,22 +789,19 @@ export function Sidebar() {
               )}
             </div>
           </div>
-        </Panel>
+        )}
 
-        <PanelResizeHandle className="h-px bg-sidebar-border transition-colors hover:bg-ring data-resize-handle-active:bg-ring" />
-
-        {/* Zotero */}
-        <Panel defaultSize={15} minSize={10}>
+        {activePanel === "citations" && (
           <div className="flex h-full flex-col">
-            <div className="flex h-8 shrink-0 items-center">
+            <div className="flex h-8 shrink-0 items-center border-sidebar-border border-b">
               <ZoteroHeader />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
               <ZoteroPanel />
             </div>
           </div>
-        </Panel>
-      </PanelGroup>
+        )}
+      </div>
 
       {/* Environment section — Python + Skills */}
       <EnvironmentSection projectPath={projectRoot} />

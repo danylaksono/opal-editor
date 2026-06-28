@@ -7,6 +7,7 @@ import {
 import { useDocumentStore } from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useProposedChangesStore } from "@/stores/proposed-changes-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import {
   compileLatex,
   resolveCompileTarget,
@@ -150,6 +151,7 @@ export function useAiEvents() {
             );
             if (toolBlocks) {
               for (const block of toolBlocks) {
+                if (!block.id || !block.name) continue;
                 const pending =
                   pendingToolUsesRef.current.get(tabId) ?? new Map();
                 pending.set(block.id, {
@@ -167,6 +169,7 @@ export function useAiEvents() {
             );
             if (toolBlocks) {
               for (const block of toolBlocks) {
+                if (!block.tool_use_id) continue;
                 const pending = pendingToolUsesRef.current.get(tabId);
                 const toolUse = pending?.get(block.tool_use_id);
                 if (toolUse) {
@@ -187,7 +190,7 @@ export function useAiEvents() {
                       );
                     }
                   }
-                  pending.delete(block.tool_use_id);
+                  pending?.delete(block.tool_use_id);
                 }
               }
             }
@@ -290,26 +293,29 @@ export function useAiEvents() {
               const docState = useDocumentStore.getState();
               const projectRoot = docState.projectRoot;
               if (projectRoot) {
-                const target = await resolveCompileTarget(projectRoot);
+                const activeFileId =
+                  docState.activeFileId ??
+                  docState.files.find((f) => f.type === "tex")?.id;
+                const target = activeFileId
+                  ? resolveCompileTarget(activeFileId, docState.files)
+                  : null;
                 if (target) {
-                  const result = await compileLatex(
+                  const useTexlive =
+                    useSettingsStore.getState().compilerBackend === "texlive";
+                  const data = await compileLatex(
                     projectRoot,
-                    target,
-                    useDocumentStore.getState().compilerBackend,
+                    target.targetPath,
+                    useTexlive,
                   );
-                  if (result.success && result.pdfBytes) {
-                    docState.setCompilationResult(
-                      projectRoot,
-                      result.pdfBytes,
-                      result.log,
-                    );
-                  } else if (!result.success && result.log) {
-                    docState.setCompileError(formatCompileError(result.log));
-                  }
+                  docState.setPdfData(data, target.rootId);
                 }
               }
-            } catch {
-              // compilation failure is non-critical
+            } catch (error) {
+              const docState = useDocumentStore.getState();
+              const activeFileId =
+                docState.activeFileId ??
+                docState.files.find((f) => f.type === "tex")?.id;
+              docState.setCompileError(formatCompileError(error), activeFileId);
             }
             try {
               await useHistoryStore

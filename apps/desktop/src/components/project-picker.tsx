@@ -106,11 +106,12 @@ export function ProjectPicker() {
       const template = getTemplateById("blank");
       if (!template) throw new Error("Blank template is not available");
 
-      const baseFolder =
-        lastProjectFolder ??
-        (await homeDir().then((home) =>
-          join(home, "Documents", "TectonicEditor"),
-        ));
+      let baseFolder = lastProjectFolder;
+      if (!baseFolder) {
+        const home = await homeDir();
+        if (!home) throw new Error("Could not find your home directory");
+        baseFolder = await join(home, "Documents", "TectonicEditor");
+      }
       await mkdir(baseFolder, { recursive: true });
 
       const projectPath = await join(baseFolder, randomProjectName());
