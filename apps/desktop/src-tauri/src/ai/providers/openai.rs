@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
-    AiCompleteEvent, AiErrorEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo,
-    AiRequest, AiSessionInfo,
+    AiCompleteEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo, AiRequest,
+    AiSessionInfo,
 };
 
 pub struct OpenAiProvider;
@@ -48,7 +48,6 @@ impl AiProvider for OpenAiProvider {
 
         let mut messages: Vec<serde_json::Value> = Vec::new();
 
-        // Add system prompt
         let system = request
             .system_prompt
             .unwrap_or_else(default_latex_system_prompt);
@@ -57,14 +56,12 @@ impl AiProvider for OpenAiProvider {
             "content": system
         }));
 
-        // Add conversation history
         for msg in &request.messages {
             if let Some(json) = openai_message_to_json(msg) {
                 messages.push(json);
             }
         }
 
-        // Add the new user prompt
         messages.push(serde_json::json!({
             "role": "user",
             "content": request.prompt
@@ -93,49 +90,33 @@ impl AiProvider for OpenAiProvider {
             return Err(format!("OpenAI API error {}: {}", status, text));
         }
 
-        let mut stream = response.bytes_stream();
-        use futures_util::StreamExt;
+        let full_text = response
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
 
         let provider_clone = provider_id.clone();
         let win = window.clone();
         let tid = tab_id.clone();
 
         tokio::spawn(async move {
-            while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        for line in text.lines() {
-                            let line = line.trim();
-                            if line.is_empty() || !line.starts_with("data: ") {
-                                continue;
-                            }
-                            let data = &line[6..];
-                            if data == "[DONE]" {
-                                continue;
-                            }
-                            let _ = win.emit(
-                                "ai-output",
-                                AiOutputEvent {
-                                    tab_id: tid.clone(),
-                                    data: data.to_string(),
-                                    provider: provider_clone.clone(),
-                                },
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        let _ = win.emit(
-                            "ai-error",
-                            AiErrorEvent {
-                                tab_id: tid.clone(),
-                                data: format!("Stream error: {}", e),
-                                provider: provider_clone.clone(),
-                            },
-                        );
-                        break;
-                    }
+            for line in full_text.lines() {
+                let line = line.trim();
+                if line.is_empty() || !line.starts_with("data: ") {
+                    continue;
                 }
+                let data = &line[6..];
+                if data == "[DONE]" {
+                    continue;
+                }
+                let _ = win.emit(
+                    "ai-output",
+                    AiOutputEvent {
+                        tab_id: tid.clone(),
+                        data: data.to_string(),
+                        provider: provider_clone.clone(),
+                    },
+                );
             }
             let _ = win.emit(
                 "ai-complete",
@@ -150,18 +131,11 @@ impl AiProvider for OpenAiProvider {
         Ok(())
     }
 
-    async fn cancel(
-        &self,
-        _window: &WebviewWindow,
-        _tab_id: &str,
-    ) -> Result<(), String> {
+    async fn cancel(&self, _window: &WebviewWindow, _tab_id: &str) -> Result<(), String> {
         Ok(())
     }
 
-    async fn list_sessions(
-        &self,
-        _project_path: &str,
-    ) -> Result<Vec<AiSessionInfo>, String> {
+    async fn list_sessions(&self, _project_path: &str) -> Result<Vec<AiSessionInfo>, String> {
         Ok(Vec::new())
     }
 
@@ -243,5 +217,6 @@ fn default_latex_system_prompt() -> String {
         "   new content\n",
         "   >>>>>>> REPLACE\n",
         "   ```"
-    ).to_string()
+    )
+    .to_string()
 }

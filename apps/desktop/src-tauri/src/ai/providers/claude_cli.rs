@@ -1,12 +1,11 @@
 use async_trait::async_trait;
-use tauri::{Emitter, WebviewWindow};
+use tauri::{Emitter, Manager, WebviewWindow};
 
 use crate::claude;
 use crate::claude::ClaudeProcessState;
 
 use super::super::{
-    AiCompleteEvent, AiErrorEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo,
-    AiRequest, AiSessionInfo,
+    AiCompleteEvent, AiMessage, AiProvider, AiProviderInfo, AiRequest, AiSessionInfo,
 };
 
 pub struct ClaudeCliProvider;

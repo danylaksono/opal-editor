@@ -41,6 +41,7 @@ impl ProviderRegistry {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn get_provider_info(&self, id: &str) -> Option<AiProviderInfo> {
         self.providers
             .iter()

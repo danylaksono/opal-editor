@@ -10,10 +10,10 @@ mod zotero;
 use std::path::Path;
 use std::sync::Arc;
 use tauri_plugin_fs::FsExt;
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use ai::registry::ProviderRegistry;
-use ai::{AiProvider, AiProviderInfo, AiRequest, AiSessionInfo};
+use ai::{AiProviderInfo, AiRequest, AiSessionInfo};
 
 /// Entry point for the `--tectonic-compile` subprocess mode.
 /// Runs tectonic compilation in an isolated process so that C-level global state

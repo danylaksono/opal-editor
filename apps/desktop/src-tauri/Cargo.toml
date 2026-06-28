@@ -23,7 +23,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 tokio = { version = "1", features = ["full"] }
 dirs = "5"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 hmac = "0.12"
 sha1 = "0.10"
 base64 = "0.22"
@@ -40,7 +40,6 @@ tectonic = { version = "0.15", default-features = true, features = ["external-ha
 flate2 = "1"
 tar = "0.4"
 async-trait = "0.1"
-futures-util = "0.3"
 
 [lints.clippy]
 unwrap_used = "deny"

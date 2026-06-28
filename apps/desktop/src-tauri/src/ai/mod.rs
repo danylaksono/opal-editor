@@ -61,6 +61,7 @@ pub struct AiFunctionCall {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct AiUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -145,6 +146,7 @@ pub struct AiErrorEvent {
 // ─── Provider Trait ───
 
 #[async_trait]
+#[allow(dead_code)]
 pub trait AiProvider: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
