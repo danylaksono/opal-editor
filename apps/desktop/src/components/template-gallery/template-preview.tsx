@@ -43,6 +43,7 @@ import { getMupdfClient } from "@/lib/mupdf/mupdf-client";
 import { exists, join } from "@/lib/tauri/fs";
 import type { PageSize } from "@/lib/mupdf/types";
 import { createLogger } from "@/lib/debug/logger";
+import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
 
 const log = createLogger("template-preview");
 
@@ -409,6 +410,12 @@ export function TemplatePreview() {
       const projectPath = await join(projectFolder, projectName.trim());
       await mkdir(projectPath, { recursive: true });
 
+      const aiGuidePath = await join(projectPath, "AGENTS.md");
+      const aiGuideExists = await exists(aiGuidePath);
+      if (!aiGuideExists) {
+        await writeTextFile(aiGuidePath, DEFAULT_AI_PROJECT_GUIDE);
+      }
+
       const mainTexPath = await join(projectPath, template.mainFileName);
       const mainExists = await exists(mainTexPath);
       if (!mainExists) {
@@ -483,6 +490,7 @@ export function TemplatePreview() {
   const canCreate = template && projectFolder && projectName.trim();
 
   if (!template) return null;
+  const isBlankTemplate = template.id === "blank";
 
   // ── Modal width depends on step ──
   const modalWidth =
@@ -514,11 +522,22 @@ export function TemplatePreview() {
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
                     size="sm"
-                    onClick={() => setModalStep("details")}
+                    onClick={
+                      isBlankTemplate
+                        ? handleCreate
+                        : () => setModalStep("details")
+                    }
+                    disabled={isCreating || (isBlankTemplate && !canCreate)}
                     className="gap-1.5"
                   >
-                    <SparklesIcon className="size-3.5" />
-                    Use Template
+                    {isCreating ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : isBlankTemplate ? (
+                      <FileTextIcon className="size-3.5" />
+                    ) : (
+                      <SparklesIcon className="size-3.5" />
+                    )}
+                    {isBlankTemplate ? "Create Blank Document" : "Use Template"}
                   </Button>
                 </div>
               </div>

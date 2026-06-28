@@ -3,6 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
+import { homeDir } from "@tauri-apps/api/path";
+import { toast } from "sonner";
 import {
   FolderOpenIcon,
   FolderPlusIcon,
@@ -34,17 +37,32 @@ import {
 import { ProjectWizard, type CreationMode } from "./project-wizard";
 import { ClaudeSetup } from "./claude-setup";
 import { AiSettings } from "./ai-settings";
+import { exists, join } from "@/lib/tauri/fs";
+import { getTemplateById, getTemplateSkeleton } from "@/lib/template-registry";
+import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
 import { cn } from "@/lib/utils";
+
+function randomProjectName(): string {
+  const adjectives = ["swift", "bright", "calm", "bold", "keen"];
+  const nouns = ["paper", "draft", "note", "study", "folio"];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const id = Math.random().toString(36).slice(2, 6);
+  return `${adj}-${noun}-${id}`;
+}
 
 export function ProjectPicker() {
   const [showModeDialog, setShowModeDialog] = useState(false);
   const [wizardMode, setWizardMode] = useState<CreationMode | null>(null);
   const [appVersion, setAppVersion] = useState("");
+  const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const { status: updateStatus, checkForUpdate, installUpdate } = useUpdater();
 
   const recentProjects = useProjectStore((s) => s.recentProjects);
   const addRecentProject = useProjectStore((s) => s.addRecentProject);
   const removeRecentProject = useProjectStore((s) => s.removeRecentProject);
+  const lastProjectFolder = useProjectStore((s) => s.lastProjectFolder);
+  const setLastProjectFolder = useProjectStore((s) => s.setLastProjectFolder);
   const openProject = useDocumentStore((s) => s.openProject);
 
   const claudeStatus = useClaudeSetupStore((s) => s.status);
@@ -80,6 +98,45 @@ export function ProjectPicker() {
   const handleSelectMode = (mode: CreationMode) => {
     setShowModeDialog(false);
     setWizardMode(mode);
+  };
+
+  const handleCreateBlankDocument = async () => {
+    setIsCreatingBlank(true);
+    try {
+      const template = getTemplateById("blank");
+      if (!template) throw new Error("Blank template is not available");
+
+      const baseFolder =
+        lastProjectFolder ??
+        (await homeDir().then((home) =>
+          join(home, "Documents", "TectonicEditor"),
+        ));
+      await mkdir(baseFolder, { recursive: true });
+
+      const projectPath = await join(baseFolder, randomProjectName());
+      await mkdir(projectPath, { recursive: true });
+
+      const aiGuidePath = await join(projectPath, "AGENTS.md");
+      if (!(await exists(aiGuidePath))) {
+        await writeTextFile(aiGuidePath, DEFAULT_AI_PROJECT_GUIDE);
+      }
+
+      const mainTexPath = await join(projectPath, template.mainFileName);
+      if (!(await exists(mainTexPath))) {
+        await writeTextFile(mainTexPath, getTemplateSkeleton(template));
+      }
+
+      setShowModeDialog(false);
+      setLastProjectFolder(baseFolder);
+      addRecentProject(projectPath);
+      await openProject(projectPath);
+    } catch (err) {
+      toast.error("Failed to create blank document", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsCreatingBlank(false);
+    }
   };
 
   if (wizardMode) {
@@ -196,11 +253,16 @@ export function ProjectPicker() {
             </button>
 
             <button
-              onClick={() => handleSelectMode("scratch")}
+              onClick={handleCreateBlankDocument}
+              disabled={isCreatingBlank}
               className="group flex flex-1 flex-col items-center gap-3 rounded-xl border border-border p-5 text-center transition-all hover:border-foreground/20 hover:bg-muted/50"
             >
               <div className="flex size-12 items-center justify-center rounded-lg bg-muted/50 transition-colors group-hover:bg-muted">
-                <FileTextIcon className="size-6 text-muted-foreground transition-colors group-hover:text-foreground" />
+                {isCreatingBlank ? (
+                  <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <FileTextIcon className="size-6 text-muted-foreground transition-colors group-hover:text-foreground" />
+                )}
               </div>
               <div>
                 <div className="font-semibold text-sm">Blank Document</div>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -9,7 +9,6 @@ import {
   FolderOpenIcon,
   PaperclipIcon,
   XIcon,
-  SparklesIcon,
   UploadIcon,
   ChevronDownIcon,
   FileTextIcon,
@@ -17,11 +16,9 @@ import {
   Loader2Icon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useProjectStore } from "@/stores/project-store";
 import { useDocumentStore } from "@/stores/document-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
 import { exists, join } from "@/lib/tauri/fs";
 import {
   getTemplateById,
@@ -104,7 +101,6 @@ export function ProjectWizard({ mode, onBack }: ProjectWizardProps) {
 // ─── Scratch mode form (no template preview) ───
 
 function ScratchForm({ onBack }: { onBack: () => void }) {
-  const [purpose, setPurpose] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [projectFolder, setProjectFolder] = useState<string | null>(null);
   const [projectName, setProjectName] = useState(randomProjectName);
@@ -113,19 +109,12 @@ function ScratchForm({ onBack }: { onBack: () => void }) {
   const [refFilesOpen, setRefFilesOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const addRecentProject = useProjectStore((s) => s.addRecentProject);
   const lastProjectFolder = useProjectStore((s) => s.lastProjectFolder);
   const setLastProjectFolder = useProjectStore((s) => s.setLastProjectFolder);
   const openProject = useDocumentStore((s) => s.openProject);
 
   const template = getTemplateById("blank")!;
-
-  useEffect(() => {
-    const timer = setTimeout(() => textareaRef.current?.focus(), 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     if (projectFolder) return;
@@ -265,36 +254,6 @@ function ScratchForm({ onBack }: { onBack: () => void }) {
         await mkdir(attachmentsDir, { recursive: true });
       }
 
-      if (purpose.trim()) {
-        const attachmentNames = attachments
-          .map((p) => p.split(/[/\\]/).pop())
-          .filter(Boolean);
-        const attachmentSection =
-          attachmentNames.length > 0
-            ? `\n### Reference Files\n${attachmentNames.map((n) => `- \`${n}\``).join("\n")}\n\nPlease review them and incorporate relevant information.\n`
-            : "";
-
-        const prompt = [
-          `## New ${template.name} Project`,
-          "",
-          `**Template:** \`${template.documentClass}\`  `,
-          `**File:** \`${template.mainFileName}\``,
-          "",
-          `> The file currently contains only the LaTeX preamble (packages, styling, custom commands) with an empty document body.`,
-          "",
-          `### What I want to create`,
-          "",
-          purpose.trim(),
-          attachmentSection,
-          `### Instructions`,
-          "",
-          `Please generate the full document content based on my description. Keep the existing preamble and fill in the document body (between \`\\begin{document}\` and \`\\end{document}\`) with appropriate title, author, sections, and content. Make it a complete, well-structured **${template.name.toLowerCase()}** ready for me to refine.`,
-        ].join("\n");
-
-        useClaudeChatStore.getState().newSession();
-        useClaudeChatStore.getState().setPendingInitialPrompt(prompt);
-      }
-
       setLastProjectFolder(projectFolder);
       addRecentProject(projectPath);
       await openProject(projectPath);
@@ -334,27 +293,6 @@ function ScratchForm({ onBack }: { onBack: () => void }) {
       {/* Form */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[520px] space-y-4 px-6 py-10">
-          {/* Purpose */}
-          <div className="space-y-2.5">
-            <div>
-              <span className="font-semibold text-sm">
-                What are you writing?
-              </span>
-              <p className="mt-0.5 text-muted-foreground text-xs leading-relaxed">
-                Describe your document and your AI assistant will generate
-                tailored content.
-              </p>
-            </div>
-            <Textarea
-              ref={textareaRef}
-              placeholder="e.g., A research paper on transformer architectures for protein structure prediction, targeting NeurIPS 2025..."
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              rows={4}
-              className="resize-none rounded-xl border-border/60 bg-card/30 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus-visible:bg-card/50"
-            />
-          </div>
-
           {/* Collapsible sections */}
           <div className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/60 bg-card/30">
             {/* Reference files */}
@@ -502,11 +440,6 @@ function ScratchForm({ onBack }: { onBack: () => void }) {
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
                   Creating project...
-                </>
-              ) : purpose.trim() ? (
-                <>
-                  <SparklesIcon className="size-4" />
-                  Create & Generate with AI
                 </>
               ) : (
                 "Create Project"
