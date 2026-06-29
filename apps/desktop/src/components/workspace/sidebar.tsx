@@ -11,9 +11,6 @@ import {
   PencilIcon,
   UploadIcon,
   RefreshCwIcon,
-  SunIcon,
-  MoonIcon,
-  MonitorIcon,
   ListIcon,
   HashIcon,
   GithubIcon,
@@ -38,7 +35,6 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useTheme } from "next-themes";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
 import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
@@ -228,8 +224,6 @@ export function Sidebar({ activePanel }: SidebarProps) {
   const refreshFiles = useDocumentStore((s) => s.refreshFiles);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const folders = useDocumentStore((s) => s.folders);
-  const { theme, setTheme } = useTheme();
-
   // ─── Native OS file drop (Tauri onDragDropEvent) ───
   const sidebarFilesRef = useRef<HTMLDivElement>(null);
   const nativeDropTargetRef = useRef<string | null>(null);
@@ -874,31 +868,6 @@ export function Sidebar({ activePanel }: SidebarProps) {
             >
               <GithubIcon className="size-3.5" />
             </a>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            onClick={() => {
-              if (theme === "system") setTheme("light");
-              else if (theme === "light") setTheme("dark");
-              else setTheme("system");
-            }}
-            title={
-              theme === "system"
-                ? "System theme"
-                : theme === "light"
-                  ? "Light mode"
-                  : "Dark mode"
-            }
-          >
-            {theme === "system" ? (
-              <MonitorIcon className="size-3.5" />
-            ) : theme === "light" ? (
-              <SunIcon className="size-3.5" />
-            ) : (
-              <MoonIcon className="size-3.5" />
-            )}
           </Button>
         </div>
       </div>

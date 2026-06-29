@@ -16,6 +16,7 @@ import {
   PanelRightOpenIcon,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
+import { AppearancePopover } from "./appearance-popover";
 import { LatexEditor } from "./editor/latex-editor";
 import { ProblemsPanel } from "./editor/problems-panel";
 import { PdfPreview } from "./preview/pdf-preview";
@@ -86,6 +87,10 @@ function ActivityRail() {
             </Button>
           );
         })}
+      </div>
+
+      <div className="flex shrink-0 flex-col items-center px-1 py-2">
+        <AppearancePopover />
       </div>
     </div>
   );
