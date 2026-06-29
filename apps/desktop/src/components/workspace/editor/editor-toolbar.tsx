@@ -18,6 +18,7 @@ import {
   ExternalLinkIcon,
 } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { CitationPicker } from "@/components/workspace/citation-picker";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -79,9 +80,11 @@ export function EditorToolbar({
     const activeFile = s.files.find((f) => f.id === s.activeFileId);
     return activeFile?.relativePath;
   });
+  const files = useDocumentStore((s) => s.files);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
 
   const [editors, setEditors] = useState<EditorInfo[]>([]);
+  const [citationPickerOpen, setCitationPickerOpen] = useState(false);
 
   useEffect(() => {
     invoke<EditorInfo[]>("detect_editors")
@@ -129,6 +132,19 @@ export function EditorToolbar({
 
   const wrapSelection = (wrapper: string) => {
     insertText(wrapper, wrapper);
+  };
+
+  const insertCitation = (command: string, citekeys: string[]) => {
+    const view = editorView.current;
+    if (!view) return;
+    const keys = citekeys.join(",");
+    const citation = `\\${command}{${keys}}`;
+    const { from, to } = view.state.selection.main;
+    view.dispatch({
+      changes: { from, to, insert: citation },
+      selection: { anchor: from + citation.length },
+    });
+    view.focus();
   };
 
   const zoomIn = () => onImageScaleChange?.(Math.min(4, imageScale + 0.25));
@@ -230,112 +246,121 @@ export function EditorToolbar({
   }
 
   return (
-    <div className="flex h-[calc(36px+var(--titlebar-height))] items-center gap-1 border-border border-b bg-muted/30 px-2 pt-[var(--titlebar-height)]">
-      <FileTextIcon className="size-4 text-muted-foreground" />
-      <span className="mr-2 font-medium text-muted-foreground text-sm">
-        {fileName}
-      </span>
-      <div className="mx-2 h-4 w-px bg-border" />
-      <TooltipIconButton
-        tooltip="Bold (\\textbf)"
-        onClick={() => insertText("\\textbf{", "}")}
-      >
-        <BoldIcon className="size-4" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Italic (\\textit)"
-        onClick={() => insertText("\\textit{", "}")}
-      >
-        <ItalicIcon className="size-4" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Code (\\texttt)"
-        onClick={() => insertText("\\texttt{", "}")}
-      >
-        <CodeIcon className="size-4" />
-      </TooltipIconButton>
-      <div className="mx-2 h-4 w-px bg-border" />
-      <TooltipIconButton
-        tooltip="Section"
-        onClick={() => insertText("\\section{", "}")}
-      >
-        <Heading1Icon className="size-4" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Subsection"
-        onClick={() => insertText("\\subsection{", "}")}
-      >
-        <Heading2Icon className="size-4" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="List item"
-        onClick={() => insertText("\\item ")}
-      >
-        <ListIcon className="size-4" />
-      </TooltipIconButton>
-      <div className="mx-2 h-4 w-px bg-border" />
-      <TooltipIconButton
-        tooltip="Inline math ($...$)"
-        onClick={() => wrapSelection("$")}
-      >
-        <FunctionSquareIcon className="size-4" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Display math (\\[...\\])"
-        onClick={() => insertText("\\[\n  ", "\n\\]")}
-      >
-        <span className="font-mono text-xs">∫</span>
-      </TooltipIconButton>
-      <div className="mx-2 h-4 w-px bg-border" />
-      <TooltipIconButton
-        tooltip="Citation (\\cite)"
-        onClick={() => insertText("\\cite{", "}")}
-      >
-        <BookMarkedIcon className="size-4" />
-      </TooltipIconButton>
-      <div className="mx-2 h-4 w-px bg-border" />
-      <Button
-        variant={vimMode ? "default" : "ghost"}
-        size="sm"
-        className="h-6 px-2 font-mono text-xs"
-        onClick={() => setVimMode(!vimMode)}
-        title="Toggle Vim mode"
-      >
-        VIM
-      </Button>
-      <div data-tauri-drag-region className="flex-1 self-stretch" />
-      {editors.length === 1 && (
+    <>
+      <div className="flex h-[calc(36px+var(--titlebar-height))] items-center gap-1 border-border border-b bg-muted/30 px-2 pt-[var(--titlebar-height)]">
+        <FileTextIcon className="size-4 text-muted-foreground" />
+        <span className="mr-2 font-medium text-muted-foreground text-sm">
+          {fileName}
+        </span>
+        <div className="mx-2 h-4 w-px bg-border" />
         <TooltipIconButton
-          tooltip={`Open in ${editors[0].name}`}
-          onClick={() => openInEditor(editors[0].id)}
+          tooltip="Bold (\\textbf)"
+          onClick={() => insertText("\\textbf{", "}")}
         >
-          <ExternalLinkIcon className="size-4" />
+          <BoldIcon className="size-4" />
         </TooltipIconButton>
-      )}
-      {editors.length > 1 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6 p-1"
-              title="Open in Editor"
-            >
-              <ExternalLinkIcon className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {editors.map((editor) => (
-              <DropdownMenuItem
-                key={editor.id}
-                onClick={() => openInEditor(editor.id)}
+        <TooltipIconButton
+          tooltip="Italic (\\textit)"
+          onClick={() => insertText("\\textit{", "}")}
+        >
+          <ItalicIcon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Code (\\texttt)"
+          onClick={() => insertText("\\texttt{", "}")}
+        >
+          <CodeIcon className="size-4" />
+        </TooltipIconButton>
+        <div className="mx-2 h-4 w-px bg-border" />
+        <TooltipIconButton
+          tooltip="Section"
+          onClick={() => insertText("\\section{", "}")}
+        >
+          <Heading1Icon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Subsection"
+          onClick={() => insertText("\\subsection{", "}")}
+        >
+          <Heading2Icon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="List item"
+          onClick={() => insertText("\\item ")}
+        >
+          <ListIcon className="size-4" />
+        </TooltipIconButton>
+        <div className="mx-2 h-4 w-px bg-border" />
+        <TooltipIconButton
+          tooltip="Inline math ($...$)"
+          onClick={() => wrapSelection("$")}
+        >
+          <FunctionSquareIcon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Display math (\\[...\\])"
+          onClick={() => insertText("\\[\n  ", "\n\\]")}
+        >
+          <span className="font-mono text-xs">∫</span>
+        </TooltipIconButton>
+        <div className="mx-2 h-4 w-px bg-border" />
+        <TooltipIconButton
+          tooltip="Citation picker"
+          onClick={() => setCitationPickerOpen(true)}
+        >
+          <BookMarkedIcon className="size-4" />
+        </TooltipIconButton>
+        <div className="mx-2 h-4 w-px bg-border" />
+        <Button
+          variant={vimMode ? "default" : "ghost"}
+          size="sm"
+          className="h-6 px-2 font-mono text-xs"
+          onClick={() => setVimMode(!vimMode)}
+          title="Toggle Vim mode"
+        >
+          VIM
+        </Button>
+        <div data-tauri-drag-region className="flex-1 self-stretch" />
+        {editors.length === 1 && (
+          <TooltipIconButton
+            tooltip={`Open in ${editors[0].name}`}
+            onClick={() => openInEditor(editors[0].id)}
+          >
+            <ExternalLinkIcon className="size-4" />
+          </TooltipIconButton>
+        )}
+        {editors.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6 p-1"
+                title="Open in Editor"
               >
-                {editor.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
+                <ExternalLinkIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {editors.map((editor) => (
+                <DropdownMenuItem
+                  key={editor.id}
+                  onClick={() => openInEditor(editor.id)}
+                >
+                  {editor.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      <CitationPicker
+        open={citationPickerOpen}
+        onOpenChange={setCitationPickerOpen}
+        files={files}
+        onInsert={insertCitation}
+      />
+    </>
   );
 }
