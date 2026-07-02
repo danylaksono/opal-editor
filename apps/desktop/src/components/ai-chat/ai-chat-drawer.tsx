@@ -8,6 +8,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useDocumentStore } from "@/stores/document-store";
 import { useAiEvents } from "@/hooks/use-ai-events";
 import { ChatMessages } from "./chat-messages";
 import { ChatComposer } from "./chat-composer";
@@ -24,6 +25,14 @@ export function ClaudeChatDrawer() {
     s.tabs.some((t) => t.isStreaming),
   );
   const error = useClaudeChatStore((s) => s.error);
+
+  // Reset the chat session when the project changes so stale messages from a
+  // previous project don't leak into the next one. (The chat store is global
+  // and outlives this component's per-project remount.)
+  const projectRoot = useDocumentStore((s) => s.projectRoot);
+  useEffect(() => {
+    useClaudeChatStore.getState().newSession();
+  }, [projectRoot]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);

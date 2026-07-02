@@ -27,7 +27,6 @@ import type { AiContext } from "@/lib/ai/types";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { invoke } from "@tauri-apps/api/core";
 import {
   useClaudeChatStore,
   offsetToLineCol,
@@ -38,13 +37,9 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { getUniqueTargetName } from "@/lib/tauri/fs";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
-import { SlashCommandPicker, type SlashCommand } from "./slash-command-picker";
 import { createLogger } from "@/lib/debug/logger";
 
 const log = createLogger("chat-composer");
-
-// Re-export for other modules
-export type { SlashCommand };
 
 interface PinnedContext {
   label: string; // @file:line:col-line:col
@@ -73,8 +68,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const isStreaming = useClaudeChatStore((s) => s.isStreaming);
   const selectedModel = useClaudeChatStore((s) => s.selectedModel);
   const setSelectedModel = useClaudeChatStore((s) => s.setSelectedModel);
-  const effortLevel = useClaudeChatStore((s) => s.effortLevel);
-  const setEffortLevel = useClaudeChatStore((s) => s.setEffortLevel);
   const activeTabId = useClaudeChatStore((s) => s.activeTabId);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const availableModels = getModelsForProvider(aiProvider);
@@ -130,10 +123,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const [mentionFiles, setMentionFiles] = useState<ProjectFile[]>([]);
   const mentionRef = useRef<HTMLDivElement>(null);
 
-  // / slash command state
-  const [slashQuery, setSlashQuery] = useState<string | null>(null);
-  const slashSelectedRef = useRef(false); // true after user picks a command — suppresses re-open
-
   // Keep refs to latest input/pinnedContexts so the tab-switch effect can
   // save the draft without depending on these values (which would cause loops).
   const inputRef = useRef(input);
@@ -162,12 +151,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     setInput(draft?.input ?? "");
     setPinnedContexts(draft?.pinnedContexts ?? []);
     setMentionQuery(null);
-    setSlashQuery(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
   }, [activeTabId]);
-  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const composerRef = useRef<HTMLDivElement>(null);
 
   // Watch selection changes to auto-pin context
@@ -257,16 +244,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     setMentionIndex(0);
   }, [mentionQuery, files]);
 
-  // Load slash commands when picker is activated (keep loaded after close for send resolution)
-  useEffect(() => {
-    if (slashQuery === null) return;
-    invoke<SlashCommand[]>("slash_commands_list", {
-      projectPath: projectRoot ?? undefined,
-    })
-      .then(setSlashCommands)
-      .catch(() => setSlashCommands([]));
-  }, [slashQuery !== null, projectRoot]);
-
   const selectMention = useCallback(
     (file: ProjectFile) => {
       // Replace @query with empty and pin the file as context
@@ -303,29 +280,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     },
     [input],
   );
-
-  const selectSlashCommand = useCallback((command: SlashCommand) => {
-    // Insert command syntax into input (opcode-style)
-    const newInput = command.accepts_arguments
-      ? `${command.full_command} `
-      : `${command.full_command} `;
-
-    setInput(newInput);
-    setSlashQuery(null);
-    slashSelectedRef.current = true;
-
-    // Refocus and move cursor to end
-    setTimeout(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.focus();
-        textarea.selectionStart = textarea.selectionEnd = newInput.length;
-        // Auto-resize
-        textarea.style.height = "auto";
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-      }
-    }, 0);
-  }, []);
 
   // Handle file drops — guard against duplicate calls from stale HMR listeners
   const isProcessingDropRef = useRef(false);
@@ -510,28 +464,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
 
-    // Resolve slash commands: if input starts with /command, find the command and substitute $ARGUMENTS
-    // Skills (scope === "skill") are passed through as-is — Claude handles them via the Skill tool.
-    let finalPrompt = trimmed;
-    const slashMatch = trimmed.match(/^\/(\S+)\s*([\s\S]*)/);
-    if (slashMatch && slashCommands.length > 0) {
-      const cmdName = slashMatch[1];
-      const args = slashMatch[2].trim();
-      const matched = slashCommands.find(
-        (cmd) => cmd.full_command === `/${cmdName}` || cmd.name === cmdName,
-      );
-      if (matched && matched.scope !== "skill") {
-        finalPrompt = matched.content;
-        if (matched.accepts_arguments && args) {
-          finalPrompt = finalPrompt.replace(/\$ARGUMENTS/g, args);
-        }
-      }
-    }
+    const finalPrompt = trimmed;
 
     setInput("");
     setMentionQuery(null);
-    setSlashQuery(null);
-    slashSelectedRef.current = false;
 
     const ctx: AiContext = {
       scope: selectedScope,
@@ -568,25 +504,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     }
     // Clear pinned contexts after send
     setPinnedContexts([]);
-  }, [input, isStreaming, sendPrompt, pinnedContexts, slashCommands]);
+  }, [input, isStreaming, sendPrompt, pinnedContexts]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Slash command picker is open — let the picker handle keyboard events
-      // (it uses window.addEventListener for ArrowUp/Down, Enter, Tab, Escape)
-      if (slashQuery !== null) {
-        if (
-          e.key === "Enter" ||
-          e.key === "ArrowDown" ||
-          e.key === "ArrowUp" ||
-          e.key === "Tab" ||
-          e.key === "Escape"
-        ) {
-          e.preventDefault();
-          return;
-        }
-      }
-
       // @ mention navigation
       if (mentionQuery !== null && mentionFiles.length > 0) {
         if (e.key === "ArrowDown") {
@@ -629,7 +550,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       mentionFiles,
       mentionIndex,
       selectMention,
-      slashQuery,
     ],
   );
 
@@ -638,30 +558,15 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       const value = e.target.value;
       setInput(value);
 
-      // Detect / slash command trigger — only at the very start of input
-      const slashMatch = value.match(/^\/(\S*)$/);
-      if (slashMatch) {
-        // Typing /query with no space yet — open picker
-        slashSelectedRef.current = false;
-        setSlashQuery(slashMatch[1]);
+      // Detect @ mention trigger
+      const cursorPos = e.target.selectionStart;
+      const textBefore = value.slice(0, cursorPos);
+      // Match @ at start of input or after a space
+      const atMatch = textBefore.match(/(?:^|[\s])@([^\s]*)$/);
+      if (atMatch) {
+        setMentionQuery(atMatch[1]);
+      } else {
         setMentionQuery(null);
-      } else if (slashSelectedRef.current) {
-        // User already selected a command — don't re-open picker
-      } else if (!value.startsWith("/")) {
-        setSlashQuery(null);
-      }
-
-      // Detect @ mention trigger (only when not in slash command mode)
-      if (!value.startsWith("/")) {
-        const cursorPos = e.target.selectionStart;
-        const textBefore = value.slice(0, cursorPos);
-        // Match @ at start of input or after a space
-        const atMatch = textBefore.match(/(?:^|[\s])@([^\s]*)$/);
-        if (atMatch) {
-          setMentionQuery(atMatch[1]);
-        } else {
-          setMentionQuery(null);
-        }
       }
 
       // Auto-resize
@@ -700,19 +605,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
 
   return (
     <div ref={composerRef} className="relative shrink-0 p-3">
-      {/* / slash command picker — portal to body to escape all stacking contexts */}
-      {slashQuery !== null && (
-        <SlashCommandPicker
-          projectPath={projectRoot}
-          query={slashQuery}
-          anchorRef={composerRef}
-          onSelect={selectSlashCommand}
-          onClose={() => {
-            setSlashQuery(null);
-          }}
-        />
-      )}
-
       {/* Model picker popup — portal to body to escape all stacking contexts */}
       {modelPickerOpen &&
         createPortal(
@@ -753,44 +645,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
                 </button>
               ))}
             </div>
-
-            {aiProvider === "claude-cli" && (
-              <>
-                <div className="border-border border-t" />
-
-                {/* Effort level */}
-                <div className="p-2">
-                  <div className="mb-1.5 flex items-center justify-between px-1">
-                    <span className="font-medium text-muted-foreground text-xs">
-                      Effort
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {effortLevel === "low"
-                        ? "Low"
-                        : effortLevel === "medium"
-                          ? "Medium"
-                          : "High"}
-                    </span>
-                  </div>
-                  <div className="flex gap-1">
-                    {(["low", "medium", "high"] as const).map((level) => (
-                      <button
-                        key={level}
-                        className={cn(
-                          "flex-1 rounded-md py-1 text-center font-medium text-xs transition-colors",
-                          effortLevel === level
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:bg-muted/80",
-                        )}
-                        onClick={() => setEffortLevel(level)}
-                      >
-                        {level === "low" ? "L" : level === "medium" ? "M" : "H"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
           </div>,
           document.body,
         )}
@@ -912,45 +766,43 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         )}
 
       {/* @ mention dropdown */}
-      {slashQuery === null &&
-        mentionQuery !== null &&
-        mentionFiles.length > 0 && (
-          <div
-            ref={mentionRef}
-            className="absolute right-3 bottom-full left-3 mb-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-lg"
-          >
-            {mentionFiles.map((file, i) => {
-              const parts = file.relativePath.split("/");
-              const fileName = parts.pop()!;
-              const dirPath = parts.length > 0 ? `${parts.join("/")}/` : "";
-              return (
-                <button
-                  key={file.id}
-                  data-active={i === mentionIndex}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors",
-                    i === mentionIndex
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-muted",
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // prevent textarea blur
-                    selectMention(file);
-                  }}
-                  onMouseEnter={() => setMentionIndex(i)}
-                >
-                  {getFileIcon(file)}
-                  <span className="truncate font-mono text-sm">{fileName}</span>
-                  {dirPath && (
-                    <span className="ml-auto shrink-0 font-mono text-muted-foreground text-xs">
-                      {dirPath}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+      {mentionQuery !== null && mentionFiles.length > 0 && (
+        <div
+          ref={mentionRef}
+          className="absolute right-3 bottom-full left-3 mb-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-lg"
+        >
+          {mentionFiles.map((file, i) => {
+            const parts = file.relativePath.split("/");
+            const fileName = parts.pop()!;
+            const dirPath = parts.length > 0 ? `${parts.join("/")}/` : "";
+            return (
+              <button
+                key={file.id}
+                data-active={i === mentionIndex}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                  i === mentionIndex
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-muted",
+                )}
+                onMouseDown={(e) => {
+                  e.preventDefault(); // prevent textarea blur
+                  selectMention(file);
+                }}
+                onMouseEnter={() => setMentionIndex(i)}
+              >
+                {getFileIcon(file)}
+                <span className="truncate font-mono text-sm">{fileName}</span>
+                {dirPath && (
+                  <span className="ml-auto shrink-0 font-mono text-muted-foreground text-xs">
+                    {dirPath}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div
         className={cn(
@@ -1063,15 +915,6 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
                 {availableModels.find((m) => m.id === selectedModel)?.name ??
                   selectedModel}
               </span>
-              {aiProvider === "claude-cli" && (
-                <span className="text-muted-foreground/60">
-                  {effortLevel === "low"
-                    ? "L"
-                    : effortLevel === "medium"
-                      ? "M"
-                      : "H"}
-                </span>
-              )}
               <ChevronDownIcon className="size-3" />
             </button>
           </div>
