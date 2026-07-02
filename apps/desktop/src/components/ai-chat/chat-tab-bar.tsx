@@ -1,15 +1,15 @@
 import { useCallback, useRef, useEffect } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useClaudeChatStore, type TabState } from "@/stores/claude-chat-store";
+import { useAiChatStore, type TabState } from "@/stores/ai-chat-store";
 import { SessionSelector } from "./session-selector";
 
 export function ChatTabBar() {
-  const tabs = useClaudeChatStore((s) => s.tabs);
-  const activeTabId = useClaudeChatStore((s) => s.activeTabId);
-  const setActiveTab = useClaudeChatStore((s) => s.setActiveTab);
-  const createTab = useClaudeChatStore((s) => s.createTab);
-  const closeTab = useClaudeChatStore((s) => s.closeTab);
+  const tabs = useAiChatStore((s) => s.tabs);
+  const activeTabId = useAiChatStore((s) => s.activeTabId);
+  const setActiveTab = useAiChatStore((s) => s.setActiveTab);
+  const createTab = useAiChatStore((s) => s.createTab);
+  const closeTab = useAiChatStore((s) => s.closeTab);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Scroll active tab into view when it changes
@@ -28,7 +28,7 @@ export function ChatTabBar() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.startsWith("Mac");
-      const state = useClaudeChatStore.getState();
+      const state = useAiChatStore.getState();
       const { tabs: currentTabs, activeTabId: currentActive } = state;
       if (currentTabs.length === 0) return;
 

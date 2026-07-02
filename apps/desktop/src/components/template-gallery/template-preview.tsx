@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { useTemplateStore } from "@/stores/template-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useDocumentStore } from "@/stores/document-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import {
   getTemplateById,
   getTemplateSkeleton,
@@ -461,8 +461,8 @@ export function TemplatePreview() {
           `Please generate the full document content based on my description. Keep the existing preamble and fill in the document body (between \`\\begin{document}\` and \`\\end{document}\`) with appropriate title, author, sections, and content. Make it a complete, well-structured **${template.name.toLowerCase()}** ready for me to refine.`,
         ].join("\n");
 
-        useClaudeChatStore.getState().newSession();
-        useClaudeChatStore.getState().setPendingInitialPrompt(prompt);
+        useAiChatStore.getState().newSession();
+        useAiChatStore.getState().setPendingInitialPrompt(prompt);
       }
 
       setLastProjectFolder(projectFolder);

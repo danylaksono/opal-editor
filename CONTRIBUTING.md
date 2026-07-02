@@ -37,7 +37,7 @@ vcpkg install harfbuzz[graphite2]:x64-windows freetype:x64-windows icu:x64-windo
 ### Setup
 
 ```bash
-git clone https://github.com/anomalyco/tectonic-editor.git
+git clone https://github.com/danylaksono/tectonic-editor.git
 cd tectonic-editor
 pnpm install
 ```
@@ -67,15 +67,14 @@ tectonic-editor/
 │       │   └── components/   # UI components
 │       └── src-tauri/        # Rust backend
 │           ├── src/
-│           │   ├── ai/              # AI provider abstraction
+│           │   ├── ai/              # AI provider abstraction (optional)
 │           │   │   ├── mod.rs       # AiProvider trait & shared types
 │           │   │   ├── registry.rs  # Provider registry
-│           │   │   └── providers/   # Claude CLI, Anthropic API, OpenAI API
+│           │   │   └── providers/   # Anthropic API, OpenAI API
 │           │   ├── lib.rs           # Tauri command registration
 │           │   ├── history.rs       # Git-based version history
 │           │   ├── latex.rs         # Tectonic compilation & SyncTeX
-│           │   ├── claude.rs        # Claude CLI integration
-│           │   ├── slash_commands.rs # Slash command discovery & CRUD
+│           │   ├── uv.rs            # Optional Python (uv) environment
 │           │   └── zotero.rs        # Zotero OAuth & citations
 │           └── Cargo.toml
 ├── .github/workflows/        # CI/CD (lint+test, multi-platform release)

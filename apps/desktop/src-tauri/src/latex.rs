@@ -328,9 +328,47 @@ fn sync_source_files(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// Persistent build directory inside the project.
-/// Stored in `<project>/.prism/build/` — hidden from file tree (dot-prefix is filtered).
+/// Stored in `<project>/.tectonic-editor/build/` — hidden from file tree
+/// (dot-prefix is filtered). Shares the `.tectonic-editor` root with version history.
 fn persistent_build_dir(project_dir: &str) -> PathBuf {
+    PathBuf::from(project_dir)
+        .join(".tectonic-editor")
+        .join("build")
+}
+
+/// Legacy build directory from the `claude-prism` fork (`<project>/.prism/build/`).
+fn legacy_build_dir(project_dir: &str) -> PathBuf {
     PathBuf::from(project_dir).join(".prism").join("build")
+}
+
+/// One-time migration of the build cache from the legacy `.prism/build` location
+/// to `.tectonic-editor/build`. Non-fatal: on any error the caller falls back to a
+/// fresh build dir, so a locked or partial `.prism` never blocks compilation.
+fn migrate_legacy_build_dir(project_dir: &str) {
+    let current = persistent_build_dir(project_dir);
+    let legacy = legacy_build_dir(project_dir);
+
+    if current.exists() || !legacy.exists() {
+        return;
+    }
+
+    // `.tectonic-editor` may already exist (it also holds version history), so
+    // ensure the parent exists before renaming the `build` subdirectory into it.
+    if let Some(parent) = current.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("[migrate] Failed to create {}: {}", parent.display(), e);
+            return;
+        }
+    }
+
+    if let Err(e) = std::fs::rename(&legacy, &current) {
+        eprintln!(
+            "[migrate] Failed to move {} to {}: {}",
+            legacy.display(),
+            current.display(),
+            e
+        );
+    }
 }
 
 // --- Thread priority ---
@@ -835,6 +873,8 @@ pub async fn compile_latex(
         .to_string();
 
     // Set up build directory (offload blocking I/O to avoid starving the async runtime)
+    // Migrate any legacy `.prism/build` cache from the fork before resolving the dir.
+    migrate_legacy_build_dir(&project_dir);
     let work_dir = persistent_build_dir(&project_dir);
     let is_reuse = work_dir.exists();
 
@@ -901,7 +941,7 @@ pub async fn compile_latex(
         if let Some(TexEngine::LuaLaTeX) = engine {
             return Err(
                 "Compilation failed\n\nThis document requires LuaLaTeX (% !TEX program = lualatex), \
-                 which is not supported. Prism uses a XeTeX-based engine (Tectonic). \
+                 which is not supported. The embedded Tectonic engine is XeTeX-based. \
                  Please switch to XeLaTeX or remove the magic comment."
                     .to_string(),
             );
@@ -1199,7 +1239,10 @@ mod tests {
     #[test]
     fn test_persistent_build_dir() {
         let dir = persistent_build_dir("/Users/dev/my-project");
-        assert_eq!(dir, PathBuf::from("/Users/dev/my-project/.prism/build"));
+        assert_eq!(
+            dir,
+            PathBuf::from("/Users/dev/my-project/.tectonic-editor/build")
+        );
     }
 
     // --- parse_synctex_node ---
@@ -1485,7 +1528,56 @@ Postamble:
     #[test]
     fn test_persistent_build_dir_trailing_slash() {
         let dir = persistent_build_dir("/project/");
-        assert_eq!(dir, PathBuf::from("/project/.prism/build"));
+        assert_eq!(dir, PathBuf::from("/project/.tectonic-editor/build"));
+    }
+
+    // --- migrate_legacy_build_dir ---
+
+    #[test]
+    fn test_migrate_legacy_build_dir_moves_cache() {
+        let tmp = std::env::temp_dir().join(format!(
+            "tectonic-migrate-test-{}",
+            std::process::id()
+        ));
+        let project = tmp.to_string_lossy().to_string();
+        let legacy = legacy_build_dir(&project);
+        let current = persistent_build_dir(&project);
+
+        // Seed a legacy `.prism/build` cache with a marker file.
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("marker.txt"), b"cached").unwrap();
+        assert!(!current.exists());
+
+        migrate_legacy_build_dir(&project);
+
+        // Cache is relocated to `.tectonic-editor/build` and the marker survives.
+        assert!(current.join("marker.txt").exists());
+        assert!(!legacy.exists());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_migrate_legacy_build_dir_noop_when_current_exists() {
+        let tmp = std::env::temp_dir().join(format!(
+            "tectonic-migrate-noop-{}",
+            std::process::id()
+        ));
+        let project = tmp.to_string_lossy().to_string();
+        let legacy = legacy_build_dir(&project);
+        let current = persistent_build_dir(&project);
+
+        // Both dirs exist — migration must not clobber the current cache.
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(current.join("keep.txt"), b"current").unwrap();
+
+        migrate_legacy_build_dir(&project);
+
+        assert!(current.join("keep.txt").exists());
+        assert!(legacy.exists());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     // --- copy_dir_recursive integration tests ---

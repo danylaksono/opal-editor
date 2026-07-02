@@ -16,10 +16,7 @@ import {
   TerminalIcon,
   WrenchIcon,
 } from "lucide-react";
-import {
-  useClaudeChatStore,
-  type ContentBlock,
-} from "@/stores/claude-chat-store";
+import { useAiChatStore, type ContentBlock } from "@/stores/ai-chat-store";
 
 interface ToolWidgetProps {
   toolUse: ContentBlock;
@@ -58,7 +55,7 @@ export const ToolWidget: FC<ToolWidgetProps> = ({ toolUse, toolResult }) => {
 // ─── Status Icon ───
 
 const StatusIcon: FC<{ result?: ContentBlock }> = ({ result }) => {
-  const isStreaming = useClaudeChatStore((s) => s.isStreaming);
+  const isStreaming = useAiChatStore((s) => s.isStreaming);
   if (!result) {
     if (!isStreaming) {
       // Tool was cancelled (stop pressed) — show stopped state
@@ -247,12 +244,12 @@ const AskUserQuestionWidget: FC<{ input: any; result?: ContentBlock }> = ({
   // In -p mode, AskUserQuestion always errors because CLI can't prompt interactively.
   // The process is killed when AskUserQuestion is detected, so result may be undefined.
   // Options are clickable when there's no result or an error result.
-  const isStreaming = useClaudeChatStore((s) => s.isStreaming);
+  const isStreaming = useAiChatStore((s) => s.isStreaming);
   const needsUserAnswer =
     !answered && !isStreaming && (!result || result.is_error);
 
   const handleOptionClick = (_question: string, label: string) => {
-    const { sendPrompt, isStreaming } = useClaudeChatStore.getState();
+    const { sendPrompt, isStreaming } = useAiChatStore.getState();
     if (isStreaming) return;
     setAnswered(true);
     sendPrompt(`${label}`);

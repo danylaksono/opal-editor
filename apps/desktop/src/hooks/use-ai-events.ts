@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import {
-  useClaudeChatStore,
-  type ClaudeStreamMessage,
-} from "@/stores/claude-chat-store";
+import { useAiChatStore, type AiStreamMessage } from "@/stores/ai-chat-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
 import { useProposedChangesStore } from "@/stores/proposed-changes-store";
@@ -64,7 +61,7 @@ export function useAiEvents() {
   const anthropicStateRef = useRef(new Map<string, AnthropicStreamState>());
   const openaiStateRef = useRef(new Map<string, OpenAIStreamState>());
 
-  const tabs = useClaudeChatStore((s) => s.tabs);
+  const tabs = useAiChatStore((s) => s.tabs);
   useEffect(() => {
     for (const tab of tabs) {
       if (tab.isStreaming && !msgCountRef.current.has(tab.id)) {
@@ -124,7 +121,7 @@ export function useAiEvents() {
     async function setup() {
       unlistenOutput = await listen<AiOutputPayload>("ai-output", (event) => {
         const { tab_id: tabId, data, provider } = event.payload;
-        const chatStore = useClaudeChatStore.getState();
+        const chatStore = useAiChatStore.getState();
         const tab = chatStore.tabs.find((t) => t.id === tabId);
         if (!tab?.isStreaming) return;
 
@@ -134,10 +131,10 @@ export function useAiEvents() {
         if (count === 1) streamStartTimeRef.current.set(tabId, now);
         lastMsgTimeRef.current.set(tabId, now);
 
-        // For Claude CLI provider, data is stream-json (parse as ClaudeStreamMessage).
+        // For Claude CLI provider, data is stream-json (parse as AiStreamMessage).
         // For API providers, data is raw SSE — append as-is for provider-specific rendering.
         if (provider === "claude-cli") {
-          let msg: ClaudeStreamMessage;
+          let msg: AiStreamMessage;
           try {
             msg = JSON.parse(data);
           } catch {
@@ -233,7 +230,7 @@ export function useAiEvents() {
               type: "system",
               subtype: "usage",
               usage: msg.usage,
-            } as ClaudeStreamMessage);
+            } as AiStreamMessage);
           }
         } else if (provider === "anthropic") {
           // Parse Anthropic SSE events
@@ -272,7 +269,7 @@ export function useAiEvents() {
         "ai-complete",
         async (event) => {
           const { tab_id: tabId, success } = event.payload;
-          const chatStore = useClaudeChatStore.getState();
+          const chatStore = useAiChatStore.getState();
 
           chatStore._setStreaming(tabId, false);
 

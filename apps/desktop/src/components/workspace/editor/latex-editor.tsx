@@ -48,7 +48,7 @@ import {
   useProposedChangesStore,
   type ProposedChange,
 } from "@/stores/proposed-changes-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useHistoryStore, type FileDiff } from "@/stores/history-store";
 import { useProblemsStore, type DiagnosticItem } from "@/stores/problems-store";
 import {
@@ -75,8 +75,8 @@ import {
   CopyIcon,
   XIcon,
 } from "lucide-react";
-import { ClaudeChatDrawer } from "@/components/claude-chat/claude-chat-drawer";
-import { ProposedChangesPanel } from "@/components/claude-chat/proposed-changes-panel";
+import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
+import { ProposedChangesPanel } from "@/components/ai-chat/proposed-changes-panel";
 import { ImagePreview } from "./image-preview";
 import { SearchPanel } from "./search-panel";
 import { PdfViewer } from "@/components/workspace/preview/pdf-viewer";
@@ -429,6 +429,13 @@ export function LatexEditor() {
     }
   };
 
+  // Allow the command palette (and other UI) to trigger a compile.
+  useEffect(() => {
+    const handler = () => compileRef.current();
+    window.addEventListener("trigger-compile", handler);
+    return () => window.removeEventListener("trigger-compile", handler);
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current || !isTextFile) return;
     const currentContent = getActiveFileContent();
@@ -674,7 +681,7 @@ export function LatexEditor() {
                               );
                               const fileName = file?.relativePath ?? "main.tex";
                               const ctx = `[Lint error in ${fileName}:${line.number}]\n[Error: ${d.message}]`;
-                              useClaudeChatStore
+                              useAiChatStore
                                 .getState()
                                 .sendPrompt(`${ctx}\n\nFix this lint error.`);
                             },
@@ -1015,7 +1022,7 @@ export function LatexEditor() {
       toolbarStickyRef.current = false;
       setSelectionCoords(null);
       setSelectionRange(null);
-      useClaudeChatStore.getState().sendPrompt(prompt);
+      useAiChatStore.getState().sendPrompt(prompt);
     },
     [setSelectionRange],
   );
@@ -1040,7 +1047,7 @@ export function LatexEditor() {
       setSelectionCoords(null);
       setSelectionRange(null);
       if (actionId === "proofread") {
-        useClaudeChatStore
+        useAiChatStore
           .getState()
           .sendPrompt("Proofread and fix any errors in this text");
       }
@@ -1172,7 +1179,7 @@ export function LatexEditor() {
           </div>
         </div>
       )}
-      {/* Main content area — single wrapper keeps ClaudeChatDrawer stable */}
+      {/* Main content area — single wrapper keeps AiChatDrawer stable */}
       <div
         ref={isPdf || isImage ? undefined : parentRef}
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -1229,7 +1236,8 @@ export function LatexEditor() {
             {reviewingSnapshot && historyDiffResult && (
               <HistoryDiffView diffs={historyDiffResult} />
             )}
-            {toolbarPosition &&
+            {aiProvider !== "none" &&
+              toolbarPosition &&
               selectionLabel &&
               !isMergeActiveRef.current &&
               !isSearchOpen && (
@@ -1343,7 +1351,7 @@ export function LatexEditor() {
           </>
         )}
         {/* Chat drawer — shown only when AI provider is configured */}
-        {aiProvider !== "none" && <ClaudeChatDrawer />}
+        {aiProvider !== "none" && <AiChatDrawer />}
       </div>
       {/* Text-editor-only review panels */}
       {!isPdf && !isImage && !isLargeFileNotLoaded && activeFileChange && (

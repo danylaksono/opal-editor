@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { useAiEvents } from "@/hooks/use-ai-events";
 import { ChatMessages } from "./chat-messages";
@@ -17,21 +17,19 @@ import { ChatTabBar } from "./chat-tab-bar";
 const MIN_HEIGHT = 150;
 const DEFAULT_HEIGHT = 360;
 
-export function ClaudeChatDrawer() {
+export function AiChatDrawer() {
   // Initialize event listeners for AI streaming (provider-agnostic)
   useAiEvents();
 
-  const anyStreaming = useClaudeChatStore((s) =>
-    s.tabs.some((t) => t.isStreaming),
-  );
-  const error = useClaudeChatStore((s) => s.error);
+  const anyStreaming = useAiChatStore((s) => s.tabs.some((t) => t.isStreaming));
+  const error = useAiChatStore((s) => s.error);
 
   // Reset the chat session when the project changes so stale messages from a
   // previous project don't leak into the next one. (The chat store is global
   // and outlives this component's per-project remount.)
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   useEffect(() => {
-    useClaudeChatStore.getState().newSession();
+    useAiChatStore.getState().newSession();
   }, [projectRoot]);
 
   const [isOpen, setIsOpen] = useState(false);
@@ -44,7 +42,7 @@ export function ClaudeChatDrawer() {
   const heightRef = useRef(height);
   heightRef.current = height;
 
-  const pendingAttachments = useClaudeChatStore((s) => s.pendingAttachments);
+  const pendingAttachments = useAiChatStore((s) => s.pendingAttachments);
 
   // Auto-open when streaming starts or a new attachment is added
   useEffect(() => {

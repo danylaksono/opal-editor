@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { offsetToLineCol } from "@/stores/claude-chat-store";
+import { offsetToLineCol } from "@/stores/ai-chat-store";
 
 describe("offsetToLineCol", () => {
   it("returns line 1, col 1 for offset 0 on empty string", () => {

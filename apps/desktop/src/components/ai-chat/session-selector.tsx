@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { createLogger } from "@/lib/debug/logger";
 
@@ -37,10 +37,10 @@ function formatRelativeTime(unixSeconds: number): string {
 export function SessionSelector() {
   const [sessions, setSessions] = useState<ClaudeSessionInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const sessionId = useClaudeChatStore((s) => s.sessionId);
-  const isStreaming = useClaudeChatStore((s) => s.isStreaming);
-  const newSession = useClaudeChatStore((s) => s.newSession);
-  const resumeSession = useClaudeChatStore((s) => s.resumeSession);
+  const sessionId = useAiChatStore((s) => s.sessionId);
+  const isStreaming = useAiChatStore((s) => s.isStreaming);
+  const newSession = useAiChatStore((s) => s.newSession);
+  const resumeSession = useAiChatStore((s) => s.resumeSession);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
 
   const loadSessions = useCallback(async () => {

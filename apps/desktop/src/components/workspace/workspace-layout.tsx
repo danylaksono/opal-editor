@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
   AlertCircleIcon,
@@ -14,9 +14,12 @@ import {
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  SettingsIcon,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { AppearancePopover } from "./appearance-popover";
+import { StatusBar } from "./status-bar";
+import { SettingsDialog } from "@/components/settings-dialog";
 import { LatexEditor } from "./editor/latex-editor";
 import { ProblemsPanel } from "./editor/problems-panel";
 import { PdfPreview } from "./preview/pdf-preview";
@@ -27,7 +30,7 @@ import {
   useWorkspaceLayoutStore,
   type WorkspaceSidePanel,
 } from "@/stores/workspace-layout-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -47,6 +50,14 @@ function ActivityRail() {
   const activeSidePanel = useWorkspaceLayoutStore((s) => s.activeSidePanel);
   const toggleSidePanel = useWorkspaceLayoutStore((s) => s.toggleSidePanel);
   const setSidePanelOpen = useWorkspaceLayoutStore((s) => s.setSidePanelOpen);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Allow the command palette to open Settings.
+  useEffect(() => {
+    const handler = () => setShowSettings(true);
+    window.addEventListener("open-settings", handler);
+    return () => window.removeEventListener("open-settings", handler);
+  }, []);
 
   return (
     <div className="flex w-12 shrink-0 flex-col items-center border-sidebar-border border-r bg-sidebar pt-[var(--titlebar-height)] text-sidebar-foreground">
@@ -89,9 +100,20 @@ function ActivityRail() {
         })}
       </div>
 
-      <div className="flex shrink-0 flex-col items-center px-1 py-2">
+      <div className="flex shrink-0 flex-col items-center gap-1 px-1 py-2">
         <AppearancePopover />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => setShowSettings(true)}
+          title="Settings"
+        >
+          <SettingsIcon className="size-4" />
+        </Button>
       </div>
+
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 }
@@ -123,7 +145,7 @@ function WorkspaceProblemsDrawer() {
           const errorList = diagnostics
             .map((d) => `- ${fileName}:${d.line} - ${d.message}`)
             .join("\n");
-          useClaudeChatStore
+          useAiChatStore
             .getState()
             .sendPrompt(
               `[Lint errors in ${fileName}]\n${errorList}\n\nFix all these lint errors.`,
@@ -144,7 +166,7 @@ function WorkspaceProblemsDrawer() {
               aiProvider !== "none"
                 ? (message, line) => {
                     const ctx = `[Lint error in ${fileName}:${line}]\n[Error: ${message}]`;
-                    useClaudeChatStore
+                    useAiChatStore
                       .getState()
                       .sendPrompt(`${ctx}\n\nFix this lint error.`);
                   }
@@ -295,6 +317,7 @@ export function WorkspaceLayout() {
         </PanelGroup>
 
         {!focusMode && <WorkspaceProblemsDrawer />}
+        {!focusMode && <StatusBar />}
       </div>
     </div>
   );

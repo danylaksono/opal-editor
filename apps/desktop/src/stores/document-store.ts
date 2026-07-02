@@ -17,7 +17,6 @@ import {
   type ProjectFileType,
 } from "@/lib/tauri/fs";
 import { useHistoryStore } from "@/stores/history-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
 import { clearDocCache } from "@/lib/mupdf/pdf-doc-cache";
 import { clearScrollPositionCache } from "@/components/workspace/preview/pdf-viewer";
 import { clearZoomCache } from "@/components/workspace/preview/pdf-preview";
@@ -371,8 +370,6 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       lastCompiledGenerations: new Map(),
       initialized: false,
     });
-    // Reset chat session so stale messages don't leak into the next project
-    useClaudeChatStore.getState().newSession();
   },
 
   setActiveFile: (id) => {

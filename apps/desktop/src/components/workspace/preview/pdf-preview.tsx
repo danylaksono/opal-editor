@@ -24,7 +24,7 @@ import {
   hasPdfData,
 } from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -341,7 +341,7 @@ export function PdfPreview() {
       const sel = pdfSelection;
       setPdfSelection(null);
       window.getSelection()?.removeAllRanges();
-      useClaudeChatStore.getState().sendPrompt(prompt, {
+      useAiChatStore.getState().sendPrompt(prompt, {
         label,
         filePath: resolvedSource?.file ?? "document.pdf",
         selectedText: buildPdfContext(sel.text),
@@ -352,11 +352,16 @@ export function PdfPreview() {
 
   const pdfToolbarActions: ToolbarAction[] = useMemo(
     () => [
-      {
-        id: "proofread",
-        label: "Proofread",
-        icon: <SpellCheckIcon className="size-4" />,
-      },
+      // Proofread feeds the AI chat — only offer it when a provider is configured.
+      ...(aiProvider !== "none"
+        ? [
+            {
+              id: "proofread",
+              label: "Proofread",
+              icon: <SpellCheckIcon className="size-4" />,
+            },
+          ]
+        : []),
       {
         id: "navigate",
         label: "Navigate to source",
@@ -364,7 +369,7 @@ export function PdfPreview() {
         hint: "dbl-click",
       },
     ],
-    [],
+    [aiProvider],
   );
 
   const handlePdfToolbarAction = useCallback(
@@ -375,7 +380,7 @@ export function PdfPreview() {
       setPdfSelection(null);
       window.getSelection()?.removeAllRanges();
       if (actionId === "proofread") {
-        useClaudeChatStore
+        useAiChatStore
           .getState()
           .sendPrompt("Proofread and fix any errors in this text", {
             label,
@@ -615,7 +620,7 @@ export function PdfPreview() {
 
       await useDocumentStore.getState().refreshFiles();
 
-      useClaudeChatStore.getState().addPendingAttachment({
+      useAiChatStore.getState().addPendingAttachment({
         label: `@${relativePath}`,
         filePath: relativePath,
         selectedText: `[Captured region from PDF page ${result.pageNumber}]`,
@@ -626,15 +631,17 @@ export function PdfPreview() {
     }
   };
 
-  // Listen for global Capture & Ask shortcut (Cmd+X / Ctrl+X)
+  // Listen for global Capture & Ask shortcut (Cmd+X / Ctrl+X).
+  // Capture feeds the AI chat, so it's inert when no provider is configured.
   useEffect(() => {
+    if (aiProvider === "none") return;
     const handleToggleCapture = () => {
       if (pdfData) setCaptureMode((prev) => !prev);
     };
     window.addEventListener("toggle-capture-mode", handleToggleCapture);
     return () =>
       window.removeEventListener("toggle-capture-mode", handleToggleCapture);
-  }, [pdfData]);
+  }, [pdfData, aiProvider]);
 
   const renderContent = () => {
     if (compileError) {
@@ -649,7 +656,7 @@ export function PdfPreview() {
 
       const handleFixWithChat = () => {
         const errorList = errors.map((e) => `- ${e}`).join("\n");
-        useClaudeChatStore
+        useAiChatStore
           .getState()
           .sendPrompt(
             `[Compilation errors]\n${errorList}\n\nFix these LaTeX compilation errors.`,
@@ -1034,25 +1041,31 @@ export function PdfPreview() {
                 </SelectContent>
               </Select>
               <div className="mx-1 h-4 w-px bg-border" />
-              {/* Capture mode */}
-              <Button
-                variant={captureMode ? "default" : "secondary"}
-                size="sm"
-                className={`h-7 gap-1.5 px-2 text-xs ${
-                  captureMode
-                    ? "ring-2 ring-primary/30"
-                    : "bg-foreground text-background hover:bg-foreground/90"
-                }`}
-                onClick={() => setCaptureMode(!captureMode)}
-                title={`Capture & Ask (${navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"})`}
-              >
-                <CrosshairIcon className="size-3.5 shrink-0" />
-                <span className="@[36rem]/pv:inline hidden">Capture & Ask</span>
-                <kbd className="pointer-events-none ml-0.5 @[36rem]/pv:inline hidden rounded border border-background/30 bg-background/20 px-1 py-0.5 font-medium text-[10px] text-background leading-none">
-                  {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
-                </kbd>
-              </Button>
-              <div className="mx-1 h-4 w-px bg-border" />
+              {/* Capture mode — AI feature, only shown when a provider is configured */}
+              {aiProvider !== "none" && (
+                <>
+                  <Button
+                    variant={captureMode ? "default" : "secondary"}
+                    size="sm"
+                    className={`h-7 gap-1.5 px-2 text-xs ${
+                      captureMode
+                        ? "ring-2 ring-primary/30"
+                        : "bg-foreground text-background hover:bg-foreground/90"
+                    }`}
+                    onClick={() => setCaptureMode(!captureMode)}
+                    title={`Capture & Ask (${navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"})`}
+                  >
+                    <CrosshairIcon className="size-3.5 shrink-0" />
+                    <span className="@[36rem]/pv:inline hidden">
+                      Capture & Ask
+                    </span>
+                    <kbd className="pointer-events-none ml-0.5 @[36rem]/pv:inline hidden rounded border border-background/30 bg-background/20 px-1 py-0.5 font-medium text-[10px] text-background leading-none">
+                      {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
+                    </kbd>
+                  </Button>
+                  <div className="mx-1 h-4 w-px bg-border" />
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -1091,6 +1104,7 @@ export function PdfPreview() {
           onSendPrompt={handlePdfToolbarSendPrompt}
           onAction={handlePdfToolbarAction}
           onDismiss={handlePdfToolbarDismiss}
+          showPrompt={aiProvider !== "none"}
         />
       )}
       {/* Capture mode floating banner */}

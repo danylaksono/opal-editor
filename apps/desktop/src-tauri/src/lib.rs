@@ -1,9 +1,6 @@
 mod ai;
-mod claude;
 mod history;
 mod latex;
-mod skills;
-mod slash_commands;
 mod uv;
 mod zotero;
 
@@ -536,15 +533,6 @@ pub fn run() {
     // Initialize AI provider registry
     let mut registry = ProviderRegistry::new();
     registry.register(
-        || Box::new(ai::providers::claude_cli::ClaudeCliProvider),
-        AiProviderInfo {
-            id: "claude-cli".to_string(),
-            name: "Claude Code CLI".to_string(),
-            ready: false,
-            message: Some("Check status to verify installation".to_string()),
-        },
-    );
-    registry.register(
         || Box::new(ai::providers::anthropic::AnthropicProvider),
         AiProviderInfo {
             id: "anthropic".to_string(),
@@ -571,7 +559,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
-        .manage(claude::ClaudeProcessState::default())
         .manage(latex::LatexCompilerState::default())
         .manage(zotero::ZoteroOAuthState::default())
         .manage(registry)
@@ -606,20 +593,7 @@ pub fn run() {
             latex::compile_latex,
             latex::synctex_edit,
             latex::detect_texlive,
-            // Legacy Claude CLI commands (backward compat)
-            claude::check_claude_status,
-            claude::install_claude_cli,
-            claude::login_claude,
-            claude::execute_claude_code,
-            claude::continue_claude_code,
-            claude::resume_claude_code,
-            claude::cancel_claude_execution,
-            claude::run_shell_command,
-            claude::get_claude_fast_mode,
-            claude::set_claude_fast_mode,
-            claude::list_claude_sessions,
-            claude::load_session_history,
-            // New unified AI provider commands
+            // Unified AI provider commands
             ai_list_providers,
             ai_get_active_provider,
             ai_set_active_provider,
@@ -641,17 +615,6 @@ pub fn run() {
             history::history_restore,
             history::history_add_label,
             history::history_remove_label,
-            slash_commands::slash_commands_list,
-            slash_commands::slash_command_get,
-            slash_commands::slash_command_save,
-            slash_commands::slash_command_delete,
-            skills::install_scientific_skills,
-            skills::install_scientific_skills_global,
-            skills::check_skills_installed,
-            skills::list_installed_skills,
-            skills::uninstall_scientific_skills,
-            skills::get_skill_categories,
-            skills::get_skill_content,
             uv::check_uv_status,
             uv::install_uv,
             uv::setup_project_venv,
@@ -709,18 +672,9 @@ pub fn run() {
                 }
             }
             tauri::RunEvent::WindowEvent {
-                label,
                 event: tauri::WindowEvent::Destroyed,
                 ..
             } => {
-                // Kill AI processes associated with this window
-                let claude_state = app_handle.state::<claude::ClaudeProcessState>();
-                let label_clone = label.clone();
-                let state_clone = claude_state.inner().clone();
-                tauri::async_runtime::spawn(async move {
-                    claude::kill_process_for_window(&state_clone, &label_clone).await;
-                });
-
                 // Quit the app when the last window is closed
                 if app_handle.webview_windows().is_empty() {
                     app_handle.exit(0);

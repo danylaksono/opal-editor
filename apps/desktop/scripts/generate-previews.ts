@@ -48,7 +48,7 @@ async function main() {
     fs.mkdirSync(exampleDir, { recursive: true });
 
     const tmpDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), `prism-preview-${template.id}-`),
+      path.join(os.tmpdir(), `tectonic-preview-${template.id}-`),
     );
 
     try {

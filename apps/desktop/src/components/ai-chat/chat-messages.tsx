@@ -1,10 +1,10 @@
 import { type FC, memo, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircleIcon } from "lucide-react";
 import {
-  useClaudeChatStore,
-  type ClaudeStreamMessage,
+  useAiChatStore,
+  type AiStreamMessage,
   type ContentBlock,
-} from "@/stores/claude-chat-store";
+} from "@/stores/ai-chat-store";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { ThinkingWidget, ToolWidget } from "./tool-widgets";
 
@@ -54,8 +54,8 @@ const StreamingIndicator: FC = memo(() => {
 // ─── Chat Messages (main component) ───
 
 export const ChatMessages: FC = () => {
-  const messages = useClaudeChatStore((s) => s.messages) ?? [];
-  const isStreaming = useClaudeChatStore((s) => s.isStreaming);
+  const messages = useAiChatStore((s) => s.messages) ?? [];
+  const isStreaming = useAiChatStore((s) => s.isStreaming);
   const viewportRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const userHasScrolledRef = useRef(false);
@@ -168,7 +168,7 @@ export const ChatMessages: FC = () => {
 // ─── Message Bubble ───
 
 const MessageBubble: FC<{
-  message: ClaudeStreamMessage;
+  message: AiStreamMessage;
   toolResultMap: Map<string, ContentBlock>;
 }> = memo(({ message, toolResultMap }) => {
   if (message.type === "user") {
@@ -185,7 +185,7 @@ const MessageBubble: FC<{
 
 // ─── User Message ───
 
-const UserMessage: FC<{ message: ClaudeStreamMessage }> = ({ message }) => {
+const UserMessage: FC<{ message: AiStreamMessage }> = ({ message }) => {
   const rawContent = message.message?.content;
   const textContent = Array.isArray(rawContent)
     ? rawContent
@@ -307,7 +307,7 @@ const UserMessage: FC<{ message: ClaudeStreamMessage }> = ({ message }) => {
 // ─── Assistant Message ───
 
 const AssistantMessage: FC<{
-  message: ClaudeStreamMessage;
+  message: AiStreamMessage;
   toolResultMap: Map<string, ContentBlock>;
 }> = ({ message, toolResultMap }) => {
   const content = message.message?.content;
@@ -357,7 +357,7 @@ const AssistantMessage: FC<{
 
 // ─── Result Message ───
 
-const ResultMessage: FC<{ message: ClaudeStreamMessage }> = ({ message }) => {
+const ResultMessage: FC<{ message: AiStreamMessage }> = ({ message }) => {
   const isError = message.is_error || message.subtype === "error";
   const resultText = message.result;
 

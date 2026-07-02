@@ -136,13 +136,6 @@ pub struct AiCompleteEvent {
     pub provider: String,
 }
 
-#[derive(Clone, Serialize)]
-pub struct AiErrorEvent {
-    pub tab_id: String,
-    pub data: String,
-    pub provider: String,
-}
-
 // ─── Provider Trait ───
 
 #[async_trait]

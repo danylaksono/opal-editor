@@ -176,7 +176,7 @@ export function AiSettings() {
       </div>
 
       {/* API Key configuration */}
-      {aiProvider !== "none" && aiProvider !== "claude-cli" && (
+      {aiProvider !== "none" && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 pt-2">
             <KeyIcon className="size-4 text-muted-foreground" />

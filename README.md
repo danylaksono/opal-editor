@@ -11,11 +11,11 @@
 
 ---
 
-TectonicEditor compiles LaTeX documents offline with an embedded [Tectonic](https://tectonic-typesetting.github.io/) engine — no TeX Live required. AI is **optional** and pluggable: bring your own API key for Anthropic, OpenAI (or any compatible endpoint like Hermes), or use the Claude Code CLI.
+TectonicEditor compiles LaTeX documents offline with an embedded [Tectonic](https://tectonic-typesetting.github.io/) engine — no TeX Live required. AI is **optional** and pluggable: bring your own API key for Anthropic, OpenAI, or any OpenAI-compatible endpoint (like Hermes).
 
 ## Why?
 
-The editor is designed for **researchers, scientists, and academics** who want a **beautiful, offline-first LaTeX editor** with optional AI assistance. It is **cross-platform** (macOS, Windows, Linux) and **open-source**. It was forked from [Claude-prism](delibae/claude-prism) which blends Claude Code with a LaTeX editor. I want to have the same editor experience but with optional AI assistance, so that users can compile LaTeX offline without needing an account or internet connection.
+The editor is designed for **researchers, scientists, and academics** who want a **beautiful, offline-first LaTeX editor** with optional AI assistance. It is **cross-platform** (macOS, Windows, Linux) and **open-source**. It was forked from [Claude-prism](https://github.com/delibae/claude-prism), which blends Claude Code with a LaTeX editor — TectonicEditor keeps the offline editing experience but makes AI assistance fully optional, so you can compile LaTeX without an account or an internet connection.
 
 ## Features
 
@@ -31,7 +31,7 @@ The editor is designed for **researchers, scientists, and academics** who want a
 
 **Python Environment** — Built-in [uv](https://docs.astral.sh/uv/) setup. One click creates a `.venv`. Run scripts, generate plots, process data without leaving the app.
 
-**More** — Zotero integration, template gallery (paper, thesis, slides, poster, letter), slash commands, capture & ask, external editor support (VS Code, Cursor, Zed, Sublime).
+**More** — Zotero integration, template gallery (paper, thesis, slides, poster, letter), capture & ask, external editor support (VS Code, Cursor, Zed, Sublime).
 
 ## AI Providers
 
@@ -40,7 +40,6 @@ The editor is designed for **researchers, scientists, and academics** who want a
 | None | Default — editor works standalone |
 | Anthropic API | Set `ANTHROPIC_API_KEY` |
 | OpenAI API | Set `OPENAI_API_KEY` + optional `OPENAI_BASE_URL` |
-| Claude Code CLI | Install the `claude` CLI locally |
 
 ## Install
 

@@ -5,7 +5,7 @@ import { useHistoryStore } from "./history-store";
 import { createLogger } from "@/lib/debug/logger";
 import type { AiRequest, AiContext, AiMessage } from "@/lib/ai/types";
 
-const log = createLogger("claude");
+const log = createLogger("ai-chat");
 
 /** Convert a character offset to 1-based line:col */
 export function offsetToLineCol(
@@ -17,8 +17,8 @@ export function offsetToLineCol(
   return { line: lines.length, col: lines[lines.length - 1].length + 1 };
 }
 
-/** Convert ClaudeStreamMessage history to generic AiMessage[] for API providers */
-function toAiMessages(msgs: ClaudeStreamMessage[]): AiMessage[] {
+/** Convert AiStreamMessage history to generic AiMessage[] for API providers */
+function toAiMessages(msgs: AiStreamMessage[]): AiMessage[] {
   const result: AiMessage[] = [];
   for (const msg of msgs) {
     if (msg.type === "system") continue;
@@ -106,7 +106,7 @@ export interface ContentBlock {
   signature?: string;
 }
 
-export interface ClaudeStreamMessage {
+export interface AiStreamMessage {
   type: "system" | "assistant" | "user" | "result";
   subtype?: string;
   session_id?: string;
@@ -142,7 +142,7 @@ export interface TabState {
   id: string;
   title: string;
   sessionId: string | null;
-  messages: ClaudeStreamMessage[];
+  messages: AiStreamMessage[];
   isStreaming: boolean;
   error: string | null;
   totalInputTokens: number;
@@ -208,7 +208,7 @@ const DEFAULT_TAB_ID = nextTabId();
 
 interface ClaudeChatState {
   // ── Projected fields (from active tab — read by consumers) ──
-  messages: ClaudeStreamMessage[];
+  messages: AiStreamMessage[];
   sessionId: string | null;
   isStreaming: boolean;
   error: string | null;
@@ -273,7 +273,7 @@ interface ClaudeChatState {
   anyStreaming: () => boolean;
 
   // Internal actions (called by event hook, routed by tabId)
-  _appendMessage: (tabId: string, msg: ClaudeStreamMessage) => void;
+  _appendMessage: (tabId: string, msg: AiStreamMessage) => void;
   _setSessionId: (tabId: string, id: string) => void;
   _setStreaming: (tabId: string, streaming: boolean) => void;
   _setError: (tabId: string, error: string | null) => void;
@@ -282,7 +282,7 @@ interface ClaudeChatState {
 
 // ─── Store ───
 
-export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
+export const useAiChatStore = create<ClaudeChatState>()((set, get) => ({
   // Projected fields (initialized from default tab)
   messages: [],
   sessionId: null,
@@ -377,7 +377,7 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     const displayText = contextLabel
       ? `${contextLabel}\n${userPrompt}`
       : userPrompt;
-    const userMessage: ClaudeStreamMessage = {
+    const userMessage: AiStreamMessage = {
       type: "user",
       message: {
         content: [{ type: "text", text: displayText }],
@@ -505,12 +505,7 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     try {
       await invoke("ai_cancel", { tabId: activeTabId });
     } catch {
-      // Fallback to legacy command
-      try {
-        await invoke("cancel_claude_execution", { tabId: activeTabId });
-      } catch {
-        // ignore
-      }
+      // ignore
     }
     set((s) => applyTabUpdate(s, activeTabId, { isStreaming: false }));
   },
@@ -563,27 +558,17 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
     // Load session history from JSONL file
     if (projectPath) {
       try {
-        let history: any[];
+        const history = await invoke<any[]>("ai_load_session", {
+          projectPath,
+          sessionId,
+        });
 
-        // Try new unified command first, fall back to legacy
-        try {
-          history = await invoke<any[]>("ai_load_session", {
-            projectPath,
-            sessionId,
-          });
-        } catch {
-          history = await invoke<any[]>("load_session_history", {
-            projectPath,
-            sessionId,
-          });
-        }
-
-        // Filter to displayable message types and map to ClaudeStreamMessage
-        const messages: ClaudeStreamMessage[] = [];
+        // Filter to displayable message types and map to AiStreamMessage
+        const messages: AiStreamMessage[] = [];
         for (const entry of history) {
           const type = entry.type;
           if (type === "user" || type === "assistant" || type === "result") {
-            messages.push(entry as ClaudeStreamMessage);
+            messages.push(entry as AiStreamMessage);
           }
         }
 
@@ -673,7 +658,7 @@ export const useClaudeChatStore = create<ClaudeChatState>()((set, get) => ({
 
   // ─── Internal Actions (routed by explicit tabId) ───
 
-  _appendMessage: (tabId: string, msg: ClaudeStreamMessage) => {
+  _appendMessage: (tabId: string, msg: AiStreamMessage) => {
     set((state) => {
       let inputDelta = 0;
       let outputDelta = 0;

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 type CompilerBackend = "tectonic" | "texlive";
-type AiProvider = "none" | "claude-cli" | "anthropic" | "openai";
+type AiProvider = "none" | "anthropic" | "openai";
 
 interface SettingsState {
   compilerBackend: CompilerBackend;
@@ -25,6 +25,16 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "tectonic-editor-settings",
+      version: 1,
+      // Coerce the removed "claude-cli" provider (and any unknown value) to "none"
+      // for users upgrading from a build that still had the Claude CLI provider.
+      migrate: (state) => {
+        const s = state as Partial<SettingsState> | undefined;
+        if (s && s.aiProvider !== "anthropic" && s.aiProvider !== "openai") {
+          s.aiProvider = "none";
+        }
+        return s as SettingsState;
+      },
     },
   ),
 );

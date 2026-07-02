@@ -1,16 +1,13 @@
-import type {
-  ClaudeStreamMessage,
-  ContentBlock,
-} from "@/stores/claude-chat-store";
+import type { AiStreamMessage, ContentBlock } from "@/stores/ai-chat-store";
 
 /**
  * Parse an SSE event data line from the Anthropic Messages API
- * into ClaudeStreamMessage format.
+ * into AiStreamMessage format.
  */
 export function parseAnthropicSSE(
   data: string,
   state: AnthropicStreamState,
-): ClaudeStreamMessage[] {
+): AiStreamMessage[] {
   let json: any;
   try {
     json = JSON.parse(data);
@@ -19,7 +16,7 @@ export function parseAnthropicSSE(
   }
 
   const type = json.type as string;
-  const messages: ClaudeStreamMessage[] = [];
+  const messages: AiStreamMessage[] = [];
 
   switch (type) {
     case "message_start":
@@ -133,12 +130,12 @@ export function parseAnthropicSSE(
 
 /**
  * Parse an SSE event data line from the OpenAI Chat Completions API
- * into ClaudeStreamMessage format.
+ * into AiStreamMessage format.
  */
 export function parseOpenAISSE(
   data: string,
   state: OpenAIStreamState,
-): ClaudeStreamMessage[] {
+): AiStreamMessage[] {
   if (data === "[DONE]") {
     return [];
   }
@@ -163,7 +160,7 @@ export function parseOpenAISSE(
     return [];
   }
 
-  const messages: ClaudeStreamMessage[] = [];
+  const messages: AiStreamMessage[] = [];
 
   // Handle text content
   if (delta.content) {
@@ -224,7 +221,7 @@ export function parseOpenAISSE(
         input_tokens: state.promptTokens,
         output_tokens: state.completionTokens,
       },
-    } as ClaudeStreamMessage);
+    } as AiStreamMessage);
   }
 
   return messages;

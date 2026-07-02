@@ -10,10 +10,9 @@ fn main() {
     // On Linux, apply a version script to hide statically linked ICU/HarfBuzz/
     // FreeType/Fontconfig symbols from the dynamic symbol table.  This prevents
     // symbol collisions with the system copies loaded by WebKit2GTK (segfault).
-    // See: https://github.com/anomalyco/tectonic-editor/issues/100
+    // See: https://github.com/danylaksono/tectonic-editor/issues/100
     #[cfg(target_os = "linux")]
-    {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         println!(
             "cargo:rustc-link-arg=-Wl,--version-script={}/symbols.map",
             manifest_dir

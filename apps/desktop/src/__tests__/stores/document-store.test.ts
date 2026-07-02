@@ -24,15 +24,6 @@ vi.mock("@/stores/history-store", () => ({
   },
 }));
 
-// Mock claude-chat-store
-vi.mock("@/stores/claude-chat-store", () => ({
-  useClaudeChatStore: {
-    getState: vi.fn(() => ({
-      newSession: vi.fn(),
-    })),
-  },
-}));
-
 function makeFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
   return {
     id: "main.tex",

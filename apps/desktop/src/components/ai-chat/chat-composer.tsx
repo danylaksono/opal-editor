@@ -28,10 +28,10 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import {
-  useClaudeChatStore,
+  useAiChatStore,
   offsetToLineCol,
   getModelsForProvider,
-} from "@/stores/claude-chat-store";
+} from "@/stores/ai-chat-store";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getUniqueTargetName } from "@/lib/tauri/fs";
@@ -63,12 +63,12 @@ function getFileIcon(file: ProjectFile) {
 }
 
 export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
-  const sendPrompt = useClaudeChatStore((s) => s.sendPrompt);
-  const cancelExecution = useClaudeChatStore((s) => s.cancelExecution);
-  const isStreaming = useClaudeChatStore((s) => s.isStreaming);
-  const selectedModel = useClaudeChatStore((s) => s.selectedModel);
-  const setSelectedModel = useClaudeChatStore((s) => s.setSelectedModel);
-  const activeTabId = useClaudeChatStore((s) => s.activeTabId);
+  const sendPrompt = useAiChatStore((s) => s.sendPrompt);
+  const cancelExecution = useAiChatStore((s) => s.cancelExecution);
+  const isStreaming = useAiChatStore((s) => s.isStreaming);
+  const selectedModel = useAiChatStore((s) => s.selectedModel);
+  const setSelectedModel = useAiChatStore((s) => s.setSelectedModel);
+  const activeTabId = useAiChatStore((s) => s.activeTabId);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const availableModels = getModelsForProvider(aiProvider);
   const [input, setInput] = useState("");
@@ -136,7 +136,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     const prevTabId = prevTabIdRef.current;
     if (prevTabId !== activeTabId) {
       // Save current input to the *previous* tab's draft (using refs for latest values)
-      useClaudeChatStore.getState().saveDraft(prevTabId, {
+      useAiChatStore.getState().saveDraft(prevTabId, {
         input: inputRef.current,
         pinnedContexts: pinnedContextsRef.current,
       });
@@ -144,7 +144,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
     prevTabIdRef.current = activeTabId;
 
     // Restore draft from the new active tab
-    const tab = useClaudeChatStore
+    const tab = useAiChatStore
       .getState()
       .tabs.find((t) => t.id === activeTabId);
     const draft = tab?.draft;
@@ -166,8 +166,8 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const projectRoot = useDocumentStore((s) => s.projectRoot);
 
   // Consume pending attachments from external sources (e.g. PDF capture)
-  const pendingAttachments = useClaudeChatStore((s) => s.pendingAttachments);
-  const consumePendingAttachments = useClaudeChatStore(
+  const pendingAttachments = useAiChatStore((s) => s.pendingAttachments);
+  const consumePendingAttachments = useAiChatStore(
     (s) => s.consumePendingAttachments,
   );
 

@@ -23,10 +23,10 @@ vi.mock("@/stores/history-store", () => ({
   },
 }));
 
-import { useClaudeChatStore } from "@/stores/claude-chat-store";
+import { useAiChatStore } from "@/stores/ai-chat-store";
 
 function resetClaudeChatStore() {
-  useClaudeChatStore.setState({
+  useAiChatStore.setState({
     messages: [],
     sessionId: null,
     isStreaming: false,
@@ -87,7 +87,7 @@ function setMockDocumentState(overrides: Partial<any> = {}) {
   return state;
 }
 
-describe("useClaudeChatStore.sendPrompt context assembly", () => {
+describe("useAiChatStore.sendPrompt context assembly", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetClaudeChatStore();
@@ -98,7 +98,7 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
     const wholeFileText =
       "\\section{Intro}\nThis is the full file.\n\\textbf{Important note}";
 
-    await useClaudeChatStore.getState().sendPrompt("Please revise this", {
+    await useAiChatStore.getState().sendPrompt("Please revise this", {
       label: "@main.tex",
       filePath: "main.tex",
       selectedText: wholeFileText,
@@ -122,7 +122,7 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
     expect(prompt).toContain(wholeFileText);
 
     const userText =
-      useClaudeChatStore.getState().messages[0].message?.content?.[0].text;
+      useAiChatStore.getState().messages[0].message?.content?.[0].text;
     expect(userText).toBe("@main.tex\nPlease revise this");
   });
 
@@ -142,7 +142,7 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
       selectionRange: { start: 6, end: 16 },
     });
 
-    await useClaudeChatStore.getState().sendPrompt("Please revise this");
+    await useAiChatStore.getState().sendPrompt("Please revise this");
 
     expect(invoke).toHaveBeenCalledWith(
       "ai_execute",
@@ -164,7 +164,7 @@ describe("useClaudeChatStore.sendPrompt context assembly", () => {
     expect(prompt2).not.toContain("\ndelta");
 
     const userText =
-      useClaudeChatStore.getState().messages[0].message?.content?.[0].text;
+      useAiChatStore.getState().messages[0].message?.content?.[0].text;
     expect(userText).toBe("@main.tex:2:1-3:6\nPlease revise this");
     expect(state.saveAllFiles).not.toHaveBeenCalled();
     expect(createSnapshotMock).toHaveBeenCalledWith(

@@ -21,6 +21,8 @@ interface SelectionToolbarProps {
   onSendPrompt: (prompt: string) => void;
   onAction: (actionId: string) => void;
   onDismiss: () => void;
+  /** Show the free-form AI prompt input. Hidden when no AI provider is configured. */
+  showPrompt?: boolean;
 }
 
 export function SelectionToolbar({
@@ -30,6 +32,7 @@ export function SelectionToolbar({
   onSendPrompt,
   onAction,
   onDismiss,
+  showPrompt = true,
 }: SelectionToolbarProps) {
   const [input, setInput] = useState("");
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -90,26 +93,28 @@ export function SelectionToolbar({
         left: position.left,
       }}
     >
-      {/* Prompt input */}
-      <div className="flex items-center gap-1 border-border border-b px-2 py-1.5">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Enter prompt..."
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <button
-          aria-label="Send prompt"
-          onClick={handleSend}
-          disabled={!input.trim()}
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
-        >
-          <ArrowUpIcon className="size-3.5" />
-        </button>
-      </div>
+      {/* Prompt input (AI) */}
+      {showPrompt && (
+        <div className="flex items-center gap-1 border-border border-b px-2 py-1.5">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter prompt..."
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            aria-label="Send prompt"
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+          >
+            <ArrowUpIcon className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Action buttons */}
       {actions.length > 0 && (

@@ -10,6 +10,34 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+/// Check if an environment variable should be explicitly passed to child processes.
+///
+/// NOTE: This is NOT a true whitelist — we do NOT call `env_clear()`, so the
+/// child inherits the full parent environment.  This helper only identifies vars
+/// that we *explicitly* re-set via `cmd.env()` to guarantee they are present
+/// even when other per-key overrides are applied (e.g. prepending to PATH).
+/// Uses case-insensitive comparison for Windows compatibility.
+pub(crate) fn is_essential_env_var(key: &str) -> bool {
+    let k = key.to_ascii_uppercase();
+    // Cross-platform
+    matches!(
+        k.as_str(),
+        "HOME" | "USER" | "SHELL" | "LANG"
+        | "HOMEBREW_PREFIX" | "HOMEBREW_CELLAR"
+        | "HTTP_PROXY" | "HTTPS_PROXY" | "NO_PROXY" | "ALL_PROXY"
+    ) || k.starts_with("LC_")
+    // Windows-specific
+    || matches!(
+        k.as_str(),
+        "USERPROFILE" | "APPDATA" | "LOCALAPPDATA"
+        | "TEMP" | "TMP"
+        | "SYSTEMROOT" | "SYSTEMDRIVE"
+        | "COMPUTERNAME" | "USERNAME"
+        | "PROGRAMFILES" | "PROGRAMFILES(X86)" | "COMMONPROGRAMFILES"
+        | "PATHEXT" | "PSMODULEPATH" | "WINDIR"
+    )
+}
+
 // ─── Binary Discovery ───
 
 /// Discover the uv binary on the system.
@@ -232,7 +260,7 @@ pub async fn install_uv(window: WebviewWindow) -> Result<(), String> {
 
     // Inherit essential environment variables (shared helper handles case-insensitive matching)
     for (key, value) in std::env::vars() {
-        if key.eq_ignore_ascii_case("PATH") || crate::claude::is_essential_env_var(&key) {
+        if key.eq_ignore_ascii_case("PATH") || is_essential_env_var(&key) {
             cmd.env(&key, &value);
         }
     }

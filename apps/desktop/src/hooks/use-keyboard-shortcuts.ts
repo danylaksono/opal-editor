@@ -47,6 +47,17 @@ export function useKeyboardShortcuts() {
         invoke("create_new_window").catch(console.error);
       }
 
+      // Cmd+K (macOS) / Ctrl+K (others): Toggle command palette
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "k" &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("toggle-command-palette"));
+      }
+
       // Cmd+X (macOS) / Ctrl+X (others): Capture & Ask
       if (
         (e.metaKey || e.ctrlKey) &&
