@@ -114,12 +114,11 @@ jobs:
         env:
           TAURI_PRIVATE_KEY_SECRET: ${{ secrets.TAURI_PRIVATE_KEY }}
         run: |
-          $signingKey = $env:TAURI_PRIVATE_KEY_SECRET -replace '\s', ''
-          $signingDir = Join-Path $env:RUNNER_TEMP 'tauri'
-          New-Item -ItemType Directory -Force -Path $signingDir | Out-Null
-          $signingKeyPath = Join-Path $signingDir 'signing.key'
-          [System.IO.File]::WriteAllText($signingKeyPath, $signingKey)
-          "TAURI_SIGNING_PRIVATE_KEY_PATH=$signingKeyPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $signingKey = ($env:TAURI_PRIVATE_KEY_SECRET -replace '\s', '') -replace '=', ''
+          if ([string]::IsNullOrWhiteSpace($signingKey)) {
+            throw 'TAURI_PRIVATE_KEY secret is empty.'
+          }
+          "TAURI_SIGNING_PRIVATE_KEY=$signingKey" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v1
