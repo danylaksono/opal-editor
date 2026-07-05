@@ -105,12 +105,20 @@ jobs:
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> "$env:GITHUB_ENV"
           echo "VCPKG_DEFAULT_TRIPLET=x64-windows-static-md" >> "$env:GITHUB_ENV"
           echo "VCPKGRS_TRIPLET=x64-windows-static-md" >> "$env:GITHUB_ENV"
+          echo "CXXFLAGS=/std:c++17" >> "$env:GITHUB_ENV"
+
+      - name: Prepare Tauri signing key
+        shell: bash
+        env:
+          TAURI_PRIVATE_KEY_SECRET: ${{ secrets.TAURI_PRIVATE_KEY }}
+        run: |
+          signing_key="$(printf '%s' "$TAURI_PRIVATE_KEY_SECRET" | tr -d '[:space:]' | sed 's/=*$//')"
+          echo "TAURI_SIGNING_PRIVATE_KEY=$signing_key" >> "$GITHUB_ENV"
 
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
