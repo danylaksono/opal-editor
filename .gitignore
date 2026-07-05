@@ -44,6 +44,11 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+*.key
+*.key.pub
+*.p12
+*.pfx
+*.sig
 
 *.acn
 *.acr

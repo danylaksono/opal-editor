@@ -59,7 +59,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENBNjAzOTI2NzdDQjdBNkMKUldSc2VzdDNKamxneXMzUnZIK0h3TzZ4WVo4QVFVQlRaSFA1TEhCcGtUYW53ZkhNaDluaWgwZWQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZGMDA4NjU0QzU2NDY2QTYKUldTbVptVEZWSVlBLzh0SmxhU0xkSlJmamlMQ1I4bmdZcmQ4UCtiQUFuZ0hhckRvbmFtOHlURFYK",
       "endpoints": [
         "https://github.com/danylaksono/tectonic-editor/releases/latest/download/latest.json"
       ]
