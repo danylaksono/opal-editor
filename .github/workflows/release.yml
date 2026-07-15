@@ -109,21 +109,11 @@ jobs:
           echo "VCPKGRS_TRIPLET=x64-windows-static-md" >> "$env:GITHUB_ENV"
           echo "CXXFLAGS=/std:c++17" >> "$env:GITHUB_ENV"
 
-      - name: Prepare Tauri signing key
-        shell: pwsh
-        env:
-          TAURI_PRIVATE_KEY_SECRET: ${{ secrets.TAURI_PRIVATE_KEY }}
-        run: |
-          $signingKey = ($env:TAURI_PRIVATE_KEY_SECRET -replace '\s', '') -replace '=', ''
-          if ([string]::IsNullOrWhiteSpace($signingKey)) {
-            throw 'TAURI_PRIVATE_KEY secret is empty.'
-          }
-          "TAURI_SIGNING_PRIVATE_KEY=$signingKey" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
