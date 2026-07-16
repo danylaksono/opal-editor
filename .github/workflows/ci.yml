@@ -37,4 +37,5 @@ jobs:
           cache: pnpm
 
       - run: pnpm install
+      - run: pnpm test:release-notes
       - run: pnpm --filter @tectonic-editor/desktop test

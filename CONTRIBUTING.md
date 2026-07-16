@@ -147,6 +147,23 @@ A [Husky](https://typicode.github.io/husky/) pre-commit hook runs automatically 
 
 GitHub Actions runs `biome check` + tests on every PR and push to `main`. Tagged releases (`v*`) trigger multi-platform builds (Linux, macOS ARM/Intel, Windows).
 
+### Releases
+
+Release notes are generated from the root `CHANGELOG.md`. Before tagging,
+preferably move the current notes into a section named for the new version and
+leave a fresh `[Unreleased]` section above it. The workflow uses `[Unreleased]`
+as a fallback when there is no populated version section. Pushing the tag
+creates the GitHub release with those notes before the platform builds upload
+their assets:
+
+```bash
+git tag v1.3.0
+git push origin v1.3.0
+```
+
+The release fails early when neither the tagged version nor `[Unreleased]`
+contains any notes.
+
 ## Pull Request Process
 
 1. Fork the repository

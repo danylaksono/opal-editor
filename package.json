@@ -16,6 +16,7 @@
     "build:desktop": "pnpm --filter=@tectonic-editor/desktop tauri build",
     "lint": "pnpm exec biome check",
     "lint:fix": "pnpm exec biome check --fix",
+    "test:release-notes": "node --test scripts/release-notes.test.mjs",
     "release": "echo 'To release: git tag v<version> && git push origin v<version>'",
     "prepare": "husky"
   },
