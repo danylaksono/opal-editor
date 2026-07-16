@@ -110,7 +110,7 @@ export function semanticCompletionSource(
     return {
       from: context.pos - graphic[1].length,
       options: indexedOptions("asset"),
-      validFor: /^[\w./\\-]*$/,
+      validFor: /^[\w./-]*$/,
     };
   }
 
