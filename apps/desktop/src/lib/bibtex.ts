@@ -176,3 +176,23 @@ export function parseBibEntries(
 
   return entries;
 }
+
+/** Parse classic thebibliography entries so citation tools also work without a .bib file. */
+export function parseBibItems(
+  content: string,
+  filePath = "main.tex",
+): BibCitation[] {
+  const entries: BibCitation[] = [];
+  const pattern = /\\bibitem(?:\[([^\]]*)\])?\s*\{([^}]+)\}/g;
+  for (const match of content.matchAll(pattern)) {
+    const key = match[2].trim();
+    if (!key) continue;
+    entries.push({
+      key,
+      type: "bibitem",
+      title: match[1]?.trim() || key,
+      filePath,
+    });
+  }
+  return entries;
+}

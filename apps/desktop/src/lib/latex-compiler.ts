@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { resolveTexRoot, type ProjectFile } from "@/stores/document-store";
 import { createLogger } from "@/lib/debug/logger";
+import { friendlyCompileError } from "@/lib/latex-guidance";
 
 const log = createLogger("latex");
 
@@ -27,11 +28,13 @@ export function resolveCompileTarget(
 
 /** Extract a human-readable error message from an unknown catch value. */
 export function formatCompileError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : typeof error === "string"
-      ? error
-      : "Compilation failed";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Compilation failed";
+  return friendlyCompileError(message);
 }
 
 export async function compileLatex(

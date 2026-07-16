@@ -16,9 +16,15 @@ import {
   PlusIcon,
   BookMarkedIcon,
   ExternalLinkIcon,
+  Link2Icon,
+  ImagePlusIcon,
+  BoxesIcon,
 } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CitationPicker } from "@/components/workspace/citation-picker";
+import { CrossReferencePicker } from "@/components/workspace/cross-reference-picker";
+import { FigurePicker } from "@/components/workspace/figure-picker";
+import { EnvironmentPicker } from "@/components/workspace/environment-picker";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,6 +41,16 @@ import {
 } from "@/components/ui/select";
 import { useDocumentStore } from "@/stores/document-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { serializeCitation, type CitationDraft } from "@/lib/latex-citations";
+import {
+  serializeReference,
+  type ReferenceDraft,
+} from "@/lib/latex-cross-references";
+import {
+  prepareEnvironmentBody,
+  serializeEnvironment,
+  type EditableEnvironment,
+} from "@/lib/latex-environments";
 
 interface EditorInfo {
   id: string;
@@ -54,7 +70,7 @@ const ZOOM_OPTIONS = [
 
 interface EditorToolbarProps {
   editorView: RefObject<EditorView | null>;
-  fileType?: "tex" | "image";
+  fileType?: "tex" | "bib" | "image";
   imageScale?: number;
   onImageScaleChange?: (scale: number) => void;
   cropMode?: boolean;
@@ -85,6 +101,10 @@ export function EditorToolbar({
 
   const [editors, setEditors] = useState<EditorInfo[]>([]);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
+  const [crossReferencePickerOpen, setCrossReferencePickerOpen] =
+    useState(false);
+  const [figurePickerOpen, setFigurePickerOpen] = useState(false);
+  const [environmentPickerOpen, setEnvironmentPickerOpen] = useState(false);
 
   useEffect(() => {
     invoke<EditorInfo[]>("detect_editors")
@@ -134,17 +154,53 @@ export function EditorToolbar({
     insertText(wrapper, wrapper);
   };
 
-  const insertCitation = (command: string, citekeys: string[]) => {
+  const insertCitation = (citationDraft: CitationDraft) => {
     const view = editorView.current;
     if (!view) return;
-    const keys = citekeys.join(",");
-    const citation = `\\${command}{${keys}}`;
+    const citation = serializeCitation(citationDraft);
     const { from, to } = view.state.selection.main;
     view.dispatch({
       changes: { from, to, insert: citation },
       selection: { anchor: from + citation.length },
     });
     view.focus();
+  };
+
+  const insertReference = (referenceDraft: ReferenceDraft) => {
+    const view = editorView.current;
+    if (!view) return;
+    const reference = serializeReference(referenceDraft);
+    const { from, to } = view.state.selection.main;
+    view.dispatch({
+      changes: { from, to, insert: reference },
+      selection: { anchor: from + reference.length },
+    });
+    view.focus();
+  };
+
+  const insertBlock = (source: string) => {
+    const view = editorView.current;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    view.dispatch({
+      changes: { from, to, insert: source },
+      selection: { anchor: from + source.length },
+    });
+    view.focus();
+  };
+
+  const insertEnvironment = (name: EditableEnvironment, option: string) => {
+    const view = editorView.current;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    const selection = view.state.sliceDoc(from, to);
+    insertBlock(
+      serializeEnvironment({
+        name,
+        option,
+        body: prepareEnvironmentBody(name, selection),
+      }),
+    );
   };
 
   const zoomIn = () => onImageScaleChange?.(Math.min(4, imageScale + 0.25));
@@ -245,6 +301,21 @@ export function EditorToolbar({
     );
   }
 
+  if (fileType === "bib") {
+    return (
+      <div className="flex h-[calc(36px+var(--titlebar-height))] items-center gap-2 border-border border-b bg-muted/30 px-2 pt-[var(--titlebar-height)]">
+        <BookMarkedIcon className="size-4 text-muted-foreground" />
+        <span className="font-medium text-muted-foreground text-sm">
+          {fileName}
+        </span>
+        <span className="text-muted-foreground/70 text-xs">
+          Click a citation key or press Alt+Enter to edit its fields
+        </span>
+        <div data-tauri-drag-region className="flex-1 self-stretch" />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex h-[calc(36px+var(--titlebar-height))] items-center gap-1 border-border border-b bg-muted/30 px-2 pt-[var(--titlebar-height)]">
@@ -310,6 +381,24 @@ export function EditorToolbar({
         >
           <BookMarkedIcon className="size-4" />
         </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Cross-reference picker"
+          onClick={() => setCrossReferencePickerOpen(true)}
+        >
+          <Link2Icon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Insert figure"
+          onClick={() => setFigurePickerOpen(true)}
+        >
+          <ImagePlusIcon className="size-4" />
+        </TooltipIconButton>
+        <TooltipIconButton
+          tooltip="Insert structure"
+          onClick={() => setEnvironmentPickerOpen(true)}
+        >
+          <BoxesIcon className="size-4" />
+        </TooltipIconButton>
         <div className="mx-2 h-4 w-px bg-border" />
         <Button
           variant={vimMode ? "default" : "ghost"}
@@ -360,6 +449,23 @@ export function EditorToolbar({
         onOpenChange={setCitationPickerOpen}
         files={files}
         onInsert={insertCitation}
+      />
+      <CrossReferencePicker
+        open={crossReferencePickerOpen}
+        onOpenChange={setCrossReferencePickerOpen}
+        files={files}
+        onInsert={insertReference}
+      />
+      <FigurePicker
+        open={figurePickerOpen}
+        onOpenChange={setFigurePickerOpen}
+        files={files}
+        onInsert={insertBlock}
+      />
+      <EnvironmentPicker
+        open={environmentPickerOpen}
+        onOpenChange={setEnvironmentPickerOpen}
+        onInsert={insertEnvironment}
       />
     </>
   );

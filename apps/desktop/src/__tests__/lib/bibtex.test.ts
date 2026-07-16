@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBibEntries } from "@/lib/bibtex";
+import { parseBibEntries, parseBibItems } from "@/lib/bibtex";
 
 describe("parseBibEntries", () => {
   it("extracts common citation metadata", () => {
@@ -62,5 +62,23 @@ describe("parseBibEntries", () => {
       key: "lamport1994",
       publisher: "Addison-Wesley",
     });
+  });
+});
+
+describe("parseBibItems", () => {
+  it("extracts keys from a classic thebibliography block", () => {
+    expect(
+      parseBibItems(
+        String.raw`\bibitem[Knuth (1984)]{knuth1984} Literate Programming`,
+        "main.tex",
+      ),
+    ).toEqual([
+      {
+        key: "knuth1984",
+        type: "bibitem",
+        title: "Knuth (1984)",
+        filePath: "main.tex",
+      },
+    ]);
   });
 });

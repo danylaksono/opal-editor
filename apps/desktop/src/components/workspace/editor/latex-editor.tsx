@@ -8,6 +8,11 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
   scrollPastEnd,
+  Decoration,
+  ViewPlugin,
+  hoverTooltip,
+  type DecorationSet,
+  type ViewUpdate,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -43,7 +48,11 @@ import {
   forEachDiagnostic,
   type Diagnostic,
 } from "@codemirror/lint";
-import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
+import {
+  resolveTexRoot,
+  useDocumentStore,
+  type ProjectFile,
+} from "@/stores/document-store";
 import {
   useProposedChangesStore,
   type ProposedChange,
@@ -79,11 +88,174 @@ import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
 import { ProposedChangesPanel } from "@/components/ai-chat/proposed-changes-panel";
 import { ImagePreview } from "./image-preview";
 import { SearchPanel } from "./search-panel";
+import { CitationInlineEditor } from "./citation-inline-editor";
+import { CrossReferenceInlineEditor } from "./cross-reference-inline-editor";
+import { FigureInlineEditor } from "./figure-inline-editor";
+import { EnvironmentInlineEditor } from "./environment-inline-editor";
+import { BibEntryInlineEditor } from "./bib-entry-inline-editor";
 import { PdfViewer } from "@/components/workspace/preview/pdf-viewer";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { createLogger } from "@/lib/debug/logger";
+import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
+import {
+  detectCitationPackage,
+  findCitationAt,
+  findCitations,
+  serializeCitation,
+  type CitationDraft,
+  type CitationMatch,
+} from "@/lib/latex-citations";
+import {
+  detectReferencePackage,
+  findLabelDefinitions,
+  findReferenceAt,
+  findReferences,
+  serializeReference,
+  type LabelDefinition,
+  type ReferenceDraft,
+  type ReferenceMatch,
+} from "@/lib/latex-cross-references";
+import {
+  findFigureAt,
+  findFigures,
+  type FigureMatch,
+} from "@/lib/latex-figures";
+import {
+  findEditableEnvironmentAt,
+  findEditableEnvironments,
+  type EnvironmentMatch,
+} from "@/lib/latex-environments";
+import {
+  findDeclaredPackages,
+  findMissingPackageRequirements,
+  friendlyLatexDiagnostic,
+  insertUsePackage,
+} from "@/lib/latex-guidance";
+import {
+  findBibEntries,
+  findBibEntryAt,
+  type BibEntryMatch,
+} from "@/lib/bibtex-entries";
 
 const log = createLogger("merge-view");
+
+function buildCitationDecorations(view: EditorView): DecorationSet {
+  const marks = findCitations(view.state.doc.toString()).map((citation) =>
+    Decoration.mark({ class: "cm-citation-command" }).range(
+      citation.from,
+      citation.to,
+    ),
+  );
+  return Decoration.set(marks, true);
+}
+
+const citationDecorationPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = buildCitationDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged) {
+        this.decorations = buildCitationDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
+function buildReferenceDecorations(view: EditorView): DecorationSet {
+  const marks = findReferences(view.state.doc.toString()).map((reference) =>
+    Decoration.mark({ class: "cm-cross-reference-command" }).range(
+      reference.from,
+      reference.to,
+    ),
+  );
+  return Decoration.set(marks, true);
+}
+
+const referenceDecorationPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = buildReferenceDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged) {
+        this.decorations = buildReferenceDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
+function semanticBlockDecorations(view: EditorView): DecorationSet {
+  const content = view.state.doc.toString();
+  const marks = [
+    ...findFigures(content).map((figure) =>
+      Decoration.mark({ class: "cm-semantic-block-command" }).range(
+        figure.graphicFrom,
+        figure.graphicTo,
+      ),
+    ),
+    ...findEditableEnvironments(content).map((environment) =>
+      Decoration.mark({ class: "cm-semantic-block-command" }).range(
+        environment.beginFrom,
+        environment.beginTo,
+      ),
+    ),
+  ];
+  return Decoration.set(marks, true);
+}
+
+const semanticBlockDecorationPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = semanticBlockDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged) {
+        this.decorations = semanticBlockDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
+
+function bibEntryDecorations(view: EditorView): DecorationSet {
+  return Decoration.set(
+    findBibEntries(view.state.doc.toString()).map((entry) =>
+      Decoration.mark({ class: "cm-bib-entry-key" }).range(
+        entry.keyFrom,
+        entry.keyTo,
+      ),
+    ),
+    true,
+  );
+}
+
+const bibEntryDecorationPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = bibEntryDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged)
+        this.decorations = bibEntryDecorations(update.view);
+    }
+  },
+  { decorations: (value) => value.decorations },
+);
 
 function getActiveFileContent(): string {
   const state = useDocumentStore.getState();
@@ -156,6 +328,33 @@ export function LatexEditor() {
     top: number;
     left: number;
   } | null>(null);
+  const [citationEditor, setCitationEditor] = useState<{
+    target: CitationMatch;
+    anchor: { top: number; bottom: number; left: number };
+  } | null>(null);
+  const [referenceEditor, setReferenceEditor] = useState<{
+    target: ReferenceMatch;
+    anchor: { top: number; bottom: number; left: number };
+  } | null>(null);
+  const [figureEditor, setFigureEditor] = useState<{
+    target: FigureMatch;
+    anchor: { top: number; bottom: number; left: number };
+  } | null>(null);
+  const [environmentEditor, setEnvironmentEditor] = useState<{
+    target: EnvironmentMatch;
+    anchor: { top: number; bottom: number; left: number };
+  } | null>(null);
+  const [bibEntryEditor, setBibEntryEditor] = useState<{
+    target: BibEntryMatch;
+    anchor: { top: number; bottom: number; left: number };
+  } | null>(null);
+  useEffect(() => {
+    setCitationEditor(null);
+    setReferenceEditor(null);
+    setFigureEditor(null);
+    setEnvironmentEditor(null);
+    setBibEntryEditor(null);
+  }, [activeFileId]);
   // When the selection toolbar is visible, prevent CM selection changes from clearing it.
   // Only explicit dismiss/send/action should clear the toolbar.
   const toolbarStickyRef = useRef(false);
@@ -177,6 +376,196 @@ export function LatexEditor() {
   const handleKeepAllRef = useRef<() => void>(() => {});
   const handleUndoAllRef = useRef<() => void>(() => {});
   const diagnosticsRef = useRef<DiagnosticItem[]>([]);
+  const bibliographyEntriesRef = useRef<BibCitation[]>([]);
+  const labelDefinitionsRef = useRef<LabelDefinition[]>([]);
+  const declaredPackagesRef = useRef<Set<string>>(new Set());
+
+  const citationPackage = useMemo(
+    () =>
+      detectCitationPackage(
+        files
+          .filter((file) => file.name.toLowerCase().endsWith(".tex"))
+          .map((file) => file.content ?? ""),
+      ),
+    [files],
+  );
+  const bibliographyEntries = useMemo(
+    () =>
+      files.flatMap((file) => {
+        if (!file.content) return [];
+        if (file.name.toLowerCase().endsWith(".bib")) {
+          return parseBibEntries(file.content, file.relativePath);
+        }
+        if (file.name.toLowerCase().endsWith(".tex")) {
+          return parseBibItems(file.content, file.relativePath);
+        }
+        return [];
+      }),
+    [files],
+  );
+  bibliographyEntriesRef.current = bibliographyEntries;
+  const texProjectFiles = useMemo(
+    () =>
+      files
+        .filter((file) => file.name.toLowerCase().endsWith(".tex"))
+        .map((file) => ({
+          filePath: file.relativePath,
+          content: file.content ?? "",
+        })),
+    [files],
+  );
+  const labelDefinitions = useMemo(
+    () => findLabelDefinitions(texProjectFiles),
+    [texProjectFiles],
+  );
+  labelDefinitionsRef.current = labelDefinitions;
+  const referencePackage = useMemo(
+    () => detectReferencePackage(texProjectFiles.map((file) => file.content)),
+    [texProjectFiles],
+  );
+  declaredPackagesRef.current = findDeclaredPackages(
+    texProjectFiles.map((file) => file.content),
+  );
+
+  const addPackageToProject = useCallback(
+    (view: EditorView, packageName: string) => {
+      const state = useDocumentStore.getState();
+      const rootId = resolveTexRoot(state.activeFileId, state.files);
+      const rootFile = state.files.find((file) => file.id === rootId);
+      if (!rootFile?.content) return;
+      const updated = insertUsePackage(rootFile.content, packageName);
+      if (updated === rootFile.content) return;
+
+      if (rootId === state.activeFileId) {
+        let insertionAt = 0;
+        while (
+          insertionAt < rootFile.content.length &&
+          rootFile.content[insertionAt] === updated[insertionAt]
+        ) {
+          insertionAt++;
+        }
+        const insertedText = updated.slice(
+          insertionAt,
+          insertionAt + updated.length - rootFile.content.length,
+        );
+        view.dispatch({
+          changes: { from: insertionAt, insert: insertedText },
+        });
+      } else {
+        state.updateFileContent(rootId, updated);
+      }
+    },
+    [],
+  );
+
+  const openCitationEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const target = findCitationAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const startCoords = view.coordsAtPos(target.from);
+      const endCoords = view.coordsAtPos(
+        Math.min(target.to, view.state.doc.length),
+      );
+      if (!startCoords || !endCoords) return false;
+      setReferenceEditor(null);
+      setFigureEditor(null);
+      setEnvironmentEditor(null);
+      setCitationEditor({
+        target,
+        anchor: {
+          top: Math.min(startCoords.top, endCoords.top),
+          bottom: Math.max(startCoords.bottom, endCoords.bottom),
+          left: startCoords.left,
+        },
+      });
+      return true;
+    },
+    [activeFile?.type],
+  );
+
+  const openReferenceEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const target = findReferenceAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const startCoords = view.coordsAtPos(target.from);
+      const endCoords = view.coordsAtPos(
+        Math.min(target.to, view.state.doc.length),
+      );
+      if (!startCoords || !endCoords) return false;
+      setCitationEditor(null);
+      setFigureEditor(null);
+      setEnvironmentEditor(null);
+      setReferenceEditor({
+        target,
+        anchor: {
+          top: Math.min(startCoords.top, endCoords.top),
+          bottom: Math.max(startCoords.bottom, endCoords.bottom),
+          left: startCoords.left,
+        },
+      });
+      return true;
+    },
+    [activeFile?.type],
+  );
+
+  const openFigureEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const target = findFigureAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const coords = view.coordsAtPos(target.graphicTo);
+      if (!coords) return false;
+      setCitationEditor(null);
+      setReferenceEditor(null);
+      setEnvironmentEditor(null);
+      setFigureEditor({
+        target,
+        anchor: { top: coords.top, bottom: coords.bottom, left: coords.left },
+      });
+      return true;
+    },
+    [activeFile?.type],
+  );
+
+  const openEnvironmentEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const target = findEditableEnvironmentAt(
+        view.state.doc.toString(),
+        position,
+      );
+      if (!target) return false;
+      const coords = view.coordsAtPos(target.beginTo);
+      if (!coords) return false;
+      setCitationEditor(null);
+      setReferenceEditor(null);
+      setFigureEditor(null);
+      setEnvironmentEditor({
+        target,
+        anchor: { top: coords.top, bottom: coords.bottom, left: coords.left },
+      });
+      return true;
+    },
+    [activeFile?.type],
+  );
+
+  const openBibEntryEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "bib" || isMergeActiveRef.current) return false;
+      const target = findBibEntryAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const coords = view.coordsAtPos(target.keyTo);
+      if (!coords) return false;
+      setBibEntryEditor({
+        target,
+        anchor: { top: coords.top, bottom: coords.bottom, left: coords.left },
+      });
+      return true;
+    },
+    [activeFile?.type],
+  );
 
   useEffect(() => {
     isSearchOpenRef.current = isSearchOpen;
@@ -572,6 +961,19 @@ export function LatexEditor() {
           },
         },
         {
+          key: "Alt-Enter",
+          run: (view) => {
+            const position = view.state.selection.main.head;
+            return (
+              openCitationEditorAt(view, position) ||
+              openReferenceEditorAt(view, position) ||
+              openFigureEditorAt(view, position) ||
+              openEnvironmentEditorAt(view, position) ||
+              openBibEntryEditorAt(view, position)
+            );
+          },
+        },
+        {
           key: "Mod-s",
           run: () => {
             const state = useDocumentStore.getState();
@@ -634,6 +1036,92 @@ export function LatexEditor() {
       ]),
     );
 
+    const citationHover = hoverTooltip(
+      (view, position) => {
+        const citation = findCitationAt(view.state.doc.toString(), position);
+        if (!citation) return null;
+        return {
+          pos: citation.from,
+          end: citation.to,
+          above: true,
+          create: () => {
+            const dom = document.createElement("div");
+            dom.className =
+              "max-w-sm space-y-2 rounded-md border border-border bg-popover p-2.5 text-popover-foreground shadow-lg";
+            const heading = document.createElement("div");
+            heading.className =
+              "font-medium text-[11px] text-muted-foreground uppercase tracking-wide";
+            heading.textContent =
+              citation.keys.length === 1
+                ? "Citation"
+                : `${citation.keys.length} citations`;
+            dom.appendChild(heading);
+
+            const entryMap = new Map(
+              bibliographyEntriesRef.current.map((entry) => [entry.key, entry]),
+            );
+            for (const key of citation.keys) {
+              const entry = entryMap.get(key);
+              const row = document.createElement("div");
+              row.className = "space-y-0.5";
+              const title = document.createElement("div");
+              title.className = entry
+                ? "max-w-xs truncate font-medium text-xs"
+                : "max-w-xs truncate font-medium text-destructive text-xs";
+              title.textContent = entry?.title ?? `Missing reference: ${key}`;
+              row.appendChild(title);
+              const metadata = document.createElement("div");
+              metadata.className =
+                "max-w-xs truncate text-[11px] text-muted-foreground";
+              metadata.textContent = entry
+                ? [entry.author, entry.year].filter(Boolean).join(" · ") || key
+                : "Click to choose a replacement";
+              row.appendChild(metadata);
+              dom.appendChild(row);
+            }
+            return { dom };
+          },
+        };
+      },
+      { hoverTime: 250, hideOnChange: true },
+    );
+
+    const referenceHover = hoverTooltip(
+      (view, position) => {
+        const reference = findReferenceAt(view.state.doc.toString(), position);
+        if (!reference) return null;
+        return {
+          pos: reference.from,
+          end: reference.to,
+          above: true,
+          create: () => {
+            const label = labelDefinitionsRef.current.find(
+              (definition) => definition.key === reference.key,
+            );
+            const dom = document.createElement("div");
+            dom.className =
+              "max-w-sm space-y-1 rounded-md border border-border bg-popover p-2.5 text-popover-foreground shadow-lg";
+            const title = document.createElement("div");
+            title.className = label
+              ? "max-w-xs truncate font-medium text-xs"
+              : "max-w-xs truncate font-medium text-destructive text-xs";
+            title.textContent =
+              label?.context ?? `Missing label: ${reference.key}`;
+            dom.appendChild(title);
+            const metadata = document.createElement("div");
+            metadata.className =
+              "max-w-xs truncate text-[11px] text-muted-foreground";
+            metadata.textContent = label
+              ? `${label.kind} · ${label.filePath}:${label.line} · ${label.key}`
+              : "Click to choose a replacement";
+            dom.appendChild(metadata);
+            return { dom };
+          },
+        };
+      },
+      { hoverTime: 250, hideOnChange: true },
+    );
+
     const state = EditorState.create({
       doc: currentContent,
       extensions: [
@@ -651,6 +1139,47 @@ export function LatexEditor() {
         activeFile?.type === "bib" ? bibtex() : latex({ enableLinting: false }),
         ...(activeFile?.type === "tex"
           ? [
+              citationDecorationPlugin,
+              citationHover,
+              referenceDecorationPlugin,
+              referenceHover,
+              semanticBlockDecorationPlugin,
+              EditorView.domEventHandlers({
+                click: (event, view) => {
+                  const position = view.posAtCoords({
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                  if (position === null) return false;
+                  if (!openCitationEditorAt(view, position)) {
+                    if (!openReferenceEditorAt(view, position)) {
+                      if (!openFigureEditorAt(view, position)) {
+                        openEnvironmentEditorAt(view, position);
+                      }
+                    }
+                  }
+                  return false;
+                },
+              }),
+            ]
+          : []),
+        ...(activeFile?.type === "bib"
+          ? [
+              bibEntryDecorationPlugin,
+              EditorView.domEventHandlers({
+                click: (event, view) => {
+                  const position = view.posAtCoords({
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                  if (position !== null) openBibEntryEditorAt(view, position);
+                  return false;
+                },
+              }),
+            ]
+          : []),
+        ...(activeFile?.type === "tex"
+          ? [
               linter((view) => {
                 // Wait until the Lezer parser has fully parsed the document
                 // to avoid false positives from incomplete syntax trees
@@ -661,35 +1190,114 @@ export function LatexEditor() {
                 const diagnostics = baseLinter(view);
                 const showAiActions =
                   useSettingsStore.getState().aiProvider !== "none";
-                return diagnostics.map((d: Diagnostic) => ({
-                  ...d,
-                  actions: [
-                    ...(d.actions ?? []),
-                    ...(showAiActions
-                      ? [
-                          {
-                            name: "Fix with chat",
-                            apply: (
-                              v: EditorView,
-                              from: number,
-                              _to: number,
-                            ) => {
-                              const line = v.state.doc.lineAt(from);
-                              const docState = useDocumentStore.getState();
-                              const file = docState.files.find(
-                                (f) => f.id === docState.activeFileId,
-                              );
-                              const fileName = file?.relativePath ?? "main.tex";
-                              const ctx = `[Lint error in ${fileName}:${line.number}]\n[Error: ${d.message}]`;
-                              useAiChatStore
-                                .getState()
-                                .sendPrompt(`${ctx}\n\nFix this lint error.`);
+                const enhancedDiagnostics = diagnostics.map(
+                  (d: Diagnostic) => ({
+                    ...d,
+                    message: friendlyLatexDiagnostic(d.message),
+                    actions: [
+                      ...(d.actions ?? []),
+                      ...(showAiActions
+                        ? [
+                            {
+                              name: "Fix with chat",
+                              apply: (
+                                v: EditorView,
+                                from: number,
+                                _to: number,
+                              ) => {
+                                const line = v.state.doc.lineAt(from);
+                                const docState = useDocumentStore.getState();
+                                const file = docState.files.find(
+                                  (f) => f.id === docState.activeFileId,
+                                );
+                                const fileName =
+                                  file?.relativePath ?? "main.tex";
+                                const ctx = `[Lint error in ${fileName}:${line.number}]\n[Error: ${d.message}]`;
+                                useAiChatStore
+                                  .getState()
+                                  .sendPrompt(`${ctx}\n\nFix this lint error.`);
+                              },
                             },
+                          ]
+                        : []),
+                    ],
+                  }),
+                );
+                const knownKeys = new Set(
+                  bibliographyEntriesRef.current.map((entry) => entry.key),
+                );
+                const citationDiagnostics: Diagnostic[] = findCitations(
+                  view.state.doc.toString(),
+                ).flatMap((citation) => {
+                  const missingKeys = citation.keys.filter(
+                    (key) => !knownKeys.has(key),
+                  );
+                  if (missingKeys.length === 0) return [];
+                  return [
+                    {
+                      from: citation.from,
+                      to: citation.to,
+                      severity: "warning",
+                      message: `Missing bibliography ${missingKeys.length === 1 ? "entry" : "entries"}: ${missingKeys.join(", ")}`,
+                      actions: [
+                        {
+                          name: "Choose replacement",
+                          apply: (editorView: EditorView, from: number) => {
+                            openCitationEditorAt(editorView, from);
                           },
-                        ]
-                      : []),
-                  ],
-                }));
+                        },
+                      ],
+                    },
+                  ];
+                });
+                const knownLabels = new Set(
+                  labelDefinitionsRef.current.map((label) => label.key),
+                );
+                const referenceDiagnostics: Diagnostic[] = findReferences(
+                  view.state.doc.toString(),
+                )
+                  .filter((reference) => !knownLabels.has(reference.key))
+                  .map((reference) => ({
+                    from: reference.from,
+                    to: reference.to,
+                    severity: "warning",
+                    message: `Missing label: ${reference.key}`,
+                    actions: [
+                      {
+                        name: "Choose replacement",
+                        apply: (editorView: EditorView, from: number) => {
+                          openReferenceEditorAt(editorView, from);
+                        },
+                      },
+                    ],
+                  }));
+                const packageDiagnostics: Diagnostic[] =
+                  findMissingPackageRequirements(
+                    view.state.doc.toString(),
+                    declaredPackagesRef.current,
+                  ).map((requirement) => ({
+                    from: requirement.from,
+                    to: requirement.to,
+                    severity: "warning",
+                    message: `${requirement.feature} requires the ${requirement.packageName} package.`,
+                    actions: [
+                      {
+                        name: `Add ${requirement.packageName}`,
+                        apply: (editorView: EditorView) => {
+                          addPackageToProject(
+                            editorView,
+                            requirement.packageName,
+                          );
+                        },
+                      },
+                    ],
+                  }));
+                return [
+                  ...enhancedDiagnostics,
+                  ...citationDiagnostics,
+                  ...referenceDiagnostics,
+                  ...packageDiagnostics,
+                ];
               }),
               lintGutter(),
             ]
@@ -728,6 +1336,48 @@ export function LatexEditor() {
           ".cm-content": {
             paddingLeft: "8px",
             paddingRight: "12px",
+          },
+          ".cm-citation-command": {
+            borderBottom:
+              "1px dotted color-mix(in srgb, var(--primary) 65%, transparent)",
+            borderRadius: "2px",
+            cursor: "pointer",
+            transition: "background-color 0.15s ease",
+          },
+          ".cm-citation-command:hover": {
+            backgroundColor:
+              "color-mix(in srgb, var(--primary) 10%, transparent)",
+          },
+          ".cm-cross-reference-command": {
+            borderBottom:
+              "1px dotted color-mix(in srgb, var(--chart-2, var(--primary)) 65%, transparent)",
+            borderRadius: "2px",
+            cursor: "pointer",
+            transition: "background-color 0.15s ease",
+          },
+          ".cm-cross-reference-command:hover": {
+            backgroundColor:
+              "color-mix(in srgb, var(--chart-2, var(--primary)) 10%, transparent)",
+          },
+          ".cm-semantic-block-command": {
+            borderBottom:
+              "1px dotted color-mix(in srgb, var(--chart-3, var(--primary)) 65%, transparent)",
+            borderRadius: "2px",
+            cursor: "pointer",
+          },
+          ".cm-semantic-block-command:hover": {
+            backgroundColor:
+              "color-mix(in srgb, var(--chart-3, var(--primary)) 10%, transparent)",
+          },
+          ".cm-bib-entry-key": {
+            borderBottom:
+              "1px dotted color-mix(in srgb, var(--primary) 65%, transparent)",
+            borderRadius: "2px",
+            cursor: "pointer",
+          },
+          ".cm-bib-entry-key:hover": {
+            backgroundColor:
+              "color-mix(in srgb, var(--primary) 10%, transparent)",
           },
           ".cm-searchMatch": {
             backgroundColor: "#facc15 !important",
@@ -834,10 +1484,16 @@ export function LatexEditor() {
       viewRef.current = null;
     };
   }, [
+    addPackageToProject,
     activeFileId,
     activeFile?.relativePath,
     clearProblemDiagnostics,
     isTextFile,
+    openBibEntryEditorAt,
+    openCitationEditorAt,
+    openEnvironmentEditorAt,
+    openFigureEditorAt,
+    openReferenceEditorAt,
     setContent,
     setCursorPosition,
     setProblemDiagnostics,
@@ -1017,6 +1673,238 @@ export function LatexEditor() {
     return { top: relTop, left: relLeft };
   }, [selectionCoords]);
 
+  const citationEditorPosition = useMemo(() => {
+    if (!citationEditor || !parentRef.current) return null;
+    const parentRect = parentRef.current.getBoundingClientRect();
+    const width = Math.min(460, Math.max(280, parentRect.width - 16));
+    const left = Math.max(
+      8,
+      Math.min(
+        citationEditor.anchor.left - parentRect.left,
+        parentRect.width - width - 8,
+      ),
+    );
+    const below = citationEditor.anchor.bottom - parentRect.top + 6;
+    const top = Math.max(8, Math.min(below, parentRect.height - 520));
+    return { top, left };
+  }, [citationEditor]);
+
+  const dismissCitationEditor = useCallback(() => {
+    setCitationEditor(null);
+    viewRef.current?.focus();
+  }, []);
+
+  const applyCitationEdit = useCallback(
+    (draft: CitationDraft) => {
+      const view = viewRef.current;
+      const currentTarget = citationEditor?.target;
+      if (!view || !currentTarget) return;
+      const currentSource = view.state.sliceDoc(
+        currentTarget.from,
+        currentTarget.to,
+      );
+      if (currentSource !== currentTarget.source) {
+        setCitationEditor(null);
+        view.focus();
+        return;
+      }
+
+      const replacement = serializeCitation(draft);
+      view.dispatch({
+        changes: {
+          from: currentTarget.from,
+          to: currentTarget.to,
+          insert: replacement,
+        },
+        selection: { anchor: currentTarget.from + replacement.length },
+      });
+      setCitationEditor(null);
+      view.focus();
+    },
+    [citationEditor],
+  );
+
+  const referenceEditorPosition = useMemo(() => {
+    if (!referenceEditor || !parentRef.current) return null;
+    const parentRect = parentRef.current.getBoundingClientRect();
+    const width = Math.min(420, Math.max(280, parentRect.width - 16));
+    const left = Math.max(
+      8,
+      Math.min(
+        referenceEditor.anchor.left - parentRect.left,
+        parentRect.width - width - 8,
+      ),
+    );
+    const below = referenceEditor.anchor.bottom - parentRect.top + 6;
+    const top = Math.max(8, Math.min(below, parentRect.height - 440));
+    return { top, left };
+  }, [referenceEditor]);
+
+  const dismissReferenceEditor = useCallback(() => {
+    setReferenceEditor(null);
+    viewRef.current?.focus();
+  }, []);
+
+  const applyReferenceEdit = useCallback(
+    (draft: ReferenceDraft) => {
+      const view = viewRef.current;
+      const currentTarget = referenceEditor?.target;
+      if (!view || !currentTarget) return;
+      const currentSource = view.state.sliceDoc(
+        currentTarget.from,
+        currentTarget.to,
+      );
+      if (currentSource !== currentTarget.source) {
+        setReferenceEditor(null);
+        view.focus();
+        return;
+      }
+      const replacement = serializeReference(draft);
+      view.dispatch({
+        changes: {
+          from: currentTarget.from,
+          to: currentTarget.to,
+          insert: replacement,
+        },
+        selection: { anchor: currentTarget.from + replacement.length },
+      });
+      setReferenceEditor(null);
+      view.focus();
+    },
+    [referenceEditor],
+  );
+
+  const figureEditorPosition = useMemo(() => {
+    if (!figureEditor || !parentRef.current) return null;
+    const parentRect = parentRef.current.getBoundingClientRect();
+    const width = Math.min(480, Math.max(280, parentRect.width - 16));
+    return {
+      top: Math.max(
+        8,
+        Math.min(
+          figureEditor.anchor.bottom - parentRect.top + 6,
+          parentRect.height - 430,
+        ),
+      ),
+      left: Math.max(
+        8,
+        Math.min(
+          figureEditor.anchor.left - parentRect.left,
+          parentRect.width - width - 8,
+        ),
+      ),
+    };
+  }, [figureEditor]);
+
+  const environmentEditorPosition = useMemo(() => {
+    if (!environmentEditor || !parentRef.current) return null;
+    const parentRect = parentRef.current.getBoundingClientRect();
+    const width = Math.min(380, Math.max(280, parentRect.width - 16));
+    return {
+      top: Math.max(
+        8,
+        Math.min(
+          environmentEditor.anchor.bottom - parentRect.top + 6,
+          parentRect.height - 360,
+        ),
+      ),
+      left: Math.max(
+        8,
+        Math.min(
+          environmentEditor.anchor.left - parentRect.left,
+          parentRect.width - width - 8,
+        ),
+      ),
+    };
+  }, [environmentEditor]);
+
+  const dismissFigureEditor = useCallback(() => {
+    setFigureEditor(null);
+    viewRef.current?.focus();
+  }, []);
+
+  const dismissEnvironmentEditor = useCallback(() => {
+    setEnvironmentEditor(null);
+    viewRef.current?.focus();
+  }, []);
+
+  const applySemanticBlockEdit = useCallback(
+    (
+      editor: "figure" | "environment",
+      target: FigureMatch | EnvironmentMatch,
+      replacement: string,
+    ) => {
+      const view = viewRef.current;
+      if (
+        !view ||
+        view.state.sliceDoc(target.from, target.to) !== target.source
+      ) {
+        setFigureEditor(null);
+        setEnvironmentEditor(null);
+        view?.focus();
+        return;
+      }
+      view.dispatch({
+        changes: { from: target.from, to: target.to, insert: replacement },
+        selection: { anchor: target.from + replacement.length },
+      });
+      if (editor === "figure") setFigureEditor(null);
+      else setEnvironmentEditor(null);
+      view.focus();
+    },
+    [],
+  );
+
+  const bibEntryEditorPosition = useMemo(() => {
+    if (!bibEntryEditor || !parentRef.current) return null;
+    const parentRect = parentRef.current.getBoundingClientRect();
+    const width = Math.min(540, Math.max(300, parentRect.width - 16));
+    return {
+      top: Math.max(
+        8,
+        Math.min(
+          bibEntryEditor.anchor.bottom - parentRect.top + 6,
+          parentRect.height - 520,
+        ),
+      ),
+      left: Math.max(
+        8,
+        Math.min(
+          bibEntryEditor.anchor.left - parentRect.left,
+          parentRect.width - width - 8,
+        ),
+      ),
+    };
+  }, [bibEntryEditor]);
+
+  const dismissBibEntryEditor = useCallback(() => {
+    setBibEntryEditor(null);
+    viewRef.current?.focus();
+  }, []);
+
+  const applyBibEntryEdit = useCallback(
+    (replacement: string) => {
+      const view = viewRef.current;
+      const target = bibEntryEditor?.target;
+      if (
+        !view ||
+        !target ||
+        view.state.sliceDoc(target.from, target.to) !== target.source
+      ) {
+        setBibEntryEditor(null);
+        view?.focus();
+        return;
+      }
+      view.dispatch({
+        changes: { from: target.from, to: target.to, insert: replacement },
+        selection: { anchor: target.from + replacement.length },
+      });
+      setBibEntryEditor(null);
+      view.focus();
+    },
+    [bibEntryEditor],
+  );
+
   const handleToolbarSendPrompt = useCallback(
     (prompt: string) => {
       toolbarStickyRef.current = false;
@@ -1102,7 +1990,13 @@ export function LatexEditor() {
       {/* Toolbar — adapts to file type */}
       <EditorToolbar
         editorView={viewRef}
-        fileType={isPdf || isImage ? "image" : undefined}
+        fileType={
+          isPdf || isImage
+            ? "image"
+            : activeFile?.type === "bib"
+              ? "bib"
+              : undefined
+        }
         imageScale={isPdf || isImage ? imageScale : undefined}
         onImageScaleChange={isPdf || isImage ? setImageScale : undefined}
         cropMode={isImage ? cropMode : undefined}
@@ -1233,6 +2127,83 @@ export function LatexEditor() {
               ref={containerRef}
               className={reviewingSnapshot ? "hidden" : "absolute inset-0"}
             />
+            {citationEditor &&
+              citationEditorPosition &&
+              !reviewingSnapshot &&
+              !isMergeActiveRef.current && (
+                <CitationInlineEditor
+                  key={`${citationEditor.target.from}:${citationEditor.target.source}`}
+                  target={citationEditor.target}
+                  position={citationEditorPosition}
+                  files={files}
+                  citationPackage={citationPackage}
+                  onApply={applyCitationEdit}
+                  onDismiss={dismissCitationEditor}
+                />
+              )}
+            {referenceEditor &&
+              referenceEditorPosition &&
+              !reviewingSnapshot &&
+              !isMergeActiveRef.current && (
+                <CrossReferenceInlineEditor
+                  key={`${referenceEditor.target.from}:${referenceEditor.target.source}`}
+                  target={referenceEditor.target}
+                  labels={labelDefinitions}
+                  referencePackage={referencePackage}
+                  position={referenceEditorPosition}
+                  onApply={applyReferenceEdit}
+                  onDismiss={dismissReferenceEditor}
+                />
+              )}
+            {figureEditor &&
+              figureEditorPosition &&
+              !reviewingSnapshot &&
+              !isMergeActiveRef.current && (
+                <FigureInlineEditor
+                  key={`${figureEditor.target.from}:${figureEditor.target.source}`}
+                  target={figureEditor.target}
+                  files={files}
+                  position={figureEditorPosition}
+                  onApply={(source) =>
+                    applySemanticBlockEdit(
+                      "figure",
+                      figureEditor.target,
+                      source,
+                    )
+                  }
+                  onDismiss={dismissFigureEditor}
+                />
+              )}
+            {environmentEditor &&
+              environmentEditorPosition &&
+              !reviewingSnapshot &&
+              !isMergeActiveRef.current && (
+                <EnvironmentInlineEditor
+                  key={`${environmentEditor.target.from}:${environmentEditor.target.source}`}
+                  target={environmentEditor.target}
+                  position={environmentEditorPosition}
+                  onApply={(source) =>
+                    applySemanticBlockEdit(
+                      "environment",
+                      environmentEditor.target,
+                      source,
+                    )
+                  }
+                  onDismiss={dismissEnvironmentEditor}
+                />
+              )}
+            {bibEntryEditor &&
+              bibEntryEditorPosition &&
+              !reviewingSnapshot &&
+              !isMergeActiveRef.current && (
+                <BibEntryInlineEditor
+                  key={`${bibEntryEditor.target.from}:${bibEntryEditor.target.source}`}
+                  target={bibEntryEditor.target}
+                  position={bibEntryEditorPosition}
+                  onApply={applyBibEntryEdit}
+                  onDismiss={dismissBibEntryEditor}
+                />
+              )}
             {reviewingSnapshot && historyDiffResult && (
               <HistoryDiffView diffs={historyDiffResult} />
             )}

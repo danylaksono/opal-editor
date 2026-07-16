@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookMarkedIcon,
   CheckIcon,
@@ -6,7 +6,14 @@ import {
   SearchIcon,
 } from "lucide-react";
 import type { ProjectFile } from "@/stores/document-store";
-import { parseBibEntries, type BibCitation } from "@/lib/bibtex";
+import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
+import {
+  detectCitationPackage,
+  getCitationStyleOptions,
+  getDefaultCitationCommand,
+  type CitationCommand,
+  type CitationDraft,
+} from "@/lib/latex-citations";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,25 +31,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const CITATION_COMMANDS = [
-  { value: "cite", label: "\\cite" },
-  { value: "parencite", label: "\\parencite" },
-  { value: "textcite", label: "\\textcite" },
-  { value: "citep", label: "\\citep" },
-  { value: "citet", label: "\\citet" },
-];
-
 interface CitationPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   files: ProjectFile[];
-  onInsert: (command: string, citekeys: string[]) => void;
+  onInsert: (citation: CitationDraft) => void;
 }
 
 function getCitationEntries(files: ProjectFile[]) {
-  return files
-    .filter((file) => file.name.toLowerCase().endsWith(".bib") && file.content)
-    .flatMap((file) => parseBibEntries(file.content ?? "", file.relativePath));
+  return files.flatMap((file) => {
+    if (!file.content) return [];
+    if (file.name.toLowerCase().endsWith(".bib")) {
+      return parseBibEntries(file.content, file.relativePath);
+    }
+    if (file.name.toLowerCase().endsWith(".tex")) {
+      return parseBibItems(file.content, file.relativePath);
+    }
+    return [];
+  });
 }
 
 function entrySource(entry: BibCitation) {
@@ -77,8 +83,29 @@ export function CitationPicker({
   onInsert,
 }: CitationPickerProps) {
   const [query, setQuery] = useState("");
-  const [command, setCommand] = useState("cite");
+  const citationPackage = useMemo(
+    () =>
+      detectCitationPackage(
+        files
+          .filter((file) => file.name.toLowerCase().endsWith(".tex"))
+          .map((file) => file.content ?? ""),
+      ),
+    [files],
+  );
+  const styleOptions = useMemo(
+    () => getCitationStyleOptions(citationPackage),
+    [citationPackage],
+  );
+  const [command, setCommand] = useState<CitationCommand>(
+    getDefaultCitationCommand(citationPackage),
+  );
+  const [prefix, setPrefix] = useState("");
+  const [locator, setLocator] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open) setCommand(getDefaultCitationCommand(citationPackage));
+  }, [open, citationPackage]);
 
   const entries = useMemo(() => getCitationEntries(files), [files]);
   const filtered = useMemo(
@@ -96,8 +123,10 @@ export function CitationPicker({
 
   const insertSelection = (keys = selectedKeys) => {
     if (keys.length === 0) return;
-    onInsert(command, keys);
+    onInsert({ command, keys, prefix, locator });
     setQuery("");
+    setPrefix("");
+    setLocator("");
     setSelectedKeys([]);
     onOpenChange(false);
   };
@@ -107,7 +136,12 @@ export function CitationPicker({
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen);
-        if (!nextOpen) setSelectedKeys([]);
+        if (!nextOpen) {
+          setQuery("");
+          setPrefix("");
+          setLocator("");
+          setSelectedKeys([]);
+        }
       }}
     >
       <DialogContent className="gap-3 p-0 sm:max-w-2xl">
@@ -136,18 +170,50 @@ export function CitationPicker({
               autoFocus
             />
           </div>
-          <Select value={command} onValueChange={setCommand}>
-            <SelectTrigger size="sm" className="h-8! w-28 text-xs">
+          <Select
+            value={command}
+            onValueChange={(value) => setCommand(value as CitationCommand)}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label="Citation style"
+              className="h-8! w-48 text-xs"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CITATION_COMMANDS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
+              {styleOptions.map((style) => (
+                <SelectItem key={style.command} value={style.command}>
+                  {style.label} — {style.description}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 px-4">
+          <div className="space-y-1 text-muted-foreground text-xs">
+            <label htmlFor="citation-prefix">Prefix (optional)</label>
+            <Input
+              id="citation-prefix"
+              value={prefix}
+              onChange={(event) => setPrefix(event.target.value)}
+              className="h-8 text-sm"
+              placeholder="e.g. see, compare"
+            />
+          </div>
+          <div className="space-y-1 text-muted-foreground text-xs">
+            <label htmlFor="citation-locator">
+              Pages or chapter (optional)
+            </label>
+            <Input
+              id="citation-locator"
+              value={locator}
+              onChange={(event) => setLocator(event.target.value)}
+              className="h-8 text-sm"
+              placeholder="e.g. pp. 23--25, ch. 2"
+            />
+          </div>
         </div>
 
         <div className="min-h-80 overflow-hidden px-2">
