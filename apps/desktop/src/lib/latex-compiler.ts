@@ -26,15 +26,62 @@ export function resolveCompileTarget(
   return null;
 }
 
-/** Extract a human-readable error message from an unknown catch value. */
-export function formatCompileError(error: unknown): string {
-  const message =
+export interface CompileDiagnostic {
+  message: string;
+  file?: string;
+  line?: number;
+}
+
+export interface CompileFailure {
+  backend: string;
+  category:
+    | "undefined-command"
+    | "missing-file"
+    | "syntax"
+    | "busy"
+    | "engine"
+    | string;
+  summary: string;
+  sourceFile?: string;
+  sourceLine?: number;
+  relatedDiagnostics: CompileDiagnostic[];
+  rawEngineOutput: string;
+}
+
+export function isCompileFailure(value: unknown): value is CompileFailure {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "summary" in value &&
+      "rawEngineOutput" in value,
+  );
+}
+
+/** Normalize both structured Rust failures and legacy string rejections. */
+export function formatCompileError(error: unknown): CompileFailure {
+  if (isCompileFailure(error)) return error;
+  const raw =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
         : "Compilation failed";
-  return friendlyCompileError(message);
+  const summary = friendlyCompileError(raw);
+  const line = /(?:^|\n)l\.(\d+)/.exec(raw)?.[1];
+  return {
+    backend: "unknown",
+    category: /Undefined control sequence/.test(raw)
+      ? "undefined-command"
+      : /not found|File `/.test(raw)
+        ? "missing-file"
+        : "engine",
+    summary,
+    sourceLine: line ? Number(line) : undefined,
+    relatedDiagnostics: [
+      { message: summary, line: line ? Number(line) : undefined },
+    ],
+    rawEngineOutput: raw,
+  };
 }
 
 export async function compileLatex(

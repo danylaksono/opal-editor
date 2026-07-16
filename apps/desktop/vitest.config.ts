@@ -10,5 +10,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/__tests__/mocks/tauri.ts"],
+    exclude: ["e2e/**", "node_modules/**", "dist/**"],
   },
 });

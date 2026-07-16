@@ -1,6 +1,7 @@
 mod ai;
 mod history;
 mod latex;
+mod metadata;
 mod uv;
 mod zotero;
 
@@ -593,6 +594,8 @@ pub fn run() {
             latex::compile_latex,
             latex::synctex_edit,
             latex::detect_texlive,
+            metadata::lookup_reference,
+            metadata::clear_metadata_cache,
             // Unified AI provider commands
             ai_list_providers,
             ai_get_active_provider,

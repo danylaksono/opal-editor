@@ -22,6 +22,7 @@ import { clearScrollPositionCache } from "@/components/workspace/preview/pdf-vie
 import { clearZoomCache } from "@/components/workspace/preview/pdf-preview";
 import { clearEditorStateCache } from "@/components/workspace/editor/latex-editor";
 import { createLogger } from "@/lib/debug/logger";
+import type { CompileFailure } from "@/lib/latex-compiler";
 
 const log = createLogger("document");
 
@@ -77,7 +78,7 @@ interface DocumentState {
   isThreadOpen: boolean;
   /** Bumped whenever PDF bytes change — triggers re-render without storing bytes in state. */
   pdfRevision: number;
-  compileError: string | null;
+  compileError: CompileFailure | string | null;
   isCompiling: boolean;
   /** When true, a recompile will be triggered after the current compile finishes. */
   pendingRecompile: boolean;
@@ -86,7 +87,7 @@ interface DocumentState {
   /** Incremented on every file content change; used to skip no-op recompiles. */
   contentGeneration: number;
   /** Per-root-file cache: rootFileId → compile error message. */
-  compileErrorCache: Map<string, string>;
+  compileErrorCache: Map<string, CompileFailure | string>;
   /** Per-root-file: rootFileId → contentGeneration at last successful compile. */
   lastCompiledGenerations: Map<string, number>;
 
@@ -105,7 +106,10 @@ interface DocumentState {
   clearJumpRequest: () => void;
   setThreadOpen: (open: boolean) => void;
   setPdfData: (data: Uint8Array | null, rootFileId?: string) => void;
-  setCompileError: (error: string | null, rootFileId?: string) => void;
+  setCompileError: (
+    error: CompileFailure | string | null,
+    rootFileId?: string,
+  ) => void;
   setIsCompiling: (isCompiling: boolean) => void;
   setPendingRecompile: (pending: boolean) => void;
   setIsSaving: (isSaving: boolean) => void;

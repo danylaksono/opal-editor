@@ -644,10 +644,14 @@ export function PdfPreview() {
   }, [pdfData, aiProvider]);
 
   const renderContent = () => {
-    if (compileError) {
+    if (compileError && !pdfData) {
+      const failure =
+        typeof compileError === "string"
+          ? formatCompileError(compileError)
+          : compileError;
       const errors = [
         ...new Set(
-          compileError
+          failure.rawEngineOutput
             .split(/\s*!\s*/)
             .map((s) => s.trim())
             .filter((s) => s.length > 0 && s !== "Compilation failed"),
@@ -680,11 +684,32 @@ export function PdfPreview() {
                   </span>
                 </div>
                 <p className="mt-1 truncate text-muted-foreground text-xs">
-                  {rootFileName} with {compilerBackend}
+                  {failure.backend === "unknown"
+                    ? compilerBackend
+                    : failure.backend}
                 </p>
               </div>
             </div>
             <div className="rounded-lg border border-destructive/20 bg-background">
+              <div className="space-y-2 border-b p-3 text-sm">
+                <div>
+                  <span className="font-medium">What happened:</span>{" "}
+                  {failure.summary}
+                </div>
+                <div>
+                  <span className="font-medium">Where:</span>{" "}
+                  {failure.sourceFile ?? rootFileName}
+                  {failure.sourceLine ? `, line ${failure.sourceLine}` : ""}
+                </div>
+                <div>
+                  <span className="font-medium">Suggested action:</span>{" "}
+                  {failure.category === "missing-file"
+                    ? "Check the file path and spelling."
+                    : failure.category === "undefined-command"
+                      ? "Check the command spelling or required package."
+                      : "Open the first reported location and correct the source, then retry."}
+                </div>
+              </div>
               <div className="max-h-60 divide-y divide-border overflow-y-auto">
                 {errors.map((error, i) => (
                   <div key={i} className="flex items-start gap-2.5 px-3 py-2.5">
@@ -693,6 +718,14 @@ export function PdfPreview() {
                   </div>
                 ))}
               </div>
+              <details className="border-t p-3">
+                <summary className="cursor-pointer text-muted-foreground text-xs">
+                  Technical details
+                </summary>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">
+                  {failure.rawEngineOutput}
+                </pre>
+              </details>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Button
@@ -1095,6 +1128,11 @@ export function PdfPreview() {
         </div>
       </div>
       {renderContent()}
+      {compileError && pdfData && (
+        <div className="pointer-events-none absolute top-[calc(48px+var(--titlebar-height))] left-1/2 z-30 -translate-x-1/2 rounded-md border border-amber-500/40 bg-amber-100 px-3 py-2 font-medium text-amber-950 text-xs shadow dark:bg-amber-950 dark:text-amber-100">
+          Showing the last successful PDF — the latest compile failed.
+        </div>
+      )}
       {/* PDF selection toolbar */}
       {pdfToolbarPosition && pdfSelection && (
         <SelectionToolbar

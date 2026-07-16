@@ -9,6 +9,8 @@ interface SettingsState {
   setCompilerBackend: (backend: CompilerBackend) => void;
   vimMode: boolean;
   setVimMode: (enabled: boolean) => void;
+  lensExperimental: boolean;
+  setLensExperimental: (enabled: boolean) => void;
   aiProvider: AiProvider;
   setAiProvider: (provider: AiProvider) => void;
 }
@@ -20,6 +22,8 @@ export const useSettingsStore = create<SettingsState>()(
       setCompilerBackend: (backend) => set({ compilerBackend: backend }),
       vimMode: false,
       setVimMode: (enabled) => set({ vimMode: enabled }),
+      lensExperimental: false,
+      setLensExperimental: (enabled) => set({ lensExperimental: enabled }),
       aiProvider: "none",
       setAiProvider: (provider) => set({ aiProvider: provider }),
     }),

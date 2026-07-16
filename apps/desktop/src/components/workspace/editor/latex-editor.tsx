@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
+import { autocompletion } from "@codemirror/autocomplete";
 import {
   EditorView,
   drawSelection,
@@ -95,7 +96,15 @@ import { EnvironmentInlineEditor } from "./environment-inline-editor";
 import { BibEntryInlineEditor } from "./bib-entry-inline-editor";
 import { PdfViewer } from "@/components/workspace/preview/pdf-viewer";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createLogger } from "@/lib/debug/logger";
+import { toast } from "sonner";
+import { semanticCompletionSource } from "@/lib/semantic/completion-source";
+import { sourceLensExtension } from "@/lib/source-lens";
+import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
+import { findTables } from "@/lib/latex-tables";
+import { findMathNodes } from "@/lib/latex-math";
 import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
 import {
   detectCitationPackage,
@@ -129,8 +138,11 @@ import {
   findDeclaredPackages,
   findMissingPackageRequirements,
   friendlyLatexDiagnostic,
-  insertUsePackage,
 } from "@/lib/latex-guidance";
+import {
+  confirmPackageRequirements,
+  featureForPackage,
+} from "@/lib/feature-packages";
 import {
   findBibEntries,
   findBibEntryAt,
@@ -206,6 +218,18 @@ function semanticBlockDecorations(view: EditorView): DecorationSet {
       Decoration.mark({ class: "cm-semantic-block-command" }).range(
         environment.beginFrom,
         environment.beginTo,
+      ),
+    ),
+    ...findTables(content).map((table) =>
+      Decoration.mark({ class: "cm-semantic-block-command" }).range(
+        table.from,
+        Math.min(table.to, table.from + "\\begin{table}".length),
+      ),
+    ),
+    ...findMathNodes(content).map((node) =>
+      Decoration.mark({ class: "cm-semantic-block-command" }).range(
+        node.from,
+        node.to,
       ),
     ),
   ];
@@ -291,6 +315,9 @@ export function LatexEditor() {
   const setPdfData = useDocumentStore((s) => s.setPdfData);
   const setCompileError = useDocumentStore((s) => s.setCompileError);
   const saveAllFiles = useDocumentStore((s) => s.saveAllFiles);
+  const importFiles = useDocumentStore((s) => s.importFiles);
+  const createFolder = useDocumentStore((s) => s.createFolder);
+  const folders = useDocumentStore((s) => s.folders);
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const isTextFile =
@@ -362,6 +389,14 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
+  const lensExperimental = useSettingsStore((s) => s.lensExperimental);
+  const workspaceModes = useLensStore((s) => s.workspaceModes);
+  const editorMode = projectRoot
+    ? (workspaceModes[projectRoot] ?? defaultWorkspaceMode(projectRoot))
+    : "source";
+  const lensActive =
+    editorMode === "lens" &&
+    (lensExperimental || defaultWorkspaceMode(projectRoot) === "lens");
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const setProblemDiagnostics = useProblemsStore((s) => s.setDiagnostics);
   const clearProblemDiagnostics = useProblemsStore((s) => s.clearDiagnostics);
@@ -371,6 +406,7 @@ export function LatexEditor() {
   const themeCompartmentRef = useRef(new Compartment());
   const mergeCompartmentRef = useRef(new Compartment());
   const vimCompartmentRef = useRef(new Compartment());
+  const lensCompartmentRef = useRef(new Compartment());
   const isMergeActiveRef = useRef(false);
   const pendingChangeRef = useRef<ProposedChange | null>(null);
   const handleKeepAllRef = useRef<() => void>(() => {});
@@ -428,32 +464,9 @@ export function LatexEditor() {
   );
 
   const addPackageToProject = useCallback(
-    (view: EditorView, packageName: string) => {
-      const state = useDocumentStore.getState();
-      const rootId = resolveTexRoot(state.activeFileId, state.files);
-      const rootFile = state.files.find((file) => file.id === rootId);
-      if (!rootFile?.content) return;
-      const updated = insertUsePackage(rootFile.content, packageName);
-      if (updated === rootFile.content) return;
-
-      if (rootId === state.activeFileId) {
-        let insertionAt = 0;
-        while (
-          insertionAt < rootFile.content.length &&
-          rootFile.content[insertionAt] === updated[insertionAt]
-        ) {
-          insertionAt++;
-        }
-        const insertedText = updated.slice(
-          insertionAt,
-          insertionAt + updated.length - rootFile.content.length,
-        );
-        view.dispatch({
-          changes: { from: insertionAt, insert: insertedText },
-        });
-      } else {
-        state.updateFileContent(rootId, updated);
-      }
+    (_view: EditorView, packageName: string) => {
+      const feature = featureForPackage(packageName);
+      if (feature) void confirmPackageRequirements([feature]);
     },
     [],
   );
@@ -1139,6 +1152,7 @@ export function LatexEditor() {
         activeFile?.type === "bib" ? bibtex() : latex({ enableLinting: false }),
         ...(activeFile?.type === "tex"
           ? [
+              autocompletion({ override: [semanticCompletionSource] }),
               citationDecorationPlugin,
               citationHover,
               referenceDecorationPlugin,
@@ -1151,13 +1165,75 @@ export function LatexEditor() {
                     y: event.clientY,
                   });
                   if (position === null) return false;
-                  if (!openCitationEditorAt(view, position)) {
-                    if (!openReferenceEditorAt(view, position)) {
-                      if (!openFigureEditorAt(view, position)) {
-                        openEnvironmentEditorAt(view, position);
-                      }
-                    }
+                  if (openCitationEditorAt(view, position)) return false;
+                  if (openReferenceEditorAt(view, position)) return false;
+                  if (openFigureEditorAt(view, position)) return false;
+                  const source = view.state.doc.toString();
+                  const table = findTables(source).find(
+                    (item) => position >= item.from && position <= item.to,
+                  );
+                  if (table) {
+                    window.dispatchEvent(
+                      new CustomEvent("edit-structured-table", {
+                        detail: {
+                          model: table,
+                          apply: (replacement: string) => {
+                            if (
+                              view.state.sliceDoc(table.from, table.to) !==
+                              table.originalSource
+                            ) {
+                              toast.error(
+                                "The table changed while the editor was open. Reopen it to avoid overwriting source.",
+                              );
+                              return;
+                            }
+                            view.dispatch({
+                              changes: {
+                                from: table.from,
+                                to: table.to,
+                                insert: replacement,
+                              },
+                            });
+                            view.focus();
+                          },
+                        },
+                      }),
+                    );
+                    return false;
                   }
+                  const math = findMathNodes(source).find(
+                    (item) => position >= item.from && position <= item.to,
+                  );
+                  if (math) {
+                    window.dispatchEvent(
+                      new CustomEvent("edit-structured-math", {
+                        detail: {
+                          node: math,
+                          apply: (replacement: string) => {
+                            if (
+                              view.state.sliceDoc(math.from, math.to) !==
+                              math.source
+                            ) {
+                              toast.error(
+                                "The equation changed while the editor was open. Reopen it to avoid overwriting source.",
+                              );
+                              return;
+                            }
+                            view.dispatch({
+                              changes: {
+                                from: math.from,
+                                to: math.to,
+                                insert: replacement,
+                              },
+                            });
+                            view.focus();
+                          },
+                        },
+                      }),
+                    );
+                    return false;
+                  }
+                  openEnvironmentEditorAt(view, position);
                   return false;
                 },
               }),
@@ -1311,6 +1387,7 @@ export function LatexEditor() {
         highlightSelectionMatches(),
         mergeCompartmentRef.current.of([]),
         vimCompartmentRef.current.of([]),
+        lensCompartmentRef.current.of(lensActive ? sourceLensExtension : []),
         updateListener,
         EditorView.lineWrapping,
         scrollPastEnd(),
@@ -1500,6 +1577,58 @@ export function LatexEditor() {
     setSelectionRange,
   ]);
 
+  useEffect(() => {
+    if (!projectRoot || activeFile?.type !== "tex") return;
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    getCurrentWebview()
+      .onDragDropEvent(async (event) => {
+        if (event.payload.type !== "drop") return;
+        const imagePaths = event.payload.paths.filter((path) =>
+          /\.(?:png|jpe?g|gif|webp|svg|pdf)$/i.test(path),
+        );
+        if (imagePaths.length === 0) return;
+        const confirmed = window.confirm(
+          `${imagePaths.length === 1 ? "Copy this image" : `Copy these ${imagePaths.length} images`} into the project's figures folder? The original files will not be changed.`,
+        );
+        if (!confirmed) return;
+        if (!folders.includes("figures")) await createFolder("figures");
+        const imported = await importFiles(imagePaths, "figures");
+        const view = viewRef.current;
+        if (view) {
+          const scaleFactor = await getCurrentWindow().scaleFactor();
+          const position = event.payload.position;
+          const editorPosition = view.posAtCoords({
+            x: position.x / scaleFactor,
+            y: position.y / scaleFactor,
+          });
+          if (editorPosition !== null) {
+            view.dispatch({
+              selection: { anchor: editorPosition },
+              scrollIntoView: true,
+            });
+            view.focus();
+          }
+        }
+        if (imported[0]) {
+          window.dispatchEvent(
+            new CustomEvent("image-dropped-for-figure", {
+              detail: { path: imported[0] },
+            }),
+          );
+        }
+      })
+      .then((dispose) => {
+        if (disposed) dispose();
+        else unlisten = dispose;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [activeFile?.type, createFolder, folders, importFiles, projectRoot]);
+
   // Dynamically switch editor theme when resolvedTheme changes
   useEffect(() => {
     const view = viewRef.current;
@@ -1529,6 +1658,16 @@ export function LatexEditor() {
       });
     });
   }, [vimMode, activeFileId, isTextFile]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !isTextFile) return;
+    view.dispatch({
+      effects: lensCompartmentRef.current.reconfigure(
+        lensActive ? sourceLensExtension : [],
+      ),
+    });
+  }, [activeFileId, isTextFile, lensActive]);
 
   useEffect(() => {
     const view = viewRef.current;

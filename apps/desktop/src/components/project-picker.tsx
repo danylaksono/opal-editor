@@ -33,6 +33,9 @@ import { SettingsDialog } from "./settings-dialog";
 import { exists, join } from "@/lib/tauri/fs";
 import { getTemplateById, getTemplateSkeleton } from "@/lib/template-registry";
 import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
+import { OnboardingPrompt } from "@/components/onboarding-prompt";
+import { useOnboardingStore } from "@/stores/onboarding-store";
+import { TUTORIAL_BIB, TUTORIAL_MAIN_TEX } from "@/lib/tutorial-project";
 
 function randomProjectName(): string {
   const adjectives = ["swift", "bright", "calm", "bold", "keen"];
@@ -49,6 +52,7 @@ export function ProjectPicker() {
   const [appVersion, setAppVersion] = useState("");
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isCreatingTutorial, setIsCreatingTutorial] = useState(false);
   const { status: updateStatus, checkForUpdate, installUpdate } = useUpdater();
 
   const recentProjects = useProjectStore((s) => s.recentProjects);
@@ -57,10 +61,17 @@ export function ProjectPicker() {
   const lastProjectFolder = useProjectStore((s) => s.lastProjectFolder);
   const setLastProjectFolder = useProjectStore((s) => s.setLastProjectFolder);
   const openProject = useDocumentStore((s) => s.openProject);
+  const hasSeenOffer = useOnboardingStore((s) => s.hasSeenOffer);
+  const markOfferSeen = useOnboardingStore((s) => s.markOfferSeen);
+  const startTutorial = useOnboardingStore((s) => s.startTutorial);
 
   useEffect(() => {
     getVersion().then(setAppVersion);
   }, []);
+
+  useEffect(() => {
+    if (!hasSeenOffer && recentProjects.length > 0) markOfferSeen();
+  }, [hasSeenOffer, markOfferSeen, recentProjects.length]);
 
   // Allow the command palette to open Settings from the launch screen.
   useEffect(() => {
@@ -131,6 +142,35 @@ export function ProjectPicker() {
     }
   };
 
+  const handleCreateTutorial = async () => {
+    setIsCreatingTutorial(true);
+    try {
+      let baseFolder = lastProjectFolder;
+      if (!baseFolder) {
+        const home = await homeDir();
+        baseFolder = await join(home, "Documents", "TectonicEditor");
+      }
+      await mkdir(baseFolder, { recursive: true });
+      const projectPath = await join(baseFolder, "Learn-LaTeX");
+      await mkdir(projectPath, { recursive: true });
+      const mainPath = await join(projectPath, "main.tex");
+      const bibPath = await join(projectPath, "references.bib");
+      if (!(await exists(mainPath)))
+        await writeTextFile(mainPath, TUTORIAL_MAIN_TEX);
+      if (!(await exists(bibPath))) await writeTextFile(bibPath, TUTORIAL_BIB);
+      setLastProjectFolder(baseFolder);
+      addRecentProject(projectPath);
+      startTutorial(projectPath);
+      await openProject(projectPath);
+    } catch (error) {
+      toast.error("Failed to create tutorial", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsCreatingTutorial(false);
+    }
+  };
+
   if (wizardMode) {
     return (
       <ProjectWizard mode={wizardMode} onBack={() => setWizardMode(null)} />
@@ -139,6 +179,12 @@ export function ProjectPicker() {
 
   return (
     <div className="relative flex h-full items-center justify-center bg-background">
+      <OnboardingPrompt
+        open={!hasSeenOffer && recentProjects.length === 0}
+        isCreating={isCreatingTutorial}
+        onLearn={handleCreateTutorial}
+        onSkip={markOfferSeen}
+      />
       <Button
         variant="ghost"
         size="icon"

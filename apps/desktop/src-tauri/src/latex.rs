@@ -44,6 +44,74 @@ pub struct SynctexResult {
     pub column: u32,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileDiagnostic {
+    pub message: String,
+    pub file: Option<String>,
+    pub line: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileFailure {
+    pub backend: String,
+    pub category: String,
+    pub summary: String,
+    pub source_file: Option<String>,
+    pub source_line: Option<u32>,
+    pub related_diagnostics: Vec<CompileDiagnostic>,
+    pub raw_engine_output: String,
+}
+
+impl CompileFailure {
+    fn from_output(backend: &str, output: String) -> Self {
+        let category = if output.contains("Undefined control sequence") {
+            "undefined-command"
+        } else if output.contains("not found") || output.contains("File `") {
+            "missing-file"
+        } else if output.contains("Emergency stop") || output.contains("Runaway argument") {
+            "syntax"
+        } else if output.contains("Server busy") {
+            "busy"
+        } else {
+            "engine"
+        };
+        let summary = output
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty() && !line.starts_with("Compilation failed"))
+            .unwrap_or("LaTeX could not produce a PDF")
+            .trim_start_matches('!')
+            .trim()
+            .to_string();
+        let source_line = output.lines().find_map(|line| {
+            let marker = line.trim().strip_prefix("l.")?;
+            marker.split_whitespace().next()?.parse::<u32>().ok()
+        });
+        let diagnostic = CompileDiagnostic {
+            message: summary.clone(),
+            file: None,
+            line: source_line,
+        };
+        Self {
+            backend: backend.to_string(),
+            category: category.to_string(),
+            summary,
+            source_file: None,
+            source_line,
+            related_diagnostics: vec![diagnostic],
+            raw_engine_output: output,
+        }
+    }
+}
+
+impl From<String> for CompileFailure {
+    fn from(value: String) -> Self {
+        CompileFailure::from_output("unknown", value)
+    }
+}
+
 // --- Helpers ---
 
 fn extract_error_lines(log: &str) -> String {
@@ -845,7 +913,7 @@ pub async fn compile_latex(
     project_dir: String,
     main_file: String,
     use_texlive: Option<bool>,
-) -> Result<tauri::ipc::Response, String> {
+) -> Result<tauri::ipc::Response, CompileFailure> {
     // Acquire semaphore permit (non-blocking)
     let _permit = state
         .semaphore
@@ -915,10 +983,10 @@ pub async fn compile_latex(
     // Verify the main TeX file exists before attempting compilation
     let main_tex_path = work_dir.join(&main_file);
     if !main_tex_path.exists() {
-        return Err(format!(
+        return Err(CompileFailure::from_output("filesystem", format!(
             "Compilation failed\n\nNo .tex file found: \"{}\". Create a document.tex or main.tex file to compile.",
             main_file
-        ));
+        )));
     }
 
     // Detect TeX engine from magic comment
@@ -939,12 +1007,12 @@ pub async fn compile_latex(
 
     if !use_texlive {
         if let Some(TexEngine::LuaLaTeX) = engine {
-            return Err(
+            return Err(CompileFailure::from_output("Tectonic",
                 "Compilation failed\n\nThis document requires LuaLaTeX (% !TEX program = lualatex), \
                  which is not supported. The embedded Tectonic engine is XeTeX-based. \
                  Please switch to XeLaTeX or remove the magic comment."
                     .to_string(),
-            );
+            ));
         }
     }
 
@@ -1065,7 +1133,10 @@ pub async fn compile_latex(
         } else {
             details
         };
-        Err(format!("Compilation failed ({})\n\n{}", backend_label, msg))
+        Err(CompileFailure::from_output(
+            &backend_label,
+            format!("Compilation failed ({})\n\n{}", backend_label, msg),
+        ))
     }
 }
 

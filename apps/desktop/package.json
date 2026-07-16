@@ -11,9 +11,11 @@
     "generate-previews": "tsx scripts/generate-previews.ts",
     "build:macos": "TECTONIC_DEP_BACKEND=vcpkg VCPKG_ROOT=$HOME/vcpkg CXXFLAGS=-std=c++17 CFLAGS= tauri build --target aarch64-apple-darwin --no-sign",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.1",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/language": "^6.12.1",
@@ -58,8 +60,11 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tauri-apps/cli": "^2.5.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^25.0.10",
     "@types/react": "^19.2.10",

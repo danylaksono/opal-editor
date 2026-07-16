@@ -12,6 +12,7 @@ import {
   Loader2Icon,
   CheckCircle2Icon,
   CircleIcon,
+  InfoIcon,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUvSetupStore } from "@/stores/uv-setup-store";
@@ -54,6 +55,14 @@ export function SettingsDialog({
           <EditorSection />
           <AiSettings />
           <PythonSection />
+          <div className="space-y-2">
+            <SectionHeading icon={InfoIcon} title="About" />
+            <p className="text-muted-foreground text-xs">
+              Bibliography metadata imported from arXiv is provided by arXiv and
+              is subject to arXiv's API terms. DOI metadata may be provided by
+              Crossref; ISBN metadata by Open Library.
+            </p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -111,6 +120,8 @@ function EditorSection() {
   const setCompilerBackend = useSettingsStore((s) => s.setCompilerBackend);
   const vimMode = useSettingsStore((s) => s.vimMode);
   const setVimMode = useSettingsStore((s) => s.setVimMode);
+  const lensExperimental = useSettingsStore((s) => s.lensExperimental);
+  const setLensExperimental = useSettingsStore((s) => s.setLensExperimental);
 
   return (
     <div className="space-y-3">
@@ -157,6 +168,20 @@ function EditorSection() {
           type="checkbox"
           checked={vimMode}
           onChange={(e) => setVimMode(e.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Source Lens (experimental)</div>
+          <div className="text-muted-foreground text-xs">
+            Source-preserving visual summaries for recognised LaTeX
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={lensExperimental}
+          onChange={(event) => setLensExperimental(event.target.checked)}
           className="size-4 accent-primary"
         />
       </label>

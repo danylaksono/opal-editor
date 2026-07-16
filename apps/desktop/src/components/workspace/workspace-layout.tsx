@@ -15,6 +15,7 @@ import {
   PanelRightCloseIcon,
   PanelRightOpenIcon,
   SettingsIcon,
+  StethoscopeIcon,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { AppearancePopover } from "./appearance-popover";
@@ -34,6 +35,9 @@ import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { TutorialChecklist } from "./tutorial-checklist";
+import { PackageChangeDialog } from "./package-change-dialog";
+import { BibliographyImportDialog } from "./bibliography-import-dialog";
 
 const sidePanelItems: Array<{
   id: WorkspaceSidePanel;
@@ -43,6 +47,7 @@ const sidePanelItems: Array<{
   { id: "files", label: "Files", icon: FolderIcon },
   { id: "outline", label: "Outline", icon: ListIcon },
   { id: "citations", label: "Citations", icon: BookOpenIcon },
+  { id: "health", label: "Project health", icon: StethoscopeIcon },
 ];
 
 function ActivityRail() {
@@ -253,6 +258,8 @@ export function WorkspaceLayout() {
 
   return (
     <div className="flex h-full bg-background">
+      <PackageChangeDialog />
+      <BibliographyImportDialog />
       {!focusMode && <ActivityRail />}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -270,6 +277,7 @@ export function WorkspaceLayout() {
           <Panel defaultSize={previewVisible ? 42.5 : 85} minSize={25}>
             <div className="relative h-full">
               <LatexEditor />
+              <TutorialChecklist />
               <button
                 type="button"
                 onClick={togglePreview}

@@ -26,6 +26,7 @@ import {
 import { useDocumentStore } from "@/stores/document-store";
 import { usePreviewStore } from "@/stores/preview-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { getEditorActions } from "@/lib/editor-actions";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -48,12 +49,37 @@ export function CommandPalette() {
   };
 
   const textFiles = files.filter((f) => f.type !== "image" && f.type !== "pdf");
+  const activeFile = files.find(
+    (file) => file.id === useDocumentStore.getState().activeFileId,
+  );
+  const sharedActions = getEditorActions({
+    projectOpen: Boolean(projectRoot),
+    activeFileType: activeFile?.type,
+  });
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="Type a command or search files…" />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {sharedActions.length > 0 && (
+          <CommandGroup heading="Insert & Help">
+            {sharedActions.map((action) => (
+              <CommandItem
+                key={action.id}
+                value={`${action.label} ${action.keywords.join(" ")}`}
+                onSelect={() => run(() => action.run())}
+              >
+                <FilePlusIcon />
+                <span>{action.label}</span>
+                {action.shortcut && (
+                  <CommandShortcut>{action.shortcut}</CommandShortcut>
+                )}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {projectRoot && (
           <CommandGroup heading="Actions">

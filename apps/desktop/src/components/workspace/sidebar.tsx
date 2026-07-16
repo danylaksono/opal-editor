@@ -68,6 +68,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useUvSetupStore } from "@/stores/uv-setup-store";
 import { UvSetupDialog } from "@/components/uv-setup";
 import { createLogger } from "@/lib/debug/logger";
+import { HealthPanel } from "@/components/workspace/health-panel";
 
 const log = createLogger("sidebar");
 
@@ -849,6 +850,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
             </div>
           </div>
         )}
+        {activePanel === "health" && <HealthPanel />}
       </div>
 
       {/* Environment section — Python */}

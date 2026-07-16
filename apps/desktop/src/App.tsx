@@ -13,6 +13,8 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorFallback } from "@/components/error-fallback";
+import { useSemanticIndex } from "@/hooks/use-semantic-index";
+import { useCoreEditorActions } from "@/hooks/use-core-editor-actions";
 
 const LazyDebugPage = lazy(() =>
   import("@/components/debug/debug-page").then((m) => ({
@@ -20,9 +22,15 @@ const LazyDebugPage = lazy(() =>
   })),
 );
 
+function EditorActionRegistrar() {
+  useCoreEditorActions();
+  return null;
+}
+
 function Workspace() {
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const initialized = useDocumentStore((s) => s.initialized);
+  useSemanticIndex();
 
   // Update window title
   useEffect(() => {
@@ -71,6 +79,7 @@ export function App({ onReady }: { onReady?: () => void }) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <EditorActionRegistrar />
         <TooltipProvider>
           {/* Global macOS titlebar drag region — sits above all content */}
           <div

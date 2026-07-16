@@ -1,0 +1,186 @@
+import { invoke } from "@tauri-apps/api/core";
+import {
+  applyProjectEditTransaction,
+  type ProjectTextEdit,
+} from "@/lib/project-edit-transaction";
+import { useDocumentStore } from "@/stores/document-store";
+
+export interface CitationCandidate {
+  provider: string;
+  attribution: string;
+  identifier: string;
+  entryType: string;
+  title: string;
+  authors: string[];
+  year: string;
+  journal: string;
+  publisher: string;
+  doi: string;
+  isbn: string;
+  arxivId: string;
+  url: string;
+  rawMetadata: string;
+  fromCache: boolean;
+}
+
+export function lookupReference(identifier: string, refresh = false) {
+  return invoke<CitationCandidate>("lookup_reference", { identifier, refresh });
+}
+
+export function clearMetadataCache() {
+  return invoke<void>("clear_metadata_cache");
+}
+
+function normalizedTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function findCandidateDuplicates(
+  candidate: CitationCandidate,
+  bibliographySource: string,
+): string[] {
+  const reasons: string[] = [];
+  if (
+    candidate.doi &&
+    bibliographySource.toLowerCase().includes(candidate.doi.toLowerCase())
+  )
+    reasons.push("same DOI");
+  if (
+    candidate.isbn &&
+    bibliographySource
+      .replace(/[-\s]/g, "")
+      .includes(candidate.isbn.replace(/[-\s]/g, ""))
+  )
+    reasons.push("same ISBN");
+  if (
+    candidate.arxivId &&
+    bibliographySource.toLowerCase().includes(candidate.arxivId.toLowerCase())
+  )
+    reasons.push("same arXiv ID");
+  const normalizedSource = normalizedTitle(bibliographySource);
+  if (
+    candidate.title &&
+    candidate.year &&
+    normalizedSource.includes(normalizedTitle(candidate.title)) &&
+    bibliographySource.includes(candidate.year)
+  )
+    reasons.push("matching title and year");
+  return reasons;
+}
+
+export function generateCitationKey(
+  candidate: CitationCandidate,
+  existingKeys: Iterable<string>,
+): string {
+  const family =
+    candidate.authors[0]
+      ?.trim()
+      .split(/\s+/)
+      .pop()
+      ?.replace(/[^a-zA-Z0-9]/g, "") || "source";
+  const word =
+    normalizedTitle(candidate.title)
+      .split(" ")
+      .find((value) => value.length > 3) || "work";
+  const base = `${family}${candidate.year || "nd"}${word}`.toLowerCase();
+  const existing = new Set(existingKeys);
+  if (!existing.has(base)) return base;
+  let suffix = 2;
+  while (existing.has(`${base}${suffix}`)) suffix += 1;
+  return `${base}${suffix}`;
+}
+
+function bibValue(value: string) {
+  return value.replace(/[{}]/g, "").trim();
+}
+
+export function serializeCandidate(
+  candidate: CitationCandidate,
+  key: string,
+): string {
+  const fields = [
+    ["author", candidate.authors.join(" and ")],
+    ["title", candidate.title],
+    ["year", candidate.year],
+    ["journal", candidate.journal],
+    ["publisher", candidate.publisher],
+    ["doi", candidate.doi],
+    ["isbn", candidate.isbn],
+    ["eprint", candidate.arxivId],
+    ["url", candidate.url],
+  ].filter(([, value]) => value);
+  return `@${candidate.entryType || "article"}{${key},\n${fields.map(([name, value]) => `  ${name} = {${bibValue(value)}},`).join("\n")}\n}`;
+}
+
+export async function appendCandidate(
+  fileId: string,
+  candidate: CitationCandidate,
+  key: string,
+): Promise<boolean> {
+  const file = useDocumentStore
+    .getState()
+    .files.find((item) => item.id === fileId);
+  if (!file?.content && file?.content !== "") return false;
+  const separator = file.content.trim() ? "\n\n" : "";
+  const anchorFrom = Math.max(0, file.content.length - 80);
+  const anchor = file.content.slice(anchorFrom);
+  return applyProjectEditTransaction({
+    id: `import-${key}`,
+    label: `Import bibliography entry ${key}`,
+    edits: [
+      {
+        fileId,
+        from: anchorFrom,
+        to: file.content.length,
+        expected: anchor,
+        insert: `${anchor}${separator}${serializeCandidate(candidate, key)}\n`,
+      },
+    ],
+  });
+}
+
+export async function renameCitationKey(
+  oldKey: string,
+  newKey: string,
+): Promise<boolean> {
+  if (!newKey || oldKey === newKey) return false;
+  const edits: ProjectTextEdit[] = [];
+  for (const file of useDocumentStore.getState().files) {
+    if (file.content === undefined) continue;
+    const patterns =
+      file.type === "bib"
+        ? [
+            new RegExp(
+              `(@[a-zA-Z]+\\s*\\{\\s*)${oldKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s*,)`,
+              "g",
+            ),
+          ]
+        : [
+            new RegExp(
+              `(\\\\(?:cite|citep|citet|parencite|textcite)\\*?(?:\\[[^\\]]*\\]){0,2}\\{[^}]*?)\\b${oldKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+              "g",
+            ),
+          ];
+    for (const pattern of patterns)
+      for (const match of file.content.matchAll(pattern)) {
+        const relative = match[0].lastIndexOf(oldKey);
+        const from = (match.index ?? 0) + relative;
+        edits.push({
+          fileId: file.id,
+          from,
+          to: from + oldKey.length,
+          expected: oldKey,
+          insert: newKey,
+        });
+      }
+  }
+  if (edits.length === 0) return false;
+  return applyProjectEditTransaction({
+    id: `rename-citation-${oldKey}`,
+    label: `Rename citation key to ${newKey}`,
+    edits,
+  });
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImagePlusIcon } from "lucide-react";
 import { serializeFigure, type FigureDraft } from "@/lib/latex-figures";
 import type { ProjectFile } from "@/stores/document-store";
@@ -26,6 +26,7 @@ interface FigurePickerProps {
   onOpenChange: (open: boolean) => void;
   files: ProjectFile[];
   onInsert: (source: string) => void;
+  initialPath?: string;
 }
 
 export function FigurePicker({
@@ -33,8 +34,12 @@ export function FigurePicker({
   onOpenChange,
   files,
   onInsert,
+  initialPath,
 }: FigurePickerProps) {
   const [draft, setDraft] = useState<FigureDraft>(EMPTY_FIGURE);
+  useEffect(() => {
+    if (open && initialPath) setDraft({ ...EMPTY_FIGURE, path: initialPath });
+  }, [initialPath, open]);
   const insert = () => {
     if (!draft.path) return;
     onInsert(serializeFigure(draft));

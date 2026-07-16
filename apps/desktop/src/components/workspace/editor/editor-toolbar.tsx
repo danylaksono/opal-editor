@@ -25,6 +25,8 @@ import { CitationPicker } from "@/components/workspace/citation-picker";
 import { CrossReferencePicker } from "@/components/workspace/cross-reference-picker";
 import { FigurePicker } from "@/components/workspace/figure-picker";
 import { EnvironmentPicker } from "@/components/workspace/environment-picker";
+import { MathEditor } from "@/components/workspace/math-editor";
+import { TableEditor } from "@/components/workspace/table-editor";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -51,6 +53,10 @@ import {
   serializeEnvironment,
   type EditableEnvironment,
 } from "@/lib/latex-environments";
+import { confirmPackageRequirements } from "@/lib/feature-packages";
+import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
+import type { TableModel } from "@/lib/latex-tables";
+import type { MathNode } from "@/lib/latex-math";
 
 interface EditorInfo {
   id: string;
@@ -98,18 +104,58 @@ export function EditorToolbar({
   });
   const files = useDocumentStore((s) => s.files);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
+  const lensExperimental = useSettingsStore((s) => s.lensExperimental);
+  const workspaceModes = useLensStore((s) => s.workspaceModes);
+  const setWorkspaceMode = useLensStore((s) => s.setWorkspaceMode);
+  const editorMode = projectRoot
+    ? (workspaceModes[projectRoot] ?? defaultWorkspaceMode(projectRoot))
+    : "source";
+  const lensAvailable =
+    lensExperimental || defaultWorkspaceMode(projectRoot) === "lens";
 
   const [editors, setEditors] = useState<EditorInfo[]>([]);
   const [citationPickerOpen, setCitationPickerOpen] = useState(false);
   const [crossReferencePickerOpen, setCrossReferencePickerOpen] =
     useState(false);
   const [figurePickerOpen, setFigurePickerOpen] = useState(false);
+  const [droppedFigurePath, setDroppedFigurePath] = useState<string>();
   const [environmentPickerOpen, setEnvironmentPickerOpen] = useState(false);
+  const [tableEditorOpen, setTableEditorOpen] = useState(false);
+  const [mathEditorOpen, setMathEditorOpen] = useState(false);
+  const [editingTable, setEditingTable] = useState<{
+    model: TableModel;
+    apply: (source: string) => void;
+  }>();
+  const [editingMath, setEditingMath] = useState<{
+    node: MathNode;
+    apply: (source: string) => void;
+  }>();
 
   useEffect(() => {
     invoke<EditorInfo[]>("detect_editors")
       .then(setEditors)
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const editTable = (event: Event) => {
+      setEditingTable(
+        (event as CustomEvent<NonNullable<typeof editingTable>>).detail,
+      );
+      setTableEditorOpen(true);
+    };
+    const editMath = (event: Event) => {
+      setEditingMath(
+        (event as CustomEvent<NonNullable<typeof editingMath>>).detail,
+      );
+      setMathEditorOpen(true);
+    };
+    window.addEventListener("edit-structured-table", editTable);
+    window.addEventListener("edit-structured-math", editMath);
+    return () => {
+      window.removeEventListener("edit-structured-table", editTable);
+      window.removeEventListener("edit-structured-math", editMath);
+    };
   }, []);
 
   const openInEditor = useCallback(
@@ -202,6 +248,36 @@ export function EditorToolbar({
       }),
     );
   };
+
+  useEffect(() => {
+    const handleAction = (event: Event) => {
+      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      if (id === "insert.section") insertText("\\section{", "}");
+      if (id === "insert.citation") setCitationPickerOpen(true);
+      if (id === "insert.cross-reference") setCrossReferencePickerOpen(true);
+      if (id === "insert.figure") setFigurePickerOpen(true);
+      if (id === "insert.environment") setEnvironmentPickerOpen(true);
+      if (id === "insert.equation") setMathEditorOpen(true);
+      if (id === "insert.table") setTableEditorOpen(true);
+    };
+    window.addEventListener("editor-action", handleAction);
+    return () => window.removeEventListener("editor-action", handleAction);
+  });
+
+  useEffect(() => {
+    const handleDroppedFigure = (event: Event) => {
+      setDroppedFigurePath(
+        (event as CustomEvent<{ path: string }>).detail.path,
+      );
+      setFigurePickerOpen(true);
+    };
+    window.addEventListener("image-dropped-for-figure", handleDroppedFigure);
+    return () =>
+      window.removeEventListener(
+        "image-dropped-for-figure",
+        handleDroppedFigure,
+      );
+  }, []);
 
   const zoomIn = () => onImageScaleChange?.(Math.min(4, imageScale + 0.25));
   const zoomOut = () => onImageScaleChange?.(Math.max(0.25, imageScale - 0.25));
@@ -400,6 +476,30 @@ export function EditorToolbar({
           <BoxesIcon className="size-4" />
         </TooltipIconButton>
         <div className="mx-2 h-4 w-px bg-border" />
+        {lensAvailable && projectRoot && (
+          <div
+            className="flex rounded border p-0.5"
+            role="group"
+            aria-label="Editor mode"
+          >
+            <Button
+              variant={editorMode === "source" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-5 px-2 text-[10px]"
+              onClick={() => setWorkspaceMode(projectRoot, "source")}
+            >
+              Source
+            </Button>
+            <Button
+              variant={editorMode === "lens" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-5 px-2 text-[10px]"
+              onClick={() => setWorkspaceMode(projectRoot, "lens")}
+            >
+              Lens
+            </Button>
+          </div>
+        )}
         <Button
           variant={vimMode ? "default" : "ghost"}
           size="sm"
@@ -460,12 +560,40 @@ export function EditorToolbar({
         open={figurePickerOpen}
         onOpenChange={setFigurePickerOpen}
         files={files}
-        onInsert={insertBlock}
+        initialPath={droppedFigurePath}
+        onInsert={(source) => {
+          void confirmPackageRequirements(["figures"]).then((confirmed) => {
+            if (confirmed) insertBlock(source);
+          });
+        }}
       />
       <EnvironmentPicker
         open={environmentPickerOpen}
         onOpenChange={setEnvironmentPickerOpen}
         onInsert={insertEnvironment}
+      />
+      <TableEditor
+        open={tableEditorOpen}
+        onOpenChange={(next) => {
+          setTableEditorOpen(next);
+          if (!next) setEditingTable(undefined);
+        }}
+        initialModel={editingTable?.model}
+        onInsert={(source) =>
+          editingTable ? editingTable.apply(source) : insertBlock(source)
+        }
+      />
+      <MathEditor
+        open={mathEditorOpen}
+        onOpenChange={(next) => {
+          setMathEditorOpen(next);
+          if (!next) setEditingMath(undefined);
+        }}
+        initialKind={editingMath?.node.kind}
+        initialBody={editingMath?.node.body}
+        onInsert={(source) =>
+          editingMath ? editingMath.apply(source) : insertBlock(source)
+        }
       />
     </>
   );
