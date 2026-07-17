@@ -51,13 +51,24 @@ Download from [GitHub Releases](https://github.com/danylaksono/tectonic-editor/r
 # Prerequisites: pnpm 10+, Rust stable, Tectonic system deps
 # macOS:   brew install icu4c harfbuzz pkg-config
 # Linux:   apt install libicu-dev libgraphite2-dev libharfbuzz-dev libfreetype-dev libfontconfig-dev
-# Windows: see scripts/build-windows.ps1
 
 pnpm install
 pnpm dev:desktop       # dev mode (Vite + Tauri)
 pnpm build:desktop     # production build
 pnpm lint              # Biome linter
 pnpm --filter @tectonic-editor/desktop test   # Vitest
+```
+
+On Windows, run the setup once:
+
+```powershell
+.\scripts\build-windows.ps1 -SetupOnly
+```
+
+Then use the launcher, which configures the native Tectonic environment for the current process:
+
+```powershell
+.\scripts\dev-windows.ps1
 ```
 
 ## Architecture

@@ -41,7 +41,11 @@ import {
   acceptChunk,
   rejectChunk,
 } from "@codemirror/merge";
-import { latex, latexLinter } from "codemirror-lang-latex";
+import {
+  latex,
+  latexCompletionSource,
+  latexLinter,
+} from "codemirror-lang-latex";
 import { bibtex } from "./lang-bibtex";
 import {
   linter,
@@ -1149,10 +1153,17 @@ export function LatexEditor() {
           ...defaultKeymap,
           ...historyKeymap,
         ]),
-        activeFile?.type === "bib" ? bibtex() : latex({ enableLinting: false }),
+        activeFile?.type === "bib"
+          ? bibtex()
+          : latex({ enableAutocomplete: false, enableLinting: false }),
         ...(activeFile?.type === "tex"
           ? [
-              autocompletion({ override: [semanticCompletionSource] }),
+              autocompletion({
+                override: [
+                  semanticCompletionSource,
+                  latexCompletionSource(true),
+                ],
+              }),
               citationDecorationPlugin,
               citationHover,
               referenceDecorationPlugin,

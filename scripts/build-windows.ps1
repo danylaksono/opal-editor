@@ -60,10 +60,10 @@ if (-not $BuildOnly) {
   }
 
   Write-Host "  Installing Tectonic system dependencies via vcpkg..." -ForegroundColor Yellow
-  & $VcpkgExe install harfbuzz[graphite2] freetype icu fontconfig --triplet x64-windows-static
+  & $VcpkgExe install harfbuzz[graphite2] freetype icu fontconfig --triplet x64-windows-static-md
   if ($LASTEXITCODE -ne 0) {
     Write-Host "  vcpkg install failed. Try running manually:" -ForegroundColor Red
-    Write-Host "    $VcpkgExe install harfbuzz[graphite2] freetype icu fontconfig"
+    Write-Host "    $VcpkgExe install harfbuzz[graphite2] freetype icu fontconfig --triplet x64-windows-static-md"
     exit 1
   }
   Write-Host "  vcpkg packages installed." -ForegroundColor Green
@@ -72,13 +72,16 @@ if (-not $BuildOnly) {
 # ─── 4. Set environment & install pnpm deps ───
 $env:TECTONIC_DEP_BACKEND = "vcpkg"
 $env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
-$env:CXXFLAGS = "-std=c++17"
+$env:VCPKG_DEFAULT_TRIPLET = "x64-windows-static-md"
+$env:VCPKGRS_TRIPLET = "x64-windows-static-md"
+$env:CXXFLAGS = "/std:c++17"
 $env:CFLAGS = ""
 
 Write-Host "[4/4] Environment set:" -ForegroundColor Cyan
 Write-Host "  TECTONIC_DEP_BACKEND = vcpkg"
 Write-Host "  VCPKG_ROOT          = $env:VCPKG_ROOT"
-Write-Host "  CXXFLAGS            = -std=c++17"
+Write-Host "  VCPKGRS_TRIPLET     = x64-windows-static-md"
+Write-Host "  CXXFLAGS            = /std:c++17"
 
 if (-not $SkipPnpm) {
   Write-Host "  Installing pnpm dependencies..." -ForegroundColor Yellow
