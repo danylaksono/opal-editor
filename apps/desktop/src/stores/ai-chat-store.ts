@@ -748,7 +748,10 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
       const t = s.tabs.find((t) => t.id === tabId);
       if (!t) return {};
       return applyTabUpdate(s, tabId, {
-        messages: [...t.messages, { type: "user", message: { content: results } }],
+        messages: [
+          ...t.messages,
+          { type: "user", message: { content: results } },
+        ],
       });
     });
 
@@ -759,7 +762,10 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
     const projectPath = useDocumentStore.getState().projectRoot;
     if (!projectPath) {
       set((s) =>
-        applyTabUpdate(s, tabId, { isStreaming: false, error: "No project open" }),
+        applyTabUpdate(s, tabId, {
+          isStreaming: false,
+          error: "No project open",
+        }),
       );
       return;
     }

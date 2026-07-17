@@ -43,8 +43,7 @@ export const ToolWidget: FC<ToolWidgetProps> = ({ toolUse, toolResult }) => {
         result={toolResult}
       />
     );
-  if (name === "list_files")
-    return <ListFilesWidget result={toolResult} />;
+  if (name === "list_files") return <ListFilesWidget result={toolResult} />;
 
   if (name === "write")
     return <WriteWidget input={toolUse.input} result={toolResult} />;

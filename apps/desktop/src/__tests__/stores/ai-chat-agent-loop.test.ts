@@ -165,7 +165,10 @@ describe("_handleTurnComplete", () => {
     setTabs([
       makeTab("t2", {
         isStreaming: true,
-        messages: [userMsg("list my files"), assistantToolUse("tu1", "list_files")],
+        messages: [
+          userMsg("list my files"),
+          assistantToolUse("tu1", "list_files"),
+        ],
       }),
     ]);
     await useAiChatStore.getState()._handleTurnComplete("t2");

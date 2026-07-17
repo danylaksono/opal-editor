@@ -183,7 +183,9 @@ function searchProject(input: any): ToolExecutionResult {
   if (results.length === 0) return ok(`No matches found for "${query}".`);
   return ok(
     results.join("\n") +
-      (truncated ? `\n[More matches exist — showing first ${MAX_SEARCH_RESULTS}]` : ""),
+      (truncated
+        ? `\n[More matches exist — showing first ${MAX_SEARCH_RESULTS}]`
+        : ""),
   );
 }
 
@@ -228,7 +230,8 @@ function proposeEdit(input: any, toolUseId: string): ToolExecutionResult {
   }
 
   const at = base.indexOf(search);
-  const newContent = base.slice(0, at) + replace + base.slice(at + search.length);
+  const newContent =
+    base.slice(0, at) + replace + base.slice(at + search.length);
 
   useProposedChangesStore.getState().addChange({
     id: toolUseId,
