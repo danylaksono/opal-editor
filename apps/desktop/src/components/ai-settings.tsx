@@ -326,8 +326,8 @@ export function AiSettings() {
                 }}
               />
               <div className="text-muted-foreground/70 text-xs">
-                Use OpenRouter, Ollama, or any OpenAI-compatible endpoint
-                (e.g. https://openrouter.ai/api/v1)
+                Use OpenRouter, Ollama, or any OpenAI-compatible endpoint (e.g.
+                https://openrouter.ai/api/v1)
               </div>
             </div>
           )}
