@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
   AlertCircleIcon,
@@ -7,6 +7,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   FolderIcon,
+  GraduationCapIcon,
   ListIcon,
   Maximize2Icon,
   Minimize2Icon,
@@ -35,9 +36,9 @@ import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { TutorialChecklist } from "./tutorial-checklist";
 import { PackageChangeDialog } from "./package-change-dialog";
 import { BibliographyImportDialog } from "./bibliography-import-dialog";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 
 const sidePanelItems: Array<{
   id: WorkspaceSidePanel;
@@ -55,7 +56,22 @@ function ActivityRail() {
   const activeSidePanel = useWorkspaceLayoutStore((s) => s.activeSidePanel);
   const toggleSidePanel = useWorkspaceLayoutStore((s) => s.toggleSidePanel);
   const setSidePanelOpen = useWorkspaceLayoutStore((s) => s.setSidePanelOpen);
+  const projectRoot = useDocumentStore((s) => s.projectRoot);
+  const activeTutorialProject = useOnboardingStore(
+    (s) => s.activeTutorialProject,
+  );
   const [showSettings, setShowSettings] = useState(false);
+  const visiblePanelItems =
+    projectRoot && projectRoot === activeTutorialProject
+      ? [
+          {
+            id: "learn" as const,
+            label: "Learn LaTeX",
+            icon: GraduationCapIcon,
+          },
+          ...sidePanelItems,
+        ]
+      : sidePanelItems;
 
   // Allow the command palette to open Settings.
   useEffect(() => {
@@ -83,7 +99,7 @@ function ActivityRail() {
       </div>
 
       <div className="flex flex-1 flex-col items-center gap-1 px-1 py-2">
-        {sidePanelItems.map((item) => {
+        {visiblePanelItems.map((item) => {
           const Icon = item.icon;
           const active = sidePanelOpen && activeSidePanel === item.id;
           return (
@@ -225,8 +241,28 @@ export function WorkspaceLayout() {
   const togglePreview = usePreviewStore((s) => s.toggle);
   const sidePanelOpen = useWorkspaceLayoutStore((s) => s.sidePanelOpen);
   const activeSidePanel = useWorkspaceLayoutStore((s) => s.activeSidePanel);
+  const setActiveSidePanel = useWorkspaceLayoutStore(
+    (s) => s.setActiveSidePanel,
+  );
   const focusMode = useWorkspaceLayoutStore((s) => s.focusMode);
   const toggleFocusMode = useWorkspaceLayoutStore((s) => s.toggleFocusMode);
+  const projectRoot = useDocumentStore((s) => s.projectRoot);
+  const activeTutorialProject = useOnboardingStore(
+    (s) => s.activeTutorialProject,
+  );
+  const openedTutorialProject = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      projectRoot &&
+      projectRoot === activeTutorialProject &&
+      openedTutorialProject.current !== projectRoot
+    ) {
+      openedTutorialProject.current = projectRoot;
+      setActiveSidePanel("learn");
+    }
+    if (!activeTutorialProject) openedTutorialProject.current = null;
+  }, [activeTutorialProject, projectRoot, setActiveSidePanel]);
 
   // Cmd+\ / Ctrl+\ toggles the PDF preview pane.
   useEffect(() => {
@@ -277,7 +313,6 @@ export function WorkspaceLayout() {
           <Panel defaultSize={previewVisible ? 42.5 : 85} minSize={25}>
             <div className="relative h-full">
               <LatexEditor />
-              <TutorialChecklist />
               <button
                 type="button"
                 onClick={togglePreview}

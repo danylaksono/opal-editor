@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type WorkspaceSidePanel = "files" | "outline" | "citations" | "health";
+export type WorkspaceSidePanel =
+  | "learn"
+  | "files"
+  | "outline"
+  | "citations"
+  | "health";
 
 interface WorkspaceLayoutState {
   sidePanelOpen: boolean;

@@ -69,6 +69,7 @@ import { useUvSetupStore } from "@/stores/uv-setup-store";
 import { UvSetupDialog } from "@/components/uv-setup";
 import { createLogger } from "@/lib/debug/logger";
 import { HealthPanel } from "@/components/workspace/health-panel";
+import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
 
 const log = createLogger("sidebar");
 
@@ -641,6 +642,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
       </div>
 
       <div className="min-h-0 flex-1">
+        {activePanel === "learn" && <TutorialChecklist />}
         {activePanel === "files" && (
           <div
             ref={sidebarFilesRef}

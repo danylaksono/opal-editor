@@ -19,6 +19,10 @@ import {
   Link2Icon,
   ImagePlusIcon,
   BoxesIcon,
+  ChevronDownIcon,
+  MoreHorizontalIcon,
+  SigmaIcon,
+  Table2Icon,
 } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CitationPicker } from "@/components/workspace/citation-picker";
@@ -32,6 +36,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -394,98 +399,30 @@ export function EditorToolbar({
 
   return (
     <>
-      <div className="flex h-[calc(36px+var(--titlebar-height))] items-center gap-1 border-border border-b bg-muted/30 px-2 pt-[var(--titlebar-height)]">
-        <FileTextIcon className="size-4 text-muted-foreground" />
-        <span className="mr-2 font-medium text-muted-foreground text-sm">
-          {fileName}
-        </span>
-        <div className="mx-2 h-4 w-px bg-border" />
-        <TooltipIconButton
-          tooltip="Bold (\\textbf)"
-          onClick={() => insertText("\\textbf{", "}")}
-        >
-          <BoldIcon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Italic (\\textit)"
-          onClick={() => insertText("\\textit{", "}")}
-        >
-          <ItalicIcon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Code (\\texttt)"
-          onClick={() => insertText("\\texttt{", "}")}
-        >
-          <CodeIcon className="size-4" />
-        </TooltipIconButton>
-        <div className="mx-2 h-4 w-px bg-border" />
-        <TooltipIconButton
-          tooltip="Section"
-          onClick={() => insertText("\\section{", "}")}
-        >
-          <Heading1Icon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Subsection"
-          onClick={() => insertText("\\subsection{", "}")}
-        >
-          <Heading2Icon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="List item"
-          onClick={() => insertText("\\item ")}
-        >
-          <ListIcon className="size-4" />
-        </TooltipIconButton>
-        <div className="mx-2 h-4 w-px bg-border" />
-        <TooltipIconButton
-          tooltip="Inline math ($...$)"
-          onClick={() => wrapSelection("$")}
-        >
-          <FunctionSquareIcon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Display math (\\[...\\])"
-          onClick={() => insertText("\\[\n  ", "\n\\]")}
-        >
-          <span className="font-mono text-xs">∫</span>
-        </TooltipIconButton>
-        <div className="mx-2 h-4 w-px bg-border" />
-        <TooltipIconButton
-          tooltip="Citation picker"
-          onClick={() => setCitationPickerOpen(true)}
-        >
-          <BookMarkedIcon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Cross-reference picker"
-          onClick={() => setCrossReferencePickerOpen(true)}
-        >
-          <Link2Icon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Insert figure"
-          onClick={() => setFigurePickerOpen(true)}
-        >
-          <ImagePlusIcon className="size-4" />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip="Insert structure"
-          onClick={() => setEnvironmentPickerOpen(true)}
-        >
-          <BoxesIcon className="size-4" />
-        </TooltipIconButton>
-        <div className="mx-2 h-4 w-px bg-border" />
+      <div className="calm-toolbar @container flex h-[calc(44px+var(--titlebar-height))] items-center gap-1.5 border-border border-b px-2.5 pt-[var(--titlebar-height)]">
+        <div className="flex min-w-0 items-center gap-2 pr-1">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <FileTextIcon className="size-3.5" />
+          </div>
+          <div className="@[42rem]:flex hidden min-w-0 flex-col leading-none">
+            <span className="max-w-32 truncate font-medium text-xs">
+              {fileName}
+            </span>
+            <span className="mt-1 text-[9px] text-muted-foreground">
+              LaTeX source
+            </span>
+          </div>
+        </div>
         {lensAvailable && projectRoot && (
           <div
-            className="flex rounded border p-0.5"
+            className="mr-1 flex rounded-lg border bg-background/60 p-0.5 shadow-xs"
             role="group"
             aria-label="Editor mode"
           >
             <Button
               variant={editorMode === "source" ? "secondary" : "ghost"}
               size="sm"
-              className="h-5 px-2 text-[10px]"
+              className="h-6 rounded-md px-2 text-[10px]"
               onClick={() => setWorkspaceMode(projectRoot, "source")}
             >
               Source
@@ -493,55 +430,160 @@ export function EditorToolbar({
             <Button
               variant={editorMode === "lens" ? "secondary" : "ghost"}
               size="sm"
-              className="h-5 px-2 text-[10px]"
+              className="h-6 rounded-md px-2 text-[10px]"
               onClick={() => setWorkspaceMode(projectRoot, "lens")}
             >
               Lens
             </Button>
           </div>
         )}
+
+        <div className="mx-0.5 h-5 w-px bg-border/80" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="calm-toolbar-action"
+              aria-label="Insert document structure"
+            >
+              <BoxesIcon className="size-3.5" />
+              <span className="@[34rem]:inline hidden">Structure</span>
+              <ChevronDownIcon className="size-3 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuItem onClick={() => insertText("\\section{", "}")}>
+              <Heading1Icon className="size-4" />
+              Section
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertText("\\subsection{", "}")}>
+              <Heading2Icon className="size-4" />
+              Subsection
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertText("\\item ")}>
+              <ListIcon className="size-4" />
+              List item
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setEnvironmentPickerOpen(true)}>
+              <BoxesIcon className="size-4" />
+              More structures…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="calm-toolbar-action"
+          onClick={() => setCitationPickerOpen(true)}
+        >
+          <BookMarkedIcon className="size-3.5" />
+          <span className="@[34rem]:inline hidden">Cite</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="calm-toolbar-action"
+          onClick={() => setFigurePickerOpen(true)}
+        >
+          <ImagePlusIcon className="size-3.5" />
+          <span className="@[34rem]:inline hidden">Figure</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="calm-toolbar-action"
+          onClick={() => setMathEditorOpen(true)}
+        >
+          <SigmaIcon className="size-3.5" />
+          <span className="@[34rem]:inline hidden">Equation</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="calm-toolbar-action"
+          onClick={() => setTableEditorOpen(true)}
+        >
+          <Table2Icon className="size-3.5" />
+          <span className="@[34rem]:inline hidden">Table</span>
+        </Button>
+
         <Button
           variant={vimMode ? "default" : "ghost"}
           size="sm"
-          className="h-6 px-2 font-mono text-xs"
+          className="hidden h-6 px-2 font-mono text-xs"
           onClick={() => setVimMode(!vimMode)}
           title="Toggle Vim mode"
         >
           VIM
         </Button>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
-        {editors.length === 1 && (
-          <TooltipIconButton
-            tooltip={`Open in ${editors[0].name}`}
-            onClick={() => openInEditor(editors[0].id)}
-          >
-            <ExternalLinkIcon className="size-4" />
-          </TooltipIconButton>
-        )}
-        {editors.length > 1 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-6 p-1"
-                title="Open in Editor"
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="calm-toolbar-action"
+              aria-label="More editor actions"
+            >
+              <MoreHorizontalIcon className="size-4" />
+              <span className="@[48rem]:inline hidden">More</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => insertText("\\textbf{", "}")}>
+              <BoldIcon className="size-4" />
+              Bold
+              <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                \textbf
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertText("\\textit{", "}")}>
+              <ItalicIcon className="size-4" />
+              Italic
+              <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                \textit
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertText("\\texttt{", "}")}>
+              <CodeIcon className="size-4" />
+              Code
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => wrapSelection("$")}>
+              <FunctionSquareIcon className="size-4" />
+              Inline math
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertText("\\[\n  ", "\n\\]")}>
+              <SigmaIcon className="size-4" />
+              Display math
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCrossReferencePickerOpen(true)}>
+              <Link2Icon className="size-4" />
+              Cross-reference
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setVimMode(!vimMode)}>
+              <CodeIcon className="size-4" />
+              Vim mode
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {vimMode ? "On" : "Off"}
+              </span>
+            </DropdownMenuItem>
+            {editors.length > 0 && <DropdownMenuSeparator />}
+            {editors.map((editor) => (
+              <DropdownMenuItem
+                key={editor.id}
+                onClick={() => openInEditor(editor.id)}
               >
                 <ExternalLinkIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {editors.map((editor) => (
-                <DropdownMenuItem
-                  key={editor.id}
-                  onClick={() => openInEditor(editor.id)}
-                >
-                  {editor.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                Open in {editor.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <CitationPicker

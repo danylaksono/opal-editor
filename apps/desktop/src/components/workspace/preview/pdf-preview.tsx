@@ -884,9 +884,9 @@ export function PdfPreview() {
   return (
     <div
       ref={previewContainerRef}
-      className="@container/pv relative flex h-full flex-col bg-muted/50"
+      className="paper-stage @container/pv relative flex h-full flex-col"
     >
-      <div className="flex h-[calc(40px+var(--titlebar-height))] shrink-0 items-center border-border border-b bg-background px-2 pt-[var(--titlebar-height)]">
+      <div className="preview-toolbar flex h-[calc(44px+var(--titlebar-height))] shrink-0 items-center border-border border-b px-2.5 pt-[var(--titlebar-height)]">
         <div className="flex items-center gap-1">
           <Select
             value={compilerBackend}

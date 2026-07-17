@@ -16,6 +16,10 @@ import {
   Loader2Icon,
   RefreshCwIcon,
   ArrowUpCircleIcon,
+  ArrowRightIcon,
+  BookOpenCheckIcon,
+  ShieldCheckIcon,
+  WifiOffIcon,
 } from "lucide-react";
 import { useProjectStore } from "@/stores/project-store";
 import { useDocumentStore } from "@/stores/document-store";
@@ -178,7 +182,7 @@ export function ProjectPicker() {
   }
 
   return (
-    <div className="relative flex h-full items-center justify-center bg-background">
+    <div className="welcome-stage relative flex h-full items-center justify-center overflow-hidden bg-background">
       <OnboardingPrompt
         open={!hasSeenOffer && recentProjects.length === 0}
         isCreating={isCreatingTutorial}
@@ -188,7 +192,7 @@ export function ProjectPicker() {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute top-4 right-4 size-9 text-muted-foreground"
+        className="absolute top-5 right-5 z-10 size-9 rounded-xl border border-border/70 bg-background/60 text-muted-foreground shadow-sm backdrop-blur"
         title="Settings"
         onClick={() => setShowSettings(true)}
       >
@@ -196,85 +200,164 @@ export function ProjectPicker() {
       </Button>
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
 
-      <div className="flex w-full max-w-md flex-col items-center gap-8 px-8">
-        <div className="flex flex-col items-center gap-2">
-          <img src="/icon-192.png" alt="TectonicEditor" className="size-16" />
-          <h1 className="font-bold text-2xl">TectonicEditor</h1>
-          <VersionBadge
-            version={appVersion}
-            updateStatus={updateStatus}
-            onCheck={checkForUpdate}
-            onInstall={installUpdate}
-          />
-          <p className="text-center text-muted-foreground text-sm">
-            A fast, offline LaTeX editor
-          </p>
-        </div>
-
-        <div className="flex w-full gap-3">
-          <Button
-            onClick={() => setShowModeDialog(true)}
-            size="lg"
-            variant="outline"
-            className="flex-1 gap-2"
-          >
-            <FolderPlusIcon className="size-5" />
-            New Project
-          </Button>
-          <Button onClick={handleOpenFolder} size="lg" className="flex-1 gap-2">
-            <FolderOpenIcon className="size-5" />
-            Open Folder
-          </Button>
-        </div>
-
-        <p className="text-muted-foreground/70 text-xs">
-          Press{" "}
-          <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-            ⌘K
-          </kbd>{" "}
-          for commands
-        </p>
-
-        {recentProjects.length > 0 && (
-          <div className="w-full">
-            <div className="mb-3 flex items-center gap-2 text-muted-foreground text-sm">
-              <ClockIcon className="size-4" />
-              <span>Recent Projects</span>
-            </div>
-            <div className="max-h-64 space-y-1 overflow-y-auto">
-              {recentProjects.map((project) => (
-                <div
-                  key={project.path}
-                  className="group flex items-center gap-2 rounded-md px-3 py-2 transition-colors hover:bg-muted"
-                >
-                  <button
-                    className="flex flex-1 flex-col items-start overflow-hidden text-left"
-                    onClick={() => handleOpenRecent(project.path)}
-                  >
-                    <span className="truncate font-medium text-sm">
-                      {project.name}
-                    </span>
-                    <span className="truncate text-muted-foreground text-xs">
-                      {project.path}
-                    </span>
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 shrink-0 opacity-0 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeRecentProject(project.path);
-                    }}
-                  >
-                    <XIcon className="size-3.5" />
-                  </Button>
-                </div>
-              ))}
+      <main className="relative z-[1] grid w-full max-w-5xl grid-cols-1 gap-10 px-10 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <section className="max-w-xl">
+          <div className="mb-8 flex items-center gap-3">
+            <img
+              src="/icon-192.png"
+              alt=""
+              aria-hidden="true"
+              className="size-11 rounded-xl shadow-sm"
+            />
+            <div>
+              <div className="font-semibold text-sm tracking-tight">
+                TectonicEditor
+              </div>
+              <VersionBadge
+                version={appVersion}
+                updateStatus={updateStatus}
+                onCheck={checkForUpdate}
+                onInstall={installUpdate}
+              />
             </div>
           </div>
-        )}
-      </div>
+
+          <p className="mb-3 font-medium text-primary text-xs uppercase tracking-[0.18em]">
+            Academic writing, made calm
+          </p>
+          <h1 className="max-w-lg font-serif text-4xl leading-[1.08] tracking-[-0.025em] sm:text-5xl">
+            Focus on your ideas.
+            <span className="block text-muted-foreground">
+              We’ll handle the LaTeX.
+            </span>
+          </h1>
+          <p className="mt-5 max-w-lg text-muted-foreground text-sm leading-6">
+            Write with visual tools when you want them, inspect the source when
+            you need it, and see a publication-ready PDF beside your work.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-muted-foreground text-xs">
+            <span className="flex items-center gap-1.5">
+              <WifiOffIcon className="size-3.5 text-primary" />
+              Works offline
+            </span>
+            <span className="flex items-center gap-1.5">
+              <ShieldCheckIcon className="size-3.5 text-primary" />
+              Your files stay yours
+            </span>
+            <span className="flex items-center gap-1.5">
+              <SparklesIcon className="size-3.5 text-primary" />
+              Beginner-friendly
+            </span>
+          </div>
+        </section>
+
+        <section
+          aria-label="Start writing"
+          className="rounded-3xl border border-border/80 bg-card/88 p-2 shadow-[0_24px_70px_-32px_color-mix(in_oklab,var(--foreground)_35%,transparent)] backdrop-blur"
+        >
+          <div className="grid grid-cols-2 gap-2 p-2">
+            <Button
+              onClick={() => setShowModeDialog(true)}
+              size="lg"
+              className="h-12 justify-between rounded-xl px-4"
+            >
+              <span className="flex items-center gap-2">
+                <FolderPlusIcon className="size-4" />
+                New document
+              </span>
+              <ArrowRightIcon className="size-3.5 opacity-70" />
+            </Button>
+            <Button
+              onClick={handleOpenFolder}
+              size="lg"
+              variant="outline"
+              className="h-12 justify-start gap-2 rounded-xl bg-background/60 px-4"
+            >
+              <FolderOpenIcon className="size-4" />
+              Open project
+            </Button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCreateTutorial}
+            disabled={isCreatingTutorial}
+            className="group mx-2 mb-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl border border-primary/15 bg-primary/[0.06] p-3 text-left transition-colors hover:bg-primary/10 disabled:opacity-60"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              {isCreatingTutorial ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <BookOpenCheckIcon className="size-4" />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-sm">
+                New to LaTeX? Start here
+              </span>
+              <span className="mt-0.5 block text-muted-foreground text-xs">
+                Build a first paper in about five minutes
+              </span>
+            </span>
+            <ArrowRightIcon className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          <div className="border-border/70 border-t px-3 pt-3 pb-2">
+            <div className="mb-2 flex items-center justify-between text-muted-foreground text-xs">
+              <span className="flex items-center gap-1.5">
+                <ClockIcon className="size-3.5" />
+                Recent work
+              </span>
+              <span>
+                <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[9px]">
+                  ⌘K
+                </kbd>{" "}
+                commands
+              </span>
+            </div>
+            {recentProjects.length > 0 ? (
+              <div className="max-h-52 space-y-1 overflow-y-auto">
+                {recentProjects.map((project) => (
+                  <div
+                    key={project.path}
+                    className="group flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
+                  >
+                    <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <button
+                      className="flex min-w-0 flex-1 flex-col items-start text-left"
+                      onClick={() => handleOpenRecent(project.path)}
+                    >
+                      <span className="w-full truncate font-medium text-sm">
+                        {project.name}
+                      </span>
+                      <span className="w-full truncate text-[10px] text-muted-foreground">
+                        {project.path}
+                      </span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                      aria-label={`Remove ${project.name} from recent projects`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeRecentProject(project.path);
+                      }}
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-20 items-center justify-center rounded-xl border border-dashed text-center text-muted-foreground text-xs">
+                Your recent documents will appear here.
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
 
       {/* New Project mode selection dialog */}
       <Dialog open={showModeDialog} onOpenChange={setShowModeDialog}>

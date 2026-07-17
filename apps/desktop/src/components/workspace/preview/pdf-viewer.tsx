@@ -753,7 +753,7 @@ export function PdfViewer({
       ref={containerRef}
       tabIndex={-1}
       {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
-      className="min-h-0 flex-1 overflow-auto outline-none"
+      className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
       style={{ cursor: captureMode ? "crosshair" : undefined }}
       onMouseDownCapture={() => containerRef.current?.focus()}
       onMouseDown={handleCaptureMouseDown}
@@ -762,7 +762,7 @@ export function PdfViewer({
     >
       <div
         ref={contentRef}
-        className="flex min-w-fit flex-col items-center gap-4 p-4"
+        className="pdf-paper-stack flex min-w-fit flex-col items-center gap-7 p-7"
         onClick={handleTextLayerClick}
       >
         {loading && numPages === 0 && (

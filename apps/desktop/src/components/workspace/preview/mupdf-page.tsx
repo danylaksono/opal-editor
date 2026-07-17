@@ -129,7 +129,7 @@ export const MupdfPage = memo(function MupdfPage({
 
   return (
     <div
-      className="mupdf-page relative mb-4 shadow-lg"
+      className="mupdf-page relative"
       data-page-number={pageIndex + 1}
       style={{ width: cssW, height: cssH }}
     >
