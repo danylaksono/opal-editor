@@ -2,7 +2,6 @@ import { useCallback, useRef, useEffect } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAiChatStore, type TabState } from "@/stores/ai-chat-store";
-import { SessionSelector } from "./session-selector";
 
 export function ChatTabBar() {
   const tabs = useAiChatStore((s) => s.tabs);
@@ -104,7 +103,6 @@ export function ChatTabBar() {
         >
           <PlusIcon className="size-3.5" />
         </button>
-        <SessionSelector />
       </div>
     </div>
   );

@@ -42,45 +42,29 @@ export interface ModelInfo {
 
 export function getModelsForProvider(providerId: string): ModelInfo[] {
   switch (providerId) {
-    case "claude-cli":
-      return [
-        {
-          id: "sonnet",
-          name: "Sonnet",
-          desc: "Fast, efficient for most tasks",
-        },
-        { id: "opus", name: "Opus", desc: "Most capable, complex reasoning" },
-        { id: "haiku", name: "Haiku", desc: "Fastest, simple tasks" },
-        {
-          id: "opusplan",
-          name: "OpusPlan",
-          desc: "Opus for planning, Sonnet for execution",
-        },
-      ];
     case "anthropic":
       return [
         {
-          id: "claude-sonnet-4-20250514",
-          name: "Sonnet 4",
-          desc: "Fast, efficient for most tasks",
+          id: "claude-sonnet-5",
+          name: "Sonnet 5",
+          desc: "Fast and capable — best for most tasks",
         },
         {
-          id: "claude-opus-4-20250514",
-          name: "Opus 4",
+          id: "claude-opus-4-8",
+          name: "Opus 4.8",
           desc: "Most capable, complex reasoning",
         },
         {
-          id: "claude-haiku-4-20250514",
-          name: "Haiku 4",
+          id: "claude-haiku-4-5",
+          name: "Haiku 4.5",
           desc: "Fastest, simple tasks",
         },
       ];
     case "openai":
       return [
-        { id: "gpt-4o", name: "GPT-4o", desc: "Most capable, multimodal" },
-        { id: "gpt-4o-mini", name: "GPT-4o Mini", desc: "Fast, efficient" },
-        { id: "o1", name: "o1", desc: "Complex reasoning" },
-        { id: "o1-mini", name: "o1 Mini", desc: "Fast reasoning" },
+        { id: "gpt-5.1", name: "GPT-5.1", desc: "Most capable" },
+        { id: "gpt-5-mini", name: "GPT-5 Mini", desc: "Fast, efficient" },
+        { id: "gpt-5-nano", name: "GPT-5 Nano", desc: "Fastest, simple tasks" },
       ];
     default:
       return [];
@@ -184,14 +168,14 @@ function nextTabId(): string {
  * also project the changed fields to top-level state for consumer compatibility.
  */
 function applyTabUpdate(
-  state: ClaudeChatState,
+  state: AiChatState,
   tabId: string,
   updates: Partial<TabState>,
-): Partial<ClaudeChatState> {
+): Partial<AiChatState> {
   const newTabs = state.tabs.map((t) =>
     t.id === tabId ? { ...t, ...updates } : t,
   );
-  const result: Partial<ClaudeChatState> = { tabs: newTabs };
+  const result: Partial<AiChatState> = { tabs: newTabs };
   if (tabId === state.activeTabId) {
     for (const key of TAB_FIELDS) {
       if (key in updates) {
@@ -206,7 +190,7 @@ function applyTabUpdate(
 
 const DEFAULT_TAB_ID = nextTabId();
 
-interface ClaudeChatState {
+interface AiChatState {
   // ── Projected fields (from active tab — read by consumers) ──
   messages: AiStreamMessage[];
   sessionId: string | null;
@@ -248,10 +232,6 @@ interface ClaudeChatState {
   selectedModel: string;
   setSelectedModel: (model: string) => void;
 
-  /** Effort level (Claude-specific, hidden for API providers) */
-  effortLevel: "low" | "medium" | "high";
-  setEffortLevel: (level: "low" | "medium" | "high") => void;
-
   // Actions
   sendPrompt: (
     userPrompt: string,
@@ -261,7 +241,6 @@ interface ClaudeChatState {
   cancelExecution: () => Promise<void>;
   clearMessages: () => void;
   newSession: () => void;
-  resumeSession: (sessionId: string) => Promise<void>;
 
   // Tab actions
   createTab: () => string;
@@ -282,7 +261,7 @@ interface ClaudeChatState {
 
 // ─── Store ───
 
-export const useAiChatStore = create<ClaudeChatState>()((set, get) => ({
+export const useAiChatStore = create<AiChatState>()((set, get) => ({
   // Projected fields (initialized from default tab)
   messages: [],
   sessionId: null,
@@ -296,11 +275,8 @@ export const useAiChatStore = create<ClaudeChatState>()((set, get) => ({
   tabs: [makeDefaultTab(DEFAULT_TAB_ID)],
   activeTabId: DEFAULT_TAB_ID,
 
-  selectedModel: "opus",
+  selectedModel: "claude-sonnet-5",
   setSelectedModel: (model) => set({ selectedModel: model }),
-
-  effortLevel: "medium",
-  setEffortLevel: (level) => set({ effortLevel: level }),
 
   pendingInitialPrompt: null,
   setPendingInitialPrompt: (prompt) => set({ pendingInitialPrompt: prompt }),
@@ -536,47 +512,6 @@ export const useAiChatStore = create<ClaudeChatState>()((set, get) => ({
         title: "New Chat",
       }),
     );
-  },
-
-  resumeSession: async (sessionId: string) => {
-    log.info(`Resuming session: ${sessionId.slice(0, 8)}`);
-    const { activeTabId } = get();
-    const projectPath = useDocumentStore.getState().projectRoot;
-
-    // Reset state with new session ID
-    set((s) =>
-      applyTabUpdate(s, activeTabId, {
-        messages: [],
-        sessionId,
-        error: null,
-        isStreaming: false,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-      }),
-    );
-
-    // Load session history from JSONL file
-    if (projectPath) {
-      try {
-        const history = await invoke<any[]>("ai_load_session", {
-          projectPath,
-          sessionId,
-        });
-
-        // Filter to displayable message types and map to AiStreamMessage
-        const messages: AiStreamMessage[] = [];
-        for (const entry of history) {
-          const type = entry.type;
-          if (type === "user" || type === "assistant" || type === "result") {
-            messages.push(entry as AiStreamMessage);
-          }
-        }
-
-        set((s) => applyTabUpdate(s, activeTabId, { messages }));
-      } catch (err) {
-        log.error("Failed to load session history", { error: String(err) });
-      }
-    }
   },
 
   // ─── Tab Actions ───

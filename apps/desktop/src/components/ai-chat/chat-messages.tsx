@@ -152,7 +152,7 @@ export const ChatMessages: FC = () => {
     >
       {displayMessages.length === 0 && !isStreaming && (
         <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-          Ask Claude about your LaTeX document...
+          Ask anything about your LaTeX project...
         </div>
       )}
 

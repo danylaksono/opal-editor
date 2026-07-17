@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
@@ -44,7 +45,7 @@ impl AiProvider for AnthropicProvider {
 
         let model = request
             .model
-            .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
+            .unwrap_or_else(|| "claude-sonnet-5".to_string());
 
         let mut messages: Vec<serde_json::Value> = request
             .messages
@@ -58,7 +59,7 @@ impl AiProvider for AnthropicProvider {
 
         let body = serde_json::json!({
             "model": model,
-            "max_tokens": 8192,
+            "max_tokens": 16000,
             "messages": messages,
             "stream": true,
             "system": request.system_prompt.unwrap_or_else(|| default_latex_system_prompt()),
@@ -69,7 +70,6 @@ impl AiProvider for AnthropicProvider {
             .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &api_key)
             .header("anthropic-version", "2023-06-01")
-            .header("anthropic-beta", "output-128k-2025-02-19")
             .json(&body)
             .send()
             .await
@@ -81,39 +81,52 @@ impl AiProvider for AnthropicProvider {
             return Err(format!("Anthropic API error {}: {}", status, text));
         }
 
-        let full_text = response
-            .text()
-            .await
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-
         let provider_clone = provider_id.clone();
         let win = window.clone();
         let tid = tab_id.clone();
 
         tokio::spawn(async move {
-            for line in full_text.lines() {
-                let line = line.trim();
-                if line.is_empty() || !line.starts_with("data: ") {
-                    continue;
+            let mut stream = response.bytes_stream();
+            let mut buf = String::new();
+            let mut success = true;
+
+            while let Some(chunk) = stream.next().await {
+                let chunk = match chunk {
+                    Ok(c) => c,
+                    Err(_) => {
+                        success = false;
+                        break;
+                    }
+                };
+                buf.push_str(&String::from_utf8_lossy(&chunk));
+
+                // Emit each complete SSE data line as it arrives
+                while let Some(pos) = buf.find('\n') {
+                    let line = buf[..pos].trim().to_string();
+                    buf.drain(..=pos);
+                    if line.is_empty() || !line.starts_with("data: ") {
+                        continue;
+                    }
+                    let data = &line[6..];
+                    if data == "[DONE]" {
+                        continue;
+                    }
+                    let _ = win.emit(
+                        "ai-output",
+                        AiOutputEvent {
+                            tab_id: tid.clone(),
+                            data: data.to_string(),
+                            provider: provider_clone.clone(),
+                        },
+                    );
                 }
-                let data = &line[6..];
-                if data == "[DONE]" {
-                    continue;
-                }
-                let _ = win.emit(
-                    "ai-output",
-                    AiOutputEvent {
-                        tab_id: tid.clone(),
-                        data: data.to_string(),
-                        provider: provider_clone.clone(),
-                    },
-                );
             }
+
             let _ = win.emit(
                 "ai-complete",
                 AiCompleteEvent {
                     tab_id: tid.clone(),
-                    success: true,
+                    success,
                     provider: provider_clone,
                 },
             );

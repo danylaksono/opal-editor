@@ -25,7 +25,7 @@ vi.mock("@/stores/history-store", () => ({
 
 import { useAiChatStore } from "@/stores/ai-chat-store";
 
-function resetClaudeChatStore() {
+function resetAiChatStore() {
   useAiChatStore.setState({
     messages: [],
     sessionId: null,
@@ -49,8 +49,7 @@ function resetClaudeChatStore() {
     activeTabId: "tab-default",
     pendingInitialPrompt: null,
     pendingAttachments: [],
-    selectedModel: "opus",
-    effortLevel: "medium",
+    selectedModel: "claude-sonnet-5",
     _cancelledByUser: false,
   });
 }
@@ -90,7 +89,7 @@ function setMockDocumentState(overrides: Partial<any> = {}) {
 describe("useAiChatStore.sendPrompt context assembly", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetClaudeChatStore();
+    resetAiChatStore();
     setMockDocumentState();
   });
 

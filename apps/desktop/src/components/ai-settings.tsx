@@ -301,7 +301,7 @@ export function AiSettings() {
               );
             })}
 
-          {/* Custom base URL for OpenAI-compatible providers (Hermes, etc.) */}
+          {/* Custom base URL for OpenAI-compatible providers */}
           {aiProvider === "openai" && (
             <div className="space-y-1.5">
               <span className="text-muted-foreground text-xs">
@@ -326,7 +326,8 @@ export function AiSettings() {
                 }}
               />
               <div className="text-muted-foreground/70 text-xs">
-                Set this to use Hermes or any OpenAI-compatible local model
+                Use OpenRouter, Ollama, or any OpenAI-compatible endpoint
+                (e.g. https://openrouter.ai/api/v1)
               </div>
             </div>
           )}

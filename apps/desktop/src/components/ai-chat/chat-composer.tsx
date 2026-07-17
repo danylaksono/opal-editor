@@ -871,7 +871,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder="Ask me anything (/ for commands, @ to mention)"
+            placeholder="Ask me anything (@ to mention files)"
             className="max-h-40 min-h-10 w-full resize-none bg-transparent px-4 py-2 text-sm outline-none placeholder:text-muted-foreground"
             rows={1}
           />

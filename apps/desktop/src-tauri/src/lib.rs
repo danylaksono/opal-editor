@@ -532,6 +532,13 @@ pub fn run() {
     // Load .env file (walks up from cwd to find it)
     let _ = dotenvy::dotenv();
 
+    // Load API keys saved from the settings UI (~/.tectonic/.env) so they
+    // survive app restarts — ai_set_api_key writes here and sets the process
+    // env var, but only for the current run.
+    if let Ok(path) = get_env_path() {
+        let _ = dotenvy::from_path(&path);
+    }
+
     // Initialize AI provider registry
     let mut registry = ProviderRegistry::new();
     registry.register(

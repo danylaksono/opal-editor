@@ -17,13 +17,6 @@ interface AiProviderState {
 
   execute: (request: AiRequest) => Promise<void>;
   cancel: (tabId: string) => Promise<void>;
-  listSessions: (
-    projectPath: string,
-  ) => Promise<{ session_id: string; title: string; last_modified: number }[]>;
-  loadSession: (
-    projectPath: string,
-    sessionId: string,
-  ) => Promise<AiRequest["messages"]>;
 }
 
 export const useAiProviderStore = create<AiProviderState>()((set, get) => ({
@@ -99,22 +92,6 @@ export const useAiProviderStore = create<AiProviderState>()((set, get) => ({
       await invoke("ai_cancel", { tabId });
     } catch {
       // Best-effort cancellation
-    }
-  },
-
-  listSessions: async (projectPath) => {
-    try {
-      return await invoke("ai_list_sessions", { projectPath });
-    } catch {
-      return [];
-    }
-  },
-
-  loadSession: async (projectPath, sessionId) => {
-    try {
-      return await invoke("ai_load_session", { projectPath, sessionId });
-    } catch {
-      return [];
     }
   },
 }));

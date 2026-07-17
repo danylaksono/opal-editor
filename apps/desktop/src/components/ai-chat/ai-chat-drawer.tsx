@@ -131,7 +131,9 @@ export function AiChatDrawer() {
         type="button"
         onClick={() => setIsOpen(true)}
         className={cn(
-          "pointer-events-auto absolute right-4 bottom-6 flex size-12 items-center justify-center rounded-full border border-border bg-background shadow-lg transition-all duration-300 ease-out hover:scale-105 hover:shadow-xl",
+          // bottom-14 keeps the FAB clear of the PDF-preview toggle that sits
+          // in the same corner of the editor panel (right-3 bottom-3)
+          "pointer-events-auto absolute right-3 bottom-14 flex size-12 items-center justify-center rounded-full border border-border bg-background shadow-lg transition-all duration-300 ease-out hover:scale-105 hover:shadow-xl",
           isOpen
             ? "pointer-events-none scale-50 opacity-0"
             : "scale-100 opacity-100",

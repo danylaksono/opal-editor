@@ -85,7 +85,6 @@ export interface AiErrorEvent {
 
 export const AI_PROVIDERS = {
   NONE: "none",
-  CLAUDE_CLI: "claude-cli",
   ANTHROPIC: "anthropic",
   OPENAI: "openai",
 } as const;

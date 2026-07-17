@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
@@ -44,7 +45,7 @@ impl AiProvider for OpenAiProvider {
 
         let base_url = std::env::var("OPENAI_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
-        let model = request.model.unwrap_or_else(|| "gpt-4o".to_string());
+        let model = request.model.unwrap_or_else(|| "gpt-5.1".to_string());
 
         let mut messages: Vec<serde_json::Value> = Vec::new();
 
@@ -67,11 +68,13 @@ impl AiProvider for OpenAiProvider {
             "content": request.prompt
         }));
 
+        // Note: no max_tokens — newer OpenAI models reject it (they use
+        // max_completion_tokens), and omitting it works across all
+        // OpenAI-compatible endpoints (OpenRouter, Ollama, etc.).
         let body = serde_json::json!({
             "model": model,
             "messages": messages,
             "stream": true,
-            "max_tokens": 8192,
         });
 
         let client = reqwest::Client::new();
@@ -90,39 +93,52 @@ impl AiProvider for OpenAiProvider {
             return Err(format!("OpenAI API error {}: {}", status, text));
         }
 
-        let full_text = response
-            .text()
-            .await
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-
         let provider_clone = provider_id.clone();
         let win = window.clone();
         let tid = tab_id.clone();
 
         tokio::spawn(async move {
-            for line in full_text.lines() {
-                let line = line.trim();
-                if line.is_empty() || !line.starts_with("data: ") {
-                    continue;
+            let mut stream = response.bytes_stream();
+            let mut buf = String::new();
+            let mut success = true;
+
+            while let Some(chunk) = stream.next().await {
+                let chunk = match chunk {
+                    Ok(c) => c,
+                    Err(_) => {
+                        success = false;
+                        break;
+                    }
+                };
+                buf.push_str(&String::from_utf8_lossy(&chunk));
+
+                // Emit each complete SSE data line as it arrives
+                while let Some(pos) = buf.find('\n') {
+                    let line = buf[..pos].trim().to_string();
+                    buf.drain(..=pos);
+                    if line.is_empty() || !line.starts_with("data: ") {
+                        continue;
+                    }
+                    let data = &line[6..];
+                    if data == "[DONE]" {
+                        continue;
+                    }
+                    let _ = win.emit(
+                        "ai-output",
+                        AiOutputEvent {
+                            tab_id: tid.clone(),
+                            data: data.to_string(),
+                            provider: provider_clone.clone(),
+                        },
+                    );
                 }
-                let data = &line[6..];
-                if data == "[DONE]" {
-                    continue;
-                }
-                let _ = win.emit(
-                    "ai-output",
-                    AiOutputEvent {
-                        tab_id: tid.clone(),
-                        data: data.to_string(),
-                        provider: provider_clone.clone(),
-                    },
-                );
             }
+
             let _ = win.emit(
                 "ai-complete",
                 AiCompleteEvent {
                     tab_id: tid.clone(),
-                    success: true,
+                    success,
                     provider: provider_clone,
                 },
             );
