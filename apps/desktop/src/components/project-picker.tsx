@@ -20,6 +20,7 @@ import {
   BookOpenCheckIcon,
   ShieldCheckIcon,
   WifiOffIcon,
+  ImportIcon,
 } from "lucide-react";
 import { useProjectStore } from "@/stores/project-store";
 import { useDocumentStore } from "@/stores/document-store";
@@ -40,6 +41,7 @@ import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
 import { OnboardingPrompt } from "@/components/onboarding-prompt";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { TUTORIAL_BIB, TUTORIAL_MAIN_TEX } from "@/lib/tutorial-project";
+import { ProjectImportDialog } from "./project-import-dialog";
 
 function randomProjectName(): string {
   const adjectives = ["swift", "bright", "calm", "bold", "keen"];
@@ -57,6 +59,7 @@ export function ProjectPicker() {
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isCreatingTutorial, setIsCreatingTutorial] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const { status: updateStatus, checkForUpdate, installUpdate } = useUpdater();
 
   const recentProjects = useProjectStore((s) => s.recentProjects);
@@ -98,6 +101,15 @@ export function ProjectPicker() {
 
   const handleOpenRecent = async (path: string) => {
     addRecentProject(path);
+    await openProject(path);
+  };
+
+  const handleImportedProject = async (path: string) => {
+    addRecentProject(path);
+    const pathParts = path.split(/[/\\]/);
+    pathParts.pop();
+    const parent = pathParts.join(path.includes("\\") ? "\\" : "/");
+    if (parent) setLastProjectFolder(parent);
     await openProject(path);
   };
 
@@ -199,6 +211,12 @@ export function ProjectPicker() {
         <SettingsIcon className="size-4" />
       </Button>
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+      <ProjectImportDialog
+        open={showImportDialog}
+        defaultDestination={lastProjectFolder}
+        onOpenChange={setShowImportDialog}
+        onImported={handleImportedProject}
+      />
 
       <main className="relative z-[1] grid w-full max-w-5xl grid-cols-1 gap-10 px-10 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <section className="max-w-xl">
@@ -278,6 +296,25 @@ export function ProjectPicker() {
               Open project
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowImportDialog(true)}
+            className="group mx-2 mb-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 text-left transition-colors hover:bg-muted/70"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <ImportIcon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-sm">
+                Import a project
+              </span>
+              <span className="block text-muted-foreground text-xs">
+                ZIP archive or public GitHub repository
+              </span>
+            </span>
+            <ArrowRightIcon className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </button>
 
           <button
             type="button"

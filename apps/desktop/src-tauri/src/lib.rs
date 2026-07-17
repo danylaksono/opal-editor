@@ -2,6 +2,7 @@ mod ai;
 mod history;
 mod latex;
 mod metadata;
+mod project_import;
 mod uv;
 mod zotero;
 
@@ -596,6 +597,8 @@ pub fn run() {
             latex::detect_texlive,
             metadata::lookup_reference,
             metadata::clear_metadata_cache,
+            project_import::import_zip_project,
+            project_import::import_github_project,
             // Unified AI provider commands
             ai_list_providers,
             ai_get_active_provider,

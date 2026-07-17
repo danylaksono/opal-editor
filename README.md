@@ -31,6 +31,8 @@ The editor is designed for **researchers, scientists, and academics** who want a
 
 **Python Environment** — Built-in [uv](https://docs.astral.sh/uv/) setup. One click creates a `.venv`. Run scripts, generate plots, process data without leaving the app.
 
+**Project Import** — Open Overleaf downloads and other LaTeX ZIP archives, or import the default branch of a public GitHub repository.
+
 **More** — Zotero integration, template gallery (paper, thesis, slides, poster, letter), capture & ask, external editor support (VS Code, Cursor, Zed, Sublime).
 
 ## AI Providers
@@ -85,6 +87,7 @@ apps/desktop/
         ├── ai/             # AiProvider trait + registry + providers
         ├── latex.rs        # Tectonic compilation & SyncTeX
         ├── history.rs      # Git version history
+        ├── project_import.rs # ZIP and public GitHub project import
         ├── zotero.rs       # Zotero OAuth integration
         └── lib.rs          # Tauri command registration
 ```
