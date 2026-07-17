@@ -392,9 +392,7 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
-  const editorHighlightTheme = useSettingsStore(
-    (s) => s.editorHighlightTheme,
-  );
+  const editorHighlightTheme = useSettingsStore((s) => s.editorHighlightTheme);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const workspaceModes = useLensStore((s) => s.workspaceModes);
   const editorMode = projectRoot
