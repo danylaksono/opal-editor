@@ -242,3 +242,93 @@ describe("parseOpenAISSE", () => {
     });
   });
 });
+
+describe("parseOpenAISSE — DeepSeek thinking mode", () => {
+  it("accumulates reasoning_content and emits a thinking block on finish", () => {
+    const state = createOpenAIStreamState();
+
+    // Reasoning streams first (thinking-mode models)
+    let out = parseOpenAISSE(
+      JSON.stringify({
+        choices: [{ delta: { reasoning_content: "Let me think" } }],
+      }),
+      state,
+    );
+    expect(out).toEqual([]);
+    out = parseOpenAISSE(
+      JSON.stringify({
+        choices: [{ delta: { reasoning_content: " about this." } }],
+      }),
+      state,
+    );
+    expect(out).toEqual([]);
+
+    // Then regular content
+    parseOpenAISSE(
+      JSON.stringify({ choices: [{ delta: { content: "Answer." } }] }),
+      state,
+    );
+
+    // Finish
+    const done = parseOpenAISSE(
+      JSON.stringify({
+        choices: [{ delta: {}, finish_reason: "stop" }],
+      }),
+      state,
+    );
+
+    const blocks = done.flatMap((m) => m.message?.content ?? []);
+    const thinking = blocks.find((b) => b.type === "thinking");
+    expect(thinking?.thinking).toBe("Let me think about this.");
+    const text = blocks.find((b) => b.type === "text");
+    expect(text?.text).toBe("Answer.");
+  });
+
+  it("emits tool calls on finish_reason tool_calls", () => {
+    const state = createOpenAIStreamState();
+
+    parseOpenAISSE(
+      JSON.stringify({
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_1",
+                  function: { name: "read_file", arguments: '{"path":' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      state,
+    );
+    parseOpenAISSE(
+      JSON.stringify({
+        choices: [
+          {
+            delta: {
+              tool_calls: [{ index: 0, function: { arguments: '"main.tex"}' } }],
+            },
+          },
+        ],
+      }),
+      state,
+    );
+
+    const done = parseOpenAISSE(
+      JSON.stringify({
+        choices: [{ delta: {}, finish_reason: "tool_calls" }],
+      }),
+      state,
+    );
+
+    const blocks = done.flatMap((m) => m.message?.content ?? []);
+    const tool = blocks.find((b) => b.type === "tool_use");
+    expect(tool?.id).toBe("call_1");
+    expect(tool?.name).toBe("read_file");
+    expect(tool?.input).toEqual({ path: "main.tex" });
+  });
+});

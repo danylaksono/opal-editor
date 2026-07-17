@@ -20,7 +20,9 @@ impl AiProvider for AnthropicProvider {
     }
 
     async fn check_status(&self) -> AiProviderInfo {
-        let has_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
+        let has_key = std::env::var("ANTHROPIC_API_KEY")
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
         AiProviderInfo {
             id: "anthropic".to_string(),
             name: "Anthropic API".to_string(),
@@ -41,7 +43,9 @@ impl AiProvider for AnthropicProvider {
         let provider_id = self.id().to_string();
         let tab_id = request.tab_id.clone();
         let api_key = std::env::var("ANTHROPIC_API_KEY")
-            .map_err(|_| "ANTHROPIC_API_KEY not set".to_string())?;
+            .ok()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "ANTHROPIC_API_KEY not set".to_string())?;
 
         let model = request
             .model
@@ -154,6 +158,45 @@ impl AiProvider for AnthropicProvider {
 
     async fn cancel(&self, _window: &WebviewWindow, _tab_id: &str) -> Result<(), String> {
         Ok(())
+    }
+
+    async fn list_models(&self) -> Result<Vec<String>, String> {
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "ANTHROPIC_API_KEY not set".to_string())?;
+
+        let client = reqwest::Client::new();
+        let response = client
+            .get("https://api.anthropic.com/v1/models?limit=100")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Anthropic API error {}: {}", status, text));
+        }
+
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let ids = json["data"]
+            .as_array()
+            .map(|models| {
+                models
+                    .iter()
+                    .filter_map(|m| m["id"].as_str().map(String::from))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        Ok(ids)
     }
 
     async fn list_sessions(&self, _project_path: &str) -> Result<Vec<AiSessionInfo>, String> {

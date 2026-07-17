@@ -2,7 +2,6 @@ import {
   type FC,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,11 +26,8 @@ import type { AiContext } from "@/lib/ai/types";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import {
-  useAiChatStore,
-  offsetToLineCol,
-  getModelsForProvider,
-} from "@/stores/ai-chat-store";
+import { useAiChatStore, offsetToLineCol } from "@/stores/ai-chat-store";
+import { useAiProviderStore } from "@/stores/ai-provider-store";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getUniqueTargetName } from "@/lib/tauri/fs";
@@ -70,9 +66,16 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const setSelectedModel = useAiChatStore((s) => s.setSelectedModel);
   const activeTabId = useAiChatStore((s) => s.activeTabId);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
-  const availableModels = getModelsForProvider(aiProvider);
+  const availableModels = useAiProviderStore((s) => s.availableModels);
+  const loadModels = useAiProviderStore((s) => s.loadModels);
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch the provider's model list (BYOK: from its API endpoint, with a
+  // curated fallback)
+  useEffect(() => {
+    loadModels(aiProvider);
+  }, [aiProvider, loadModels]);
 
   // Set default model when provider changes
   useEffect(() => {
@@ -86,6 +89,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
 
   // Model picker state
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelFilter, setModelFilter] = useState("");
   const modelPickerRef = useRef<HTMLDivElement>(null);
   const modelButtonRef = useRef<HTMLButtonElement>(null);
   const [pickerPos, setPickerPos] = useState<{ left: number; bottom: number }>({
@@ -101,15 +105,16 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const [scopePickerOpen, setScopePickerOpen] = useState(false);
   const [actionPickerOpen, setActionPickerOpen] = useState(false);
 
-  // Recalculate popup position when it opens
-  useLayoutEffect(() => {
-    if (!modelPickerOpen || !modelButtonRef.current) return;
-    const rect = modelButtonRef.current.getBoundingClientRect();
+  // Anchor a popup directly above the button that opened it (clamped so it
+  // can't overflow the right window edge)
+  const anchorPickerTo = useCallback((el: HTMLElement | null) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
     setPickerPos({
-      left: rect.left,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
       bottom: window.innerHeight - rect.top + 4,
     });
-  }, [modelPickerOpen]);
+  }, []);
 
   // Pinned contexts — supports multiple files/selections
   const [pinnedContexts, setPinnedContexts] = useState<PinnedContext[]>([]);
@@ -622,28 +627,50 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
               <div className="px-2 py-1 font-medium text-muted-foreground text-xs">
                 Model
               </div>
-              {availableModels.map((m) => (
-                <button
-                  key={m.id}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors",
-                    selectedModel === m.id
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-muted",
-                  )}
-                  onClick={() => setSelectedModel(m.id)}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-xs">{m.name}</div>
-                    <div className="truncate text-muted-foreground text-xs">
-                      {m.desc}
-                    </div>
-                  </div>
-                  {selectedModel === m.id && (
-                    <CheckIcon className="size-3 shrink-0" />
-                  )}
-                </button>
-              ))}
+              {availableModels.length > 8 && (
+                <input
+                  type="text"
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  placeholder="Filter models..."
+                  className="mb-1 w-full rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus:border-ring"
+                />
+              )}
+              <div className="max-h-64 overflow-y-auto">
+                {availableModels
+                  .filter(
+                    (m) =>
+                      !modelFilter ||
+                      m.id.toLowerCase().includes(modelFilter.toLowerCase()) ||
+                      m.name.toLowerCase().includes(modelFilter.toLowerCase()),
+                  )
+                  .map((m) => (
+                    <button
+                      key={m.id}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                        selectedModel === m.id
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-muted",
+                      )}
+                      onClick={() => setSelectedModel(m.id)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-xs">
+                          {m.name}
+                        </div>
+                        {m.desc && (
+                          <div className="truncate text-muted-foreground text-xs">
+                            {m.desc}
+                          </div>
+                        )}
+                      </div>
+                      {selectedModel === m.id && (
+                        <CheckIcon className="size-3 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+              </div>
             </div>
           </div>,
           document.body,
@@ -658,7 +685,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
           >
             <div
               className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
-              style={{ left: pickerPos.left, bottom: pickerPos.bottom + 320 }}
+              style={{ left: pickerPos.left, bottom: pickerPos.bottom }}
             >
               <div className="p-1">
                 {(
@@ -717,10 +744,7 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
           >
             <div
               className="absolute min-w-[140px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
-              style={{
-                left: pickerPos.left + 120,
-                bottom: pickerPos.bottom + 320,
-              }}
+              style={{ left: pickerPos.left, bottom: pickerPos.bottom }}
             >
               <div className="p-1">
                 {(
@@ -883,7 +907,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
             {/* Scope selector */}
             <button
               type="button"
-              onClick={() => setScopePickerOpen((v) => !v)}
+              onClick={(e) => {
+                anchorPickerTo(e.currentTarget);
+                setScopePickerOpen((v) => !v);
+              }}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
               title={`Scope: ${selectedScope}`}
             >
@@ -895,7 +922,10 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
             {/* Action selector */}
             <button
               type="button"
-              onClick={() => setActionPickerOpen((v) => !v)}
+              onClick={(e) => {
+                anchorPickerTo(e.currentTarget);
+                setActionPickerOpen((v) => !v);
+              }}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
               title={`Action: ${selectedAction}`}
             >
@@ -908,7 +938,11 @@ export const ChatComposer: FC<{ isOpen?: boolean }> = ({ isOpen }) => {
             <button
               ref={modelButtonRef}
               type="button"
-              onClick={() => setModelPickerOpen((v) => !v)}
+              onClick={(e) => {
+                anchorPickerTo(e.currentTarget);
+                setModelFilter("");
+                setModelPickerOpen((v) => !v);
+              }}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
             >
               <span>

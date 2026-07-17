@@ -20,7 +20,9 @@ impl AiProvider for OpenAiProvider {
     }
 
     async fn check_status(&self) -> AiProviderInfo {
-        let has_key = std::env::var("OPENAI_API_KEY").is_ok();
+        let has_key = std::env::var("OPENAI_API_KEY")
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
         AiProviderInfo {
             id: "openai".to_string(),
             name: "OpenAI API".to_string(),
@@ -41,10 +43,11 @@ impl AiProvider for OpenAiProvider {
         let provider_id = self.id().to_string();
         let tab_id = request.tab_id.clone();
         let api_key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| "OPENAI_API_KEY not set".to_string())?;
+            .ok()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "OPENAI_API_KEY not set".to_string())?;
 
-        let base_url = std::env::var("OPENAI_BASE_URL")
-            .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        let base_url = openai_base_url();
         let model = request.model.unwrap_or_else(|| "gpt-5.1".to_string());
 
         let mut messages: Vec<serde_json::Value> = Vec::new();
@@ -169,6 +172,45 @@ impl AiProvider for OpenAiProvider {
         Ok(())
     }
 
+    async fn list_models(&self) -> Result<Vec<String>, String> {
+        let api_key = std::env::var("OPENAI_API_KEY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "OPENAI_API_KEY not set".to_string())?;
+        let base_url = openai_base_url();
+
+        let client = reqwest::Client::new();
+        let response = client
+            .get(format!("{}/models", base_url))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await
+            .map_err(|e| format!("Request to {} failed: {}", base_url, e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("API error {}: {}", status, text));
+        }
+
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let ids = json["data"]
+            .as_array()
+            .map(|models| {
+                models
+                    .iter()
+                    .filter_map(|m| m["id"].as_str().map(String::from))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        Ok(ids)
+    }
+
     async fn list_sessions(&self, _project_path: &str) -> Result<Vec<AiSessionInfo>, String> {
         Ok(Vec::new())
     }
@@ -180,6 +222,16 @@ impl AiProvider for OpenAiProvider {
     ) -> Result<Vec<AiMessage>, String> {
         Err("Session loading not supported for API providers".to_string())
     }
+}
+
+/// Base URL for OpenAI-compatible endpoints (OpenAI, DeepSeek, OpenRouter,
+/// Ollama, ...). Trailing slashes are trimmed so path joining is predictable.
+fn openai_base_url() -> String {
+    std::env::var("OPENAI_BASE_URL")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(|v| v.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| "https://api.openai.com/v1".to_string())
 }
 
 /// Convert a provider-neutral message (Anthropic-style content blocks) into
@@ -196,10 +248,14 @@ fn openai_messages_to_json(msg: &AiMessage) -> Vec<serde_json::Value> {
     match msg.role.as_str() {
         "assistant" => {
             let mut text_parts: Vec<String> = Vec::new();
+            let mut reasoning_parts: Vec<String> = Vec::new();
             let mut tool_calls: Vec<serde_json::Value> = Vec::new();
             for block in content {
                 match block {
                     AiContentBlock::Text { text } => text_parts.push(text.clone()),
+                    AiContentBlock::Thinking { thinking, .. } => {
+                        reasoning_parts.push(thinking.clone())
+                    }
                     AiContentBlock::ToolUse { id, name, input } => {
                         tool_calls.push(serde_json::json!({
                             "id": id,
@@ -226,6 +282,14 @@ fn openai_messages_to_json(msg: &AiMessage) -> Vec<serde_json::Value> {
             });
             if !tool_calls.is_empty() {
                 json["tool_calls"] = serde_json::json!(tool_calls);
+            }
+            // Thinking-mode models (e.g. DeepSeek) require their reasoning
+            // echoed back on the assistant message in multi-turn tool loops.
+            // Only present when the model produced it, so plain models never
+            // see the extra field.
+            if !reasoning_parts.is_empty() {
+                json["reasoning_content"] =
+                    serde_json::json!(reasoning_parts.join("\n"));
             }
             vec![json]
         }

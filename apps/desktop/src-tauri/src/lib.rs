@@ -393,6 +393,29 @@ async fn ai_execute(
     provider.execute(window, request).await
 }
 
+/// List the models available from a provider's API endpoint. Doubles as a
+/// connection test: it makes a real authenticated request without spending
+/// tokens.
+#[tauri::command]
+async fn ai_list_models(
+    registry: tauri::State<'_, Arc<ProviderRegistry>>,
+    provider_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    let id = match provider_id {
+        Some(id) => id,
+        None => registry
+            .active_id()
+            .await
+            .ok_or_else(|| "No AI provider configured. Select one in Settings.".to_string())?,
+    };
+
+    let provider = registry
+        .create_provider(&id)
+        .ok_or_else(|| format!("Provider '{}' not found", id))?;
+
+    provider.list_models().await
+}
+
 #[tauri::command]
 async fn ai_cancel(
     window: WebviewWindow,
@@ -490,27 +513,36 @@ async fn ai_set_api_key(key_name: String, value: String) -> Result<(), String> {
         String::new()
     };
 
-    // Replace existing key or append
+    let removing = value.is_empty();
+
+    // Replace (or drop, when removing) an existing key
     let mut found = false;
     let new_lines: Vec<String> = content
         .lines()
-        .map(|line| {
+        .filter_map(|line| {
             let trimmed = line.trim();
             if trimmed.is_empty() || trimmed.starts_with('#') {
-                return line.to_string();
+                return Some(line.to_string());
             }
             if let Some((k, _)) = trimmed.split_once('=') {
                 if k.trim() == key_name {
                     found = true;
-                    return format!("{}=\"{}\"", key_name, value);
+                    if removing {
+                        return None; // drop the line entirely
+                    }
+                    return Some(format!("{}=\"{}\"", key_name, value));
                 }
             }
-            line.to_string()
+            Some(line.to_string())
         })
         .collect();
 
-    content = if found {
-        new_lines.join("\n")
+    content = if found || removing {
+        let mut joined = new_lines.join("\n");
+        if !joined.is_empty() && !joined.ends_with('\n') {
+            joined.push('\n');
+        }
+        joined
     } else {
         if !content.is_empty() && !content.ends_with('\n') {
             content.push('\n');
@@ -521,8 +553,14 @@ async fn ai_set_api_key(key_name: String, value: String) -> Result<(), String> {
     std::fs::write(&path, content)
         .map_err(|e| format!("Failed to write: {}", e))?;
 
-    // Also set in current process environment
-    std::env::set_var(&key_name, &value);
+    // Keep the current process environment in sync. An empty value must
+    // remove the var — a set-but-empty key would make providers think a
+    // key is configured.
+    if removing {
+        std::env::remove_var(&key_name);
+    } else {
+        std::env::set_var(&key_name, &value);
+    }
 
     Ok(())
 }
@@ -613,6 +651,7 @@ pub fn run() {
             ai_status,
             ai_execute,
             ai_cancel,
+            ai_list_models,
             ai_list_sessions,
             ai_load_session,
             ai_get_api_key,

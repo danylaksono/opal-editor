@@ -45,73 +45,83 @@ export function useAiEvents() {
   const openaiStateRef = useRef(new Map<string, OpenAIStreamState>());
 
   useEffect(() => {
-    let unlistenOutput: UnlistenFn | undefined;
-    let unlistenComplete: UnlistenFn | undefined;
-    let unlistenError: UnlistenFn | undefined;
+    // listen() is async: if this effect is cleaned up before the promises
+    // resolve (StrictMode double-mount, HMR), listeners registered after
+    // cleanup would leak — every event then gets handled twice, duplicating
+    // messages and tool calls in the transcript. Track cancellation and
+    // unlisten immediately when registration resolves post-cleanup.
+    let cancelled = false;
+    const unlisteners: UnlistenFn[] = [];
 
-    async function setup() {
-      unlistenOutput = await listen<AiOutputPayload>("ai-output", (event) => {
-        const { tab_id: tabId, data, provider } = event.payload;
-        const chatStore = useAiChatStore.getState();
-        const tab = chatStore.tabs.find((t) => t.id === tabId);
-        if (!tab?.isStreaming) return;
+    const register = async (promise: Promise<UnlistenFn>) => {
+      const unlisten = await promise;
+      if (cancelled) {
+        unlisten();
+      } else {
+        unlisteners.push(unlisten);
+      }
+    };
 
-        if (provider === "anthropic") {
-          let state = anthropicStateRef.current.get(tabId);
-          if (!state) {
-            state = createAnthropicStreamState();
-            anthropicStateRef.current.set(tabId, state);
-          }
-          for (const msg of parseAnthropicSSE(data, state)) {
-            chatStore._appendMessage(tabId, msg);
-          }
-        } else if (provider === "openai") {
-          let state = openaiStateRef.current.get(tabId);
-          if (!state) {
-            state = createOpenAIStreamState();
-            openaiStateRef.current.set(tabId, state);
-          }
-          for (const msg of parseOpenAISSE(data, state)) {
-            chatStore._appendMessage(tabId, msg);
-          }
+    const handleOutput = (event: { payload: AiOutputPayload }) => {
+      const { tab_id: tabId, data, provider } = event.payload;
+      const chatStore = useAiChatStore.getState();
+      const tab = chatStore.tabs.find((t) => t.id === tabId);
+      if (!tab?.isStreaming) return;
+
+      if (provider === "anthropic") {
+        let state = anthropicStateRef.current.get(tabId);
+        if (!state) {
+          state = createAnthropicStreamState();
+          anthropicStateRef.current.set(tabId, state);
         }
-        // Unknown provider — skip
-      });
+        for (const msg of parseAnthropicSSE(data, state)) {
+          chatStore._appendMessage(tabId, msg);
+        }
+      } else if (provider === "openai") {
+        let state = openaiStateRef.current.get(tabId);
+        if (!state) {
+          state = createOpenAIStreamState();
+          openaiStateRef.current.set(tabId, state);
+        }
+        for (const msg of parseOpenAISSE(data, state)) {
+          chatStore._appendMessage(tabId, msg);
+        }
+      }
+      // Unknown provider — skip
+    };
 
-      unlistenComplete = await listen<AiCompletePayload>(
-        "ai-complete",
-        async (event) => {
-          const { tab_id: tabId, success } = event.payload;
-          const chatStore = useAiChatStore.getState();
+    const handleComplete = async (event: { payload: AiCompletePayload }) => {
+      const { tab_id: tabId, success } = event.payload;
+      const chatStore = useAiChatStore.getState();
 
-          // Reset per-turn parser state — a tool-loop continuation starts a
-          // fresh provider stream
-          anthropicStateRef.current.delete(tabId);
-          openaiStateRef.current.delete(tabId);
+      // Reset per-turn parser state — a tool-loop continuation starts a
+      // fresh provider stream
+      anthropicStateRef.current.delete(tabId);
+      openaiStateRef.current.delete(tabId);
 
-          if (!success) {
-            chatStore._setStreaming(tabId, false);
-            chatStore._setError(tabId, "AI request failed");
-            return;
-          }
+      if (!success) {
+        chatStore._setStreaming(tabId, false);
+        chatStore._setError(tabId, "AI request failed");
+        return;
+      }
 
-          // Execute pending tool calls and continue, or finalize the stream
-          await chatStore._handleTurnComplete(tabId);
-        },
-      );
+      // Execute pending tool calls and continue, or finalize the stream
+      await chatStore._handleTurnComplete(tabId);
+    };
 
-      unlistenError = await listen<AiErrorPayload>("ai-error", (event) => {
-        const { tab_id: tabId, data } = event.payload;
-        log.error(`[${tabId}] ${data}`);
-      });
-    }
+    const handleError = (event: { payload: AiErrorPayload }) => {
+      const { tab_id: tabId, data } = event.payload;
+      log.error(`[${tabId}] ${data}`);
+    };
 
-    setup();
+    register(listen<AiOutputPayload>("ai-output", handleOutput));
+    register(listen<AiCompletePayload>("ai-complete", handleComplete));
+    register(listen<AiErrorPayload>("ai-error", handleError));
 
     return () => {
-      if (unlistenOutput) unlistenOutput();
-      if (unlistenComplete) unlistenComplete();
-      if (unlistenError) unlistenError();
+      cancelled = true;
+      for (const unlisten of unlisteners) unlisten();
+      unlisteners.length = 0;
     };
   }, []);
 }

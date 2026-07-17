@@ -173,6 +173,10 @@ pub trait AiProvider: Send + Sync {
         tab_id: &str,
     ) -> Result<(), String>;
 
+    /// List model IDs available from the provider's API. Also serves as a
+    /// connection test — it makes a real authenticated request.
+    async fn list_models(&self) -> Result<Vec<String>, String>;
+
     async fn list_sessions(
         &self,
         project_path: &str,

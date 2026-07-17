@@ -5,7 +5,9 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 import { useDocumentStore } from "@/stores/document-store";
 import { useAiChatStore } from "@/stores/ai-chat-store";
+import { useAiProviderStore } from "@/stores/ai-provider-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import type { AiProviderId } from "@/lib/ai/types";
 import { ProjectPicker } from "@/components/project-picker";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { CommandPalette } from "@/components/command-palette";
@@ -32,6 +34,21 @@ function AppearanceSync() {
   useEffect(() => {
     document.documentElement.dataset.palette = palette;
   }, [palette]);
+  return null;
+}
+
+/**
+ * Push the persisted AI provider choice to the Rust provider registry.
+ * The registry's active provider lives in backend memory and resets on every
+ * app launch — without this sync, ai_execute fails with "No AI provider
+ * configured" even though Settings shows one selected.
+ */
+function AiProviderSync() {
+  const aiProvider = useSettingsStore((state) => state.aiProvider);
+  const setActiveProvider = useAiProviderStore((s) => s.setActiveProvider);
+  useEffect(() => {
+    setActiveProvider(aiProvider as AiProviderId);
+  }, [aiProvider, setActiveProvider]);
   return null;
 }
 
@@ -88,6 +105,7 @@ export function App({ onReady }: { onReady?: () => void }) {
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <AppearanceSync />
+        <AiProviderSync />
         <EditorActionRegistrar />
         <TooltipProvider>
           {/* Global macOS titlebar drag region — sits above all content */}

@@ -159,6 +159,13 @@ export function parseOpenAISSE(
 
   const messages: AiStreamMessage[] = [];
 
+  // Thinking-mode reasoning (DeepSeek et al.) — accumulated and emitted as a
+  // thinking block on finish. Some providers require it echoed back on the
+  // assistant message in multi-turn tool loops.
+  if (delta.reasoning_content) {
+    state.accumulatedReasoning += delta.reasoning_content;
+  }
+
   // Handle text content — deltas are replaced by the complete block on finish
   if (delta.content) {
     state.accumulatedText += delta.content;
@@ -189,10 +196,21 @@ export function parseOpenAISSE(
     }
   }
 
-  // Handle finish — emit the complete accumulated text (replacing the
-  // streamed deltas) and any tool calls. OpenAI reports tool-call turns with
-  // finish_reason "tool_calls", plain turns with "stop".
+  // Handle finish — emit the complete accumulated reasoning and text
+  // (replacing the streamed deltas) and any tool calls. OpenAI reports
+  // tool-call turns with finish_reason "tool_calls", plain turns with "stop".
   if (choice.finish_reason) {
+    if (state.accumulatedReasoning) {
+      messages.push({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: state.accumulatedReasoning },
+          ],
+        },
+      });
+      state.accumulatedReasoning = "";
+    }
     if (state.accumulatedText) {
       messages.push({
         type: "assistant",
@@ -261,6 +279,8 @@ export interface OpenAIStreamState {
   promptTokens: number;
   completionTokens: number;
   accumulatedText: string;
+  /** Thinking-mode reasoning (e.g. DeepSeek's delta.reasoning_content) */
+  accumulatedReasoning: string;
   toolCalls: {
     id: string;
     name: string;
@@ -273,6 +293,7 @@ export function createOpenAIStreamState(): OpenAIStreamState {
     promptTokens: 0,
     completionTokens: 0,
     accumulatedText: "",
+    accumulatedReasoning: "",
     toolCalls: [],
   };
 }

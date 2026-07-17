@@ -7,11 +7,21 @@ import {
   CheckIcon,
   EyeIcon,
   EyeOffIcon,
+  PlugZapIcon,
+  Loader2Icon,
+  CheckCircle2Icon,
+  XCircleIcon,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useAiProviderStore } from "@/stores/ai-provider-store";
 import type { AiProviderInfo } from "@/lib/ai/types";
 import { cn } from "@/lib/utils";
+
+type TestState =
+  | { status: "idle" }
+  | { status: "testing" }
+  | { status: "ok"; message: string }
+  | { status: "error"; message: string };
 
 export function AiSettings() {
   const aiProvider = useSettingsStore((s) => s.aiProvider);
@@ -22,10 +32,17 @@ export function AiSettings() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [testState, setTestState] = useState<TestState>({ status: "idle" });
 
   useEffect(() => {
     loadProviders();
   }, []);
+
+  // Reset the test result when switching providers
+  useEffect(() => {
+    setTestState({ status: "idle" });
+  }, [aiProvider]);
 
   const loadProviders = async () => {
     try {
@@ -37,7 +54,7 @@ export function AiSettings() {
       };
       setProviders([noneEntry, ...list]);
 
-      // Load saved API keys
+      // Load saved API keys and base URL
       for (const k of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]) {
         try {
           const val = await invoke<string | null>("ai_get_api_key", {
@@ -48,8 +65,37 @@ export function AiSettings() {
           // key not set
         }
       }
+      try {
+        const url = await invoke<string | null>("ai_get_api_key", {
+          keyName: "OPENAI_BASE_URL",
+        });
+        if (url) setBaseUrl(url);
+      } catch {
+        // not set
+      }
     } catch {
       setProviders([{ id: "none", name: "No AI (Editor only)", ready: true }]);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestState({ status: "testing" });
+    const result = await useAiProviderStore
+      .getState()
+      .testConnection(aiProvider);
+    if (result.ok) {
+      setTestState({
+        status: "ok",
+        message:
+          result.modelCount && result.modelCount > 0
+            ? `Connected — ${result.modelCount} model${result.modelCount === 1 ? "" : "s"} available`
+            : "Connected",
+      });
+    } else {
+      setTestState({
+        status: "error",
+        message: result.error ?? "Connection failed",
+      });
     }
   };
 
@@ -309,28 +355,61 @@ export function AiSettings() {
               </span>
               <input
                 type="text"
+                value={baseUrl}
                 placeholder="https://api.openai.com/v1"
                 className="w-full rounded-md border border-input bg-background px-3 py-1.5 font-mono text-xs outline-none focus:border-ring"
+                onChange={(e) => setBaseUrl(e.target.value)}
                 onBlur={async (e) => {
                   const val = e.target.value.trim();
-                  if (val) {
-                    try {
-                      await invoke("ai_set_api_key", {
-                        keyName: "OPENAI_BASE_URL",
-                        value: val,
-                      });
-                    } catch {
-                      // ignore
-                    }
+                  setBaseUrl(val);
+                  try {
+                    // Empty value removes the override (back to api.openai.com)
+                    await invoke("ai_set_api_key", {
+                      keyName: "OPENAI_BASE_URL",
+                      value: val,
+                    });
+                  } catch {
+                    // ignore
                   }
                 }}
               />
               <div className="text-muted-foreground/70 text-xs">
-                Use OpenRouter, Ollama, or any OpenAI-compatible endpoint (e.g.
-                https://openrouter.ai/api/v1)
+                Use DeepSeek, OpenRouter, Ollama, or any OpenAI-compatible
+                endpoint (e.g. https://api.deepseek.com/v1)
               </div>
             </div>
           )}
+
+          {/* Connection test — makes a real authenticated request */}
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              disabled={testState.status === "testing"}
+              onClick={handleTestConnection}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs transition-colors hover:border-ring hover:bg-muted/50 disabled:opacity-60"
+            >
+              {testState.status === "testing" ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <PlugZapIcon className="size-3.5" />
+              )}
+              Test connection
+            </button>
+            {testState.status === "ok" && (
+              <div className="flex items-start gap-1.5 text-emerald-600 text-xs dark:text-emerald-500">
+                <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0" />
+                <span>{testState.message}</span>
+              </div>
+            )}
+            {testState.status === "error" && (
+              <div className="flex items-start gap-1.5 text-destructive text-xs">
+                <XCircleIcon className="mt-0.5 size-3.5 shrink-0" />
+                <span className="break-all">
+                  {testState.message.slice(0, 400)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

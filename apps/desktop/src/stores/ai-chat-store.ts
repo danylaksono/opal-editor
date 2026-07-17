@@ -29,25 +29,46 @@ export function offsetToLineCol(
  * Convert AiStreamMessage history to generic AiMessage[] for API providers.
  * Skips incremental streaming deltas (superseded by complete blocks) and
  * merges consecutive same-role messages into one — Anthropic requires
- * strictly alternating user/assistant roles.
+ * strictly alternating user/assistant roles. Duplicate tool_use / tool_result
+ * blocks (same id) are dropped: providers reject duplicate tool_call_ids, and
+ * a transcript can contain duplicates (e.g. from historic double-registered
+ * event listeners).
  */
 export function toAiMessages(msgs: AiStreamMessage[]): AiMessage[] {
   const result: AiMessage[] = [];
+  const seenToolUseIds = new Set<string>();
+  const seenToolResultIds = new Set<string>();
+
+  const dedupe = (blocks: ContentBlock[]): ContentBlock[] =>
+    blocks.filter((b) => {
+      if (b.type === "tool_use" && b.id) {
+        if (seenToolUseIds.has(b.id)) return false;
+        seenToolUseIds.add(b.id);
+      }
+      if (b.type === "tool_result" && b.tool_use_id) {
+        if (seenToolResultIds.has(b.tool_use_id)) return false;
+        seenToolResultIds.add(b.tool_use_id);
+      }
+      return true;
+    });
+
   for (const msg of msgs) {
     if (msg.type !== "user" && msg.type !== "assistant") continue;
     if (msg.subtype === "delta") continue;
     const content = msg.message?.content;
     if (!Array.isArray(content) || content.length === 0) continue;
+    const blocks = dedupe(content);
+    if (blocks.length === 0) continue;
     const prev = result[result.length - 1];
     if (prev && prev.role === msg.type) {
       prev.content = [
         ...(prev.content ?? []),
-        ...content,
+        ...blocks,
       ] as AiMessage["content"];
     } else {
       result.push({
         role: msg.type,
-        content: [...content] as AiMessage["content"],
+        content: blocks as AiMessage["content"],
       });
     }
   }
@@ -678,15 +699,21 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
     if (!tab || !tab.isStreaming) return;
 
     // Collect tool calls from the trailing assistant messages (i.e. after the
-    // last user / tool_result message) — these have no results yet.
+    // last user / tool_result message) — these have no results yet. Dedupe by
+    // id so a call never executes twice.
     const pendingCalls: ContentBlock[] = [];
+    const seenCallIds = new Set<string>();
     for (let i = tab.messages.length - 1; i >= 0; i--) {
       const m = tab.messages[i];
       if (m.type === "user") break;
       if (m.type === "assistant" && Array.isArray(m.message?.content)) {
-        const calls = m.message.content.filter(
-          (b) => b.type === "tool_use" && b.id && b.name,
-        );
+        const calls: ContentBlock[] = [];
+        for (const b of m.message.content) {
+          if (b.type !== "tool_use" || !b.id || !b.name) continue;
+          if (seenCallIds.has(b.id)) continue;
+          seenCallIds.add(b.id);
+          calls.push(b);
+        }
         pendingCalls.unshift(...calls);
       }
     }

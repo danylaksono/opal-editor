@@ -250,3 +250,54 @@ describe("_handleTurnComplete", () => {
     expect(final.error).toContain("limit");
   });
 });
+
+describe("toAiMessages duplicate hardening", () => {
+  it("drops duplicated tool_use and tool_result blocks on replay", () => {
+    const msgs: AiStreamMessage[] = [
+      userMsg("go"),
+      // Same tool call recorded twice (historic double-listener bug)
+      assistantToolUse("tu1", "read_file", { path: "main.tex" }),
+      assistantToolUse("tu1", "read_file", { path: "main.tex" }),
+      {
+        type: "user",
+        message: {
+          content: [
+            { type: "tool_result", tool_use_id: "tu1", content: "x" },
+            { type: "tool_result", tool_use_id: "tu1", content: "x" },
+          ],
+        },
+      },
+    ];
+    const result = toAiMessages(msgs);
+    const assistant = result.find((m) => m.role === "assistant")!;
+    const toolUses = assistant.content!.filter(
+      (b: any) => b.type === "tool_use",
+    );
+    expect(toolUses).toHaveLength(1);
+
+    const user = result[result.length - 1];
+    const toolResults = user.content!.filter(
+      (b: any) => b.type === "tool_result",
+    );
+    expect(toolResults).toHaveLength(1);
+  });
+
+  it("does not execute a duplicated pending tool call twice", async () => {
+    setTabs([
+      makeTab("t6", {
+        isStreaming: true,
+        messages: [
+          userMsg("go"),
+          assistantToolUse("dup1", "list_files"),
+          assistantToolUse("dup1", "list_files"),
+        ],
+      }),
+    ]);
+    await useAiChatStore.getState()._handleTurnComplete("t6");
+
+    const tab = useAiChatStore.getState().tabs.find((t) => t.id === "t6")!;
+    const last = tab.messages[tab.messages.length - 1];
+    expect(last.type).toBe("user");
+    expect(last.message?.content).toHaveLength(1);
+  });
+});

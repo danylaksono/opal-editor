@@ -1,11 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useTheme } from "next-themes";
 import {
-  MonitorIcon,
-  MoonIcon,
-  SunIcon,
-  PaletteIcon,
   FileCogIcon,
   TerminalIcon,
   DownloadIcon,
@@ -26,16 +21,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  editorHighlightOptions,
-  workspacePaletteOptions,
-} from "@/lib/appearance";
-
-const themeOptions = [
-  { id: "light", label: "Light", icon: SunIcon },
-  { id: "dark", label: "Dark", icon: MoonIcon },
-  { id: "system", label: "System", icon: MonitorIcon },
-] as const;
 
 export function SettingsDialog({
   open,
@@ -50,12 +35,12 @@ export function SettingsDialog({
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Configure the editor, appearance, and optional AI assistance.
+            Configure the editor and optional AI assistance. Appearance options
+            live in the palette icon on the activity rail.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 pt-2">
-          <AppearanceSection />
           <EditorSection />
           <AiSettings />
           <PythonSection />
@@ -77,123 +62,13 @@ function SectionHeading({
   icon: Icon,
   title,
 }: {
-  icon: typeof PaletteIcon;
+  icon: typeof FileCogIcon;
   title: string;
 }) {
   return (
     <div className="flex items-center gap-2">
       <Icon className="size-4 text-muted-foreground" />
       <h3 className="font-medium text-sm">{title}</h3>
-    </div>
-  );
-}
-
-function AppearanceSection() {
-  const { theme = "system", setTheme } = useTheme();
-  const workspacePalette = useSettingsStore((state) => state.workspacePalette);
-  const setWorkspacePalette = useSettingsStore(
-    (state) => state.setWorkspacePalette,
-  );
-  const editorHighlightTheme = useSettingsStore(
-    (state) => state.editorHighlightTheme,
-  );
-  const setEditorHighlightTheme = useSettingsStore(
-    (state) => state.setEditorHighlightTheme,
-  );
-  return (
-    <div className="space-y-3">
-      <SectionHeading icon={PaletteIcon} title="Appearance" />
-      <div className="grid grid-cols-3 gap-2">
-        {themeOptions.map((option) => {
-          const Icon = option.icon;
-          const active = theme === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs transition-colors",
-                active
-                  ? "border-ring bg-accent/50"
-                  : "border-border hover:bg-muted/50",
-              )}
-              onClick={() => setTheme(option.id)}
-            >
-              <Icon className="size-4" />
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="space-y-1.5">
-        <span className="text-muted-foreground text-xs">
-          Workspace colour palette
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-          {workspacePaletteOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
-                workspacePalette === option.id
-                  ? "border-ring bg-accent/50"
-                  : "border-border hover:bg-muted/50",
-              )}
-              onClick={() => setWorkspacePalette(option.id)}
-            >
-              <span className="flex overflow-hidden rounded border">
-                {option.swatches.map((colour) => (
-                  <span
-                    key={colour}
-                    className="h-6 w-2.5"
-                    style={{ backgroundColor: colour }}
-                  />
-                ))}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs">{option.label}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">
-                  {option.description}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <span className="text-muted-foreground text-xs">
-          Editor highlighting
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-          {editorHighlightOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
-                editorHighlightTheme === option.id
-                  ? "border-ring bg-accent/50"
-                  : "border-border hover:bg-muted/50",
-              )}
-              onClick={() => setEditorHighlightTheme(option.id)}
-            >
-              <span
-                className="size-6 rounded border"
-                style={{
-                  background: `linear-gradient(135deg, ${option.swatches[0]} 0 45%, ${option.swatches[1]} 45% 70%, ${option.swatches[2]} 70%)`,
-                }}
-              />
-              <span className="min-w-0">
-                <span className="block text-xs">{option.label}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">
-                  {option.description}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
