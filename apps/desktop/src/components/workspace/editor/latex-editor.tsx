@@ -23,9 +23,7 @@ import {
   indentLess,
   toggleComment,
 } from "@codemirror/commands";
-import { syntaxHighlighting, syntaxTreeAvailable } from "@codemirror/language";
-import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
-import { defaultHighlightStyle } from "@codemirror/language";
+import { syntaxTreeAvailable } from "@codemirror/language";
 import { useTheme } from "next-themes";
 import {
   search,
@@ -71,6 +69,7 @@ import {
   formatCompileError,
 } from "@/lib/latex-compiler";
 import { useSettingsStore } from "@/stores/settings-store";
+import { getEditorThemeExtensions } from "@/lib/editor-themes";
 import { EditorToolbar } from "./editor-toolbar";
 import { SelectionToolbar, type ToolbarAction } from "./selection-toolbar";
 import { Button } from "@/components/ui/button";
@@ -393,6 +392,9 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
+  const editorHighlightTheme = useSettingsStore(
+    (s) => s.editorHighlightTheme,
+  );
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const workspaceModes = useLensStore((s) => s.workspaceModes);
   const editorMode = projectRoot
@@ -1390,9 +1392,7 @@ export function LatexEditor() {
             ]
           : []),
         themeCompartmentRef.current.of(
-          resolvedTheme === "dark"
-            ? [oneDark, syntaxHighlighting(oneDarkHighlightStyle)]
-            : [syntaxHighlighting(defaultHighlightStyle)],
+          getEditorThemeExtensions(editorHighlightTheme, resolvedTheme),
         ),
         search(),
         highlightSelectionMatches(),
@@ -1640,18 +1640,16 @@ export function LatexEditor() {
     };
   }, [activeFile?.type, createFolder, folders, importFiles, projectRoot]);
 
-  // Dynamically switch editor theme when resolvedTheme changes
+  // Dynamically switch workspace-matched and independent editor themes.
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    const extensions =
-      resolvedTheme === "dark"
-        ? [oneDark, syntaxHighlighting(oneDarkHighlightStyle)]
-        : [syntaxHighlighting(defaultHighlightStyle)];
     view.dispatch({
-      effects: themeCompartmentRef.current.reconfigure(extensions),
+      effects: themeCompartmentRef.current.reconfigure(
+        getEditorThemeExtensions(editorHighlightTheme, resolvedTheme),
+      ),
     });
-  }, [resolvedTheme]);
+  }, [editorHighlightTheme, resolvedTheme]);
 
   useEffect(() => {
     const view = viewRef.current;

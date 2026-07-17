@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { parseBibEntries, parseBibItems } from "@/lib/bibtex";
+import {
+  parseBibEntries,
+  parseBibItems,
+  parseBibtexSourceEntries,
+  replaceBibtexEntryKey,
+} from "@/lib/bibtex";
 
 describe("parseBibEntries", () => {
+  it("retains pasted source and safely rewrites only a conflicting key", () => {
+    const source = `@misc{custom,
+  title = {Custom source},
+  x-unknown-field = {keep {this} exactly}
+}`;
+    const [entry] = parseBibtexSourceEntries(source);
+    expect(entry.source).toContain("x-unknown-field = {keep {this} exactly}");
+    const renamed = replaceBibtexEntryKey(entry, "custom2");
+    expect(renamed).toContain("@misc{custom2,");
+    expect(renamed).toContain("x-unknown-field = {keep {this} exactly}");
+  });
   it("extracts common citation metadata", () => {
     const entries = parseBibEntries(
       `@article{knuth1984,

@@ -1,7 +1,8 @@
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Loader2Icon, UploadIcon } from "lucide-react";
 import type { FigureDraft } from "@/lib/latex-figures";
 import type { ProjectFile } from "@/stores/document-store";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -20,38 +21,71 @@ interface FigureFormProps {
   value: FigureDraft;
   files: ProjectFile[];
   onChange: (draft: FigureDraft) => void;
+  onImportImage?: () => void;
+  importingImage?: boolean;
 }
 
-export function FigureForm({ value, files, onChange }: FigureFormProps) {
+export function FigureForm({
+  value,
+  files,
+  onChange,
+  onImportImage,
+  importingImage = false,
+}: FigureFormProps) {
   const images = projectImageFiles(files);
   return (
     <div className="space-y-3">
       <div className="space-y-1 text-muted-foreground text-xs">
         <span id="figure-image-label">Image</span>
-        <Select
-          value={value.path}
-          onValueChange={(path) => onChange({ ...value, path })}
-        >
-          <SelectTrigger
-            aria-labelledby="figure-image-label"
-            className="h-8! w-full text-xs"
+        <div className="flex gap-2">
+          <Select
+            value={value.path}
+            onValueChange={(path) => onChange({ ...value, path })}
           >
-            <SelectValue placeholder="Choose a project image" />
-          </SelectTrigger>
-          <SelectContent>
-            {images.map((file) => (
-              <SelectItem key={file.id} value={file.relativePath}>
-                <span className="flex items-center gap-2">
-                  <ImageIcon className="size-3.5" />
-                  {file.relativePath}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              aria-labelledby="figure-image-label"
+              className="h-8! min-w-0 flex-1 text-xs"
+            >
+              <SelectValue placeholder="Choose a project image" />
+            </SelectTrigger>
+            <SelectContent>
+              {images.map((file) => (
+                <SelectItem key={file.id} value={file.relativePath}>
+                  <span className="flex items-center gap-2">
+                    <ImageIcon className="size-3.5" />
+                    {file.relativePath}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {onImportImage && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={onImportImage}
+              disabled={importingImage}
+            >
+              {importingImage ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <UploadIcon className="size-3.5" />
+              )}
+              Import
+            </Button>
+          )}
+        </div>
+        {onImportImage && (
+          <p className="text-[11px]">
+            External images are copied unchanged into{" "}
+            <span className="font-mono">figures/</span>.
+          </p>
+        )}
         {images.length === 0 && (
           <p className="text-[11px]">
-            Import an image into the project before inserting a figure.
+            Choose Import to add the first project image.
           </p>
         )}
       </div>

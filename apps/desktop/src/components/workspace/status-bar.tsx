@@ -5,10 +5,14 @@ import {
   CircleXIcon,
   AlertTriangleIcon,
   CircleIcon,
+  FileTextIcon,
+  MousePointer2Icon,
 } from "lucide-react";
-import { useDocumentStore } from "@/stores/document-store";
+import { hasPdfData, useDocumentStore } from "@/stores/document-store";
 import { useProblemsStore } from "@/stores/problems-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { usePreviewStore } from "@/stores/preview-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 
 function countWords(text: string): number {
   const matches = text.trim().match(/\S+/g);
@@ -21,8 +25,15 @@ export function StatusBar() {
   const isCompiling = useDocumentStore((s) => s.isCompiling);
   const compileError = useDocumentStore((s) => s.compileError);
   const isSaving = useDocumentStore((s) => s.isSaving);
+  const cursorPosition = useDocumentStore((s) => s.cursorPosition);
+  const selectionRange = useDocumentStore((s) => s.selectionRange);
   const diagnostics = useProblemsStore((s) => s.diagnostics);
   const compilerBackend = useSettingsStore((s) => s.compilerBackend);
+  const pageCount = usePreviewStore((s) => s.pageCount);
+  const currentPage = usePreviewStore((s) => s.currentPage);
+  const setProblemsDrawerOpen = useWorkspaceLayoutStore(
+    (s) => s.setProblemsDrawerOpen,
+  );
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const isTextFile =
@@ -37,6 +48,22 @@ export function StatusBar() {
   const warningCount = diagnostics.filter(
     (d) => d.severity === "warning",
   ).length;
+  const cursor = useMemo(() => {
+    if (!isTextFile || !activeFile?.content) return { line: 1, column: 1 };
+    const before = activeFile.content.slice(
+      0,
+      Math.min(cursorPosition, activeFile.content.length),
+    );
+    const lines = before.split("\n");
+    return {
+      line: lines.length,
+      column: lines[lines.length - 1].length + 1,
+    };
+  }, [activeFile?.content, cursorPosition, isTextFile]);
+  const selectionLength = selectionRange
+    ? Math.abs(selectionRange.end - selectionRange.start)
+    : 0;
+  const stalePdf = Boolean(compileError && hasPdfData());
 
   return (
     <div className="flex h-6 shrink-0 items-center gap-3 border-sidebar-border border-t bg-sidebar px-3 text-[11px] text-muted-foreground">
@@ -50,7 +77,7 @@ export function StatusBar() {
         ) : compileError ? (
           <span className="flex items-center gap-1.5 text-destructive">
             <CircleXIcon className="size-3" />
-            Compile failed
+            {stalePdf ? "Compile failed · stale PDF" : "Compile failed"}
           </span>
         ) : (
           <span className="flex items-center gap-1.5">
@@ -62,7 +89,12 @@ export function StatusBar() {
 
       {/* Diagnostics */}
       {(errorCount > 0 || warningCount > 0) && (
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded px-1 hover:bg-sidebar-accent"
+          onClick={() => setProblemsDrawerOpen(true)}
+          title="Open Problems"
+        >
           {errorCount > 0 && (
             <span className="flex items-center gap-1">
               <CircleXIcon className="size-3 text-destructive" />
@@ -75,7 +107,7 @@ export function StatusBar() {
               {warningCount}
             </span>
           )}
-        </div>
+        </button>
       )}
 
       <div className="ml-auto flex items-center gap-3">
@@ -94,6 +126,25 @@ export function StatusBar() {
           </span>
         )}
         {isTextFile && <span className="tabular-nums">{wordCount} words</span>}
+        {isTextFile && (
+          <span
+            className="hidden items-center gap-1 tabular-nums lg:flex"
+            title={`${activeFile?.content?.length ?? 0} characters`}
+          >
+            <MousePointer2Icon className="size-3" />
+            Ln {cursor.line}, Col {cursor.column}
+            {selectionLength > 0 && ` · ${selectionLength} selected`}
+          </span>
+        )}
+        {pageCount > 0 && (
+          <span
+            className="flex items-center gap-1 tabular-nums"
+            title={`${pageCount} compiled PDF ${pageCount === 1 ? "page" : "pages"}`}
+          >
+            <FileTextIcon className="size-3" />
+            {currentPage}/{pageCount} pages
+          </span>
+        )}
         <span className="uppercase tracking-wide">{compilerBackend}</span>
       </div>
     </div>

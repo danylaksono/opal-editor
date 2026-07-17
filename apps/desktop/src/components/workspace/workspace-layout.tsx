@@ -15,6 +15,7 @@ import {
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  SearchIcon,
   SettingsIcon,
   StethoscopeIcon,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const sidePanelItems: Array<{
   icon: typeof FolderIcon;
 }> = [
   { id: "files", label: "Files", icon: FolderIcon },
+  { id: "search", label: "Search", icon: SearchIcon },
   { id: "outline", label: "Outline", icon: ListIcon },
   { id: "citations", label: "Citations", icon: BookOpenIcon },
   { id: "health", label: "Project health", icon: StethoscopeIcon },

@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 export type WorkspaceSidePanel =
   | "learn"
   | "files"
+  | "search"
   | "outline"
   | "citations"
   | "health";

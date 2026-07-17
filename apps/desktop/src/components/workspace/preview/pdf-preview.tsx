@@ -26,6 +26,7 @@ import {
 import { useHistoryStore } from "@/stores/history-store";
 import { useAiChatStore } from "@/stores/ai-chat-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { usePreviewStore } from "@/stores/preview-store";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -116,6 +117,8 @@ export function PdfPreview() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const setStatusPageCount = usePreviewStore((state) => state.setPageCount);
+  const setStatusCurrentPage = usePreviewStore((state) => state.setCurrentPage);
   const [pageInputValue, setPageInputValue] = useState<string>("1");
   const [isEditingPage, setIsEditingPage] = useState(false);
   const scrollToPageRef = useRef<((page: number) => void) | null>(null);
@@ -138,6 +141,15 @@ export function PdfPreview() {
 
   // Keep-alive: track which root files have PdfViewer instances alive (LRU order)
   const currentRootFileId = resolveTexRoot(activeFile?.id ?? "", files);
+  useEffect(() => {
+    setStatusPageCount(0);
+    setStatusCurrentPage(1);
+  }, [
+    currentRootFileId,
+    pdfRevision,
+    setStatusCurrentPage,
+    setStatusPageCount,
+  ]);
   const lastCompiledGeneration = useDocumentStore((s) =>
     currentRootFileId
       ? s.lastCompiledGenerations.get(currentRootFileId)
@@ -506,13 +518,14 @@ export function PdfPreview() {
 
   const handleCurrentPageChange = useCallback(
     (page: number) => {
+      setStatusCurrentPage(page);
       setCurrentPage((prev) => {
         if (prev === page) return prev;
         if (!isEditingPage) setPageInputValue(String(page));
         return page;
       });
     },
-    [isEditingPage],
+    [isEditingPage, setStatusCurrentPage],
   );
 
   const goToPage = useCallback(
@@ -533,7 +546,10 @@ export function PdfPreview() {
     }
   }, [pageInputValue, numPages, currentPage, goToPage]);
 
-  const handleLoadSuccess = (pages: number) => setNumPages(pages);
+  const handleLoadSuccess = (pages: number) => {
+    setNumPages(pages);
+    setStatusPageCount(pages);
+  };
   const handleScaleChange = (newScale: number) => {
     setFitMode(null);
     setScale(newScale);

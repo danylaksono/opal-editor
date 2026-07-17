@@ -27,6 +27,7 @@
     "@codemirror/view": "^6.39.11",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
+    "@lezer/highlight": "^1.2.3",
     "@radix-ui/react-slot": "^1.2.4",
     "@replit/codemirror-vim": "^6.3.0",
     "@tauri-apps/api": "^2.11.0",

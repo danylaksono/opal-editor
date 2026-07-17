@@ -70,6 +70,7 @@ import { UvSetupDialog } from "@/components/uv-setup";
 import { createLogger } from "@/lib/debug/logger";
 import { HealthPanel } from "@/components/workspace/health-panel";
 import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
+import { ProjectSearchPanel } from "@/components/workspace/project-search-panel";
 
 const log = createLogger("sidebar");
 
@@ -759,6 +760,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
             </DndContext>
           </div>
         )}
+        {activePanel === "search" && <ProjectSearchPanel />}
 
         {activePanel === "outline" && (
           <div className="flex h-full flex-col">

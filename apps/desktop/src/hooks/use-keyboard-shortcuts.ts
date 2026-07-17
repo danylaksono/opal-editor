@@ -8,6 +8,7 @@ import {
   zoomOutApp,
 } from "@/lib/app-zoom";
 import { useDocumentStore } from "@/stores/document-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -36,6 +37,15 @@ export function useKeyboardShortcuts() {
         state.saveCurrentFile().finally(() => {
           setTimeout(() => state.setIsSaving(false), 500);
         });
+      }
+
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "f"
+      ) {
+        e.preventDefault();
+        useWorkspaceLayoutStore.getState().setActiveSidePanel("search");
       }
 
       if (

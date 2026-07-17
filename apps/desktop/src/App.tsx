@@ -27,6 +27,14 @@ function EditorActionRegistrar() {
   return null;
 }
 
+function AppearanceSync() {
+  const palette = useSettingsStore((state) => state.workspacePalette);
+  useEffect(() => {
+    document.documentElement.dataset.palette = palette;
+  }, [palette]);
+  return null;
+}
+
 function Workspace() {
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const initialized = useDocumentStore((s) => s.initialized);
@@ -79,6 +87,7 @@ export function App({ onReady }: { onReady?: () => void }) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <AppearanceSync />
         <EditorActionRegistrar />
         <TooltipProvider>
           {/* Global macOS titlebar drag region — sits above all content */}

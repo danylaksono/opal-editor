@@ -4,6 +4,7 @@ import {
   type ProjectTextEdit,
 } from "@/lib/project-edit-transaction";
 import { useDocumentStore } from "@/stores/document-store";
+import { createFileOnDisk, getUniqueTargetName } from "@/lib/tauri/fs";
 
 export interface CitationCandidate {
   provider: string;
@@ -140,6 +141,63 @@ export async function appendCandidate(
       },
     ],
   });
+}
+
+export async function appendBibtexSource(
+  fileId: string,
+  sources: string[],
+  label = "Import pasted BibTeX",
+): Promise<boolean> {
+  const file = useDocumentStore
+    .getState()
+    .files.find((item) => item.id === fileId);
+  if (!file || file.content === undefined || sources.length === 0) return false;
+  const separator = file.content.trim() ? "\n\n" : "";
+  const imported = sources.map((source) => source.trim()).join("\n\n");
+  const anchorFrom = Math.max(0, file.content.length - 80);
+  const anchor = file.content.slice(anchorFrom);
+  return applyProjectEditTransaction({
+    id: `paste-bibtex-${Date.now()}`,
+    label,
+    edits: [
+      {
+        fileId,
+        from: anchorFrom,
+        to: file.content.length,
+        expected: anchor,
+        insert: `${anchor}${separator}${imported}\n`,
+      },
+    ],
+  });
+}
+
+export async function createBibliographyFromSource(
+  requestedName: string,
+  sources: string[],
+): Promise<string | null> {
+  const state = useDocumentStore.getState();
+  if (!state.projectRoot || sources.length === 0) return null;
+  const safeName =
+    requestedName
+      .trim()
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      ?.replace(/[^a-zA-Z0-9._-]/g, "-") || "references.bib";
+  const withExtension = safeName.toLowerCase().endsWith(".bib")
+    ? safeName
+    : `${safeName}.bib`;
+  const relativePath = await getUniqueTargetName(
+    state.projectRoot,
+    withExtension,
+  );
+  await createFileOnDisk(
+    state.projectRoot,
+    relativePath,
+    `${sources.map((source) => source.trim()).join("\n\n")}\n`,
+  );
+  await state.refreshFiles();
+  return relativePath;
 }
 
 export async function renameCitationKey(

@@ -26,6 +26,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  editorHighlightOptions,
+  workspacePaletteOptions,
+} from "@/lib/appearance";
 
 const themeOptions = [
   { id: "light", label: "Light", icon: SunIcon },
@@ -86,6 +90,16 @@ function SectionHeading({
 
 function AppearanceSection() {
   const { theme = "system", setTheme } = useTheme();
+  const workspacePalette = useSettingsStore((state) => state.workspacePalette);
+  const setWorkspacePalette = useSettingsStore(
+    (state) => state.setWorkspacePalette,
+  );
+  const editorHighlightTheme = useSettingsStore(
+    (state) => state.editorHighlightTheme,
+  );
+  const setEditorHighlightTheme = useSettingsStore(
+    (state) => state.setEditorHighlightTheme,
+  );
   return (
     <div className="space-y-3">
       <SectionHeading icon={PaletteIcon} title="Appearance" />
@@ -110,6 +124,75 @@ function AppearanceSection() {
             </button>
           );
         })}
+      </div>
+      <div className="space-y-1.5">
+        <span className="text-muted-foreground text-xs">
+          Workspace colour palette
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {workspacePaletteOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                workspacePalette === option.id
+                  ? "border-ring bg-accent/50"
+                  : "border-border hover:bg-muted/50",
+              )}
+              onClick={() => setWorkspacePalette(option.id)}
+            >
+              <span className="flex overflow-hidden rounded border">
+                {option.swatches.map((colour) => (
+                  <span
+                    key={colour}
+                    className="h-6 w-2.5"
+                    style={{ backgroundColor: colour }}
+                  />
+                ))}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs">{option.label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <span className="text-muted-foreground text-xs">
+          Editor highlighting
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          {editorHighlightOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                editorHighlightTheme === option.id
+                  ? "border-ring bg-accent/50"
+                  : "border-border hover:bg-muted/50",
+              )}
+              onClick={() => setEditorHighlightTheme(option.id)}
+            >
+              <span
+                className="size-6 rounded border"
+                style={{
+                  background: `linear-gradient(135deg, ${option.swatches[0]} 0 45%, ${option.swatches[1]} 45% 70%, ${option.swatches[2]} 70%)`,
+                }}
+              />
+              <span className="min-w-0">
+                <span className="block text-xs">{option.label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

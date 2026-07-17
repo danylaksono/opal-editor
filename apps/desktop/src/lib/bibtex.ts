@@ -10,6 +10,12 @@ export interface BibCitation {
   filePath: string;
 }
 
+export interface ParsedBibtexEntry extends BibCitation {
+  source: string;
+  from: number;
+  to: number;
+}
+
 function findEntryEnd(content: string, start: number, opener: "{" | "(") {
   const closer = opener === "{" ? "}" : ")";
   let depth = 0;
@@ -175,6 +181,71 @@ export function parseBibEntries(
   }
 
   return entries;
+}
+
+/**
+ * Parse complete BibTeX entries while retaining their original source.
+ * Unknown fields and formatting are intentionally preserved for safe imports.
+ */
+export function parseBibtexSourceEntries(
+  content: string,
+  filePath = "pasted BibTeX",
+): ParsedBibtexEntry[] {
+  const entries: ParsedBibtexEntry[] = [];
+  let index = 0;
+
+  while (index < content.length) {
+    const at = content.indexOf("@", index);
+    if (at === -1) break;
+    const header = content.slice(at).match(/^@([a-zA-Z]+)\s*([{(])/);
+    if (!header) {
+      index = at + 1;
+      continue;
+    }
+    const type = header[1].toLowerCase();
+    const opener = header[2] as "{" | "(";
+    const entryStart = at + header[0].length - 1;
+    const entryEnd = findEntryEnd(content, entryStart, opener);
+    if (entryEnd === -1) break;
+    if (type === "comment" || type === "preamble" || type === "string") {
+      index = entryEnd + 1;
+      continue;
+    }
+
+    const inner = content.slice(entryStart + 1, entryEnd);
+    const keyEnd = inner.indexOf(",");
+    if (keyEnd !== -1) {
+      const key = inner.slice(0, keyEnd).trim();
+      if (key) {
+        const fields = parseFields(inner.slice(keyEnd + 1));
+        entries.push({
+          key,
+          type,
+          title: fields.title,
+          author: compactAuthor(fields.author ?? fields.editor),
+          year: fields.year ?? fields.date?.slice(0, 4),
+          journal: fields.journal,
+          booktitle: fields.booktitle,
+          publisher: fields.publisher,
+          filePath,
+          source: content.slice(at, entryEnd + 1).trim(),
+          from: at,
+          to: entryEnd + 1,
+        });
+      }
+    }
+    index = entryEnd + 1;
+  }
+  return entries;
+}
+
+export function replaceBibtexEntryKey(
+  entry: ParsedBibtexEntry,
+  key: string,
+): string {
+  const header = entry.source.match(/^(@[a-zA-Z]+\s*[{(]\s*)([^,\s]+)(\s*,)/);
+  if (!header) return entry.source;
+  return `${header[1]}${key}${header[3]}${entry.source.slice(header[0].length)}`;
 }
 
 /** Parse classic thebibliography entries so citation tools also work without a .bib file. */

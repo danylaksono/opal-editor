@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { ImagePlusIcon } from "lucide-react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { toast } from "sonner";
 import { serializeFigure, type FigureDraft } from "@/lib/latex-figures";
-import type { ProjectFile } from "@/stores/document-store";
+import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { FigureForm } from "./editor/figure-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,9 +39,35 @@ export function FigurePicker({
   initialPath,
 }: FigurePickerProps) {
   const [draft, setDraft] = useState<FigureDraft>(EMPTY_FIGURE);
+  const [importingImage, setImportingImage] = useState(false);
+  const importFiles = useDocumentStore((state) => state.importFiles);
   useEffect(() => {
     if (open && initialPath) setDraft({ ...EMPTY_FIGURE, path: initialPath });
   }, [initialPath, open]);
+  const importImage = async () => {
+    const selected = await openDialog({
+      multiple: false,
+      title: "Import image into figures",
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "pdf"],
+        },
+      ],
+    });
+    if (typeof selected !== "string") return;
+    setImportingImage(true);
+    try {
+      const [path] = await importFiles([selected], "figures");
+      if (!path) throw new Error("The image could not be imported");
+      setDraft((current) => ({ ...current, path }));
+      toast.success(`Imported ${path}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setImportingImage(false);
+    }
+  };
   const insert = () => {
     if (!draft.path) return;
     onInsert(serializeFigure(draft));
@@ -56,7 +84,13 @@ export function FigurePicker({
             Insert figure
           </DialogTitle>
         </DialogHeader>
-        <FigureForm value={draft} files={files} onChange={setDraft} />
+        <FigureForm
+          value={draft}
+          files={files}
+          onChange={setDraft}
+          onImportImage={() => void importImage()}
+          importingImage={importingImage}
+        />
         <div className="rounded-md bg-muted/50 px-2.5 py-2">
           <div className="mb-1 text-[10px] text-muted-foreground uppercase tracking-wide">
             Source preview
