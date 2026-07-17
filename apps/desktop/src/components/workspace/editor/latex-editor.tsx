@@ -104,6 +104,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createLogger } from "@/lib/debug/logger";
 import { toast } from "sonner";
 import { semanticCompletionSource } from "@/lib/semantic/completion-source";
+import { latexTabCompletion } from "@/lib/latex-inline-completion";
 import { sourceLensExtension } from "@/lib/source-lens";
 import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
 import { findTables } from "@/lib/latex-tables";
@@ -1149,7 +1150,11 @@ export function LatexEditor() {
         highlightActiveLineGutter(),
         history(),
         keymap.of([
-          { key: "Tab", run: indentMore, shift: indentLess },
+          {
+            key: "Tab",
+            run: (view) => latexTabCompletion(view) || indentMore(view),
+            shift: indentLess,
+          },
           ...defaultKeymap,
           ...historyKeymap,
         ]),

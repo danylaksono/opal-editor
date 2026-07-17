@@ -4,6 +4,7 @@
 
 ### Added
 
+- Overleaf-style Tab completion for common LaTeX commands, with automatic argument braces and navigable fields for multi-argument commands.
 - Command palette (`⌘K` / `Ctrl+K`) for compiling, toggling panels, switching files, changing theme, and opening settings.
 - Editor status bar showing compile status, error/warning counts, active file, word count, and compiler backend.
 - Unified Settings dialog (appearance, editor, AI provider, Python environment), reachable from the launch screen and the workspace activity rail.
