@@ -204,9 +204,7 @@ export function parseOpenAISSE(
       messages.push({
         type: "assistant",
         message: {
-          content: [
-            { type: "thinking", thinking: state.accumulatedReasoning },
-          ],
+          content: [{ type: "thinking", thinking: state.accumulatedReasoning }],
         },
       });
       state.accumulatedReasoning = "";

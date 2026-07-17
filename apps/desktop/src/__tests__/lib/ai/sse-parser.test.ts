@@ -310,7 +310,9 @@ describe("parseOpenAISSE — DeepSeek thinking mode", () => {
         choices: [
           {
             delta: {
-              tool_calls: [{ index: 0, function: { arguments: '"main.tex"}' } }],
+              tool_calls: [
+                { index: 0, function: { arguments: '"main.tex"}' } },
+              ],
             },
           },
         ],
