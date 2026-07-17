@@ -69,7 +69,20 @@ pub struct AiUsage {
 
 // ─── Request Types ───
 
+/// Provider-neutral tool definition supplied by the frontend.
+/// Anthropic consumes it as-is; the OpenAI provider wraps it into
+/// function-calling format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
+// camelCase: this struct is deserialized straight from the frontend's
+// `AiRequest` object, which uses camelCase keys (tabId, projectPath, ...)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AiRequest {
     pub tab_id: String,
     pub project_path: String,
@@ -78,6 +91,8 @@ pub struct AiRequest {
     pub system_prompt: Option<String>,
     pub messages: Vec<AiMessage>,
     pub context: Option<AiContext>,
+    #[serde(default)]
+    pub tools: Option<Vec<AiToolDefinition>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -27,6 +27,16 @@ export interface AiDiagnostic {
   severity: string;
 }
 
+/**
+ * Provider-neutral tool definition. Anthropic uses it as-is;
+ * the OpenAI provider wraps it into function-calling format.
+ */
+export interface AiToolDefinition {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
 export interface AiRequest {
   tabId: string;
   projectPath: string;
@@ -35,6 +45,7 @@ export interface AiRequest {
   systemPrompt?: string;
   messages: AiMessage[];
   context?: AiContext;
+  tools?: AiToolDefinition[];
 }
 
 export interface AiMessage {

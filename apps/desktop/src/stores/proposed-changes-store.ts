@@ -104,8 +104,15 @@ export const useProposedChangesStore = create<ProposedChangesState>()(
 
     keepAll: () => {
       const { changes } = get();
+      // Proposed edits live only in the change record until accepted (the
+      // buffer and disk still hold the old content), so accepting means
+      // writing newContent to disk and syncing the buffer from it.
       for (const change of changes) {
-        useDocumentStore.getState().reloadFile(change.filePath);
+        writeTexFileContent(change.absolutePath, change.newContent)
+          .then(() => useDocumentStore.getState().reloadFile(change.filePath))
+          .catch((err) =>
+            log.error("Failed to write kept change", { error: String(err) }),
+          );
       }
       set({ changes: [] });
     },

@@ -2,10 +2,18 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { useDocumentStore } from "./document-store";
 import { useHistoryStore } from "./history-store";
+import { useProposedChangesStore } from "./proposed-changes-store";
 import { createLogger } from "@/lib/debug/logger";
 import type { AiRequest, AiContext, AiMessage } from "@/lib/ai/types";
+import { AI_TOOL_DEFINITIONS, executeAiTool } from "@/lib/ai/tools";
 
 const log = createLogger("ai-chat");
+
+/** Max assistant↔tool round-trips per user prompt before we bail out */
+const MAX_TOOL_ITERATIONS = 8;
+
+/** Per-tab count of tool round-trips for the current prompt */
+const toolIterations = new Map<string, number>();
 
 /** Convert a character offset to 1-based line:col */
 export function offsetToLineCol(
@@ -17,19 +25,31 @@ export function offsetToLineCol(
   return { line: lines.length, col: lines[lines.length - 1].length + 1 };
 }
 
-/** Convert AiStreamMessage history to generic AiMessage[] for API providers */
-function toAiMessages(msgs: AiStreamMessage[]): AiMessage[] {
+/**
+ * Convert AiStreamMessage history to generic AiMessage[] for API providers.
+ * Skips incremental streaming deltas (superseded by complete blocks) and
+ * merges consecutive same-role messages into one — Anthropic requires
+ * strictly alternating user/assistant roles.
+ */
+export function toAiMessages(msgs: AiStreamMessage[]): AiMessage[] {
   const result: AiMessage[] = [];
   for (const msg of msgs) {
-    if (msg.type === "system") continue;
-    const role =
-      msg.type === "user"
-        ? "user"
-        : msg.type === "result"
-          ? "tool"
-          : "assistant";
-    if (!msg.message?.content) continue;
-    result.push({ role, content: msg.message.content as AiMessage["content"] });
+    if (msg.type !== "user" && msg.type !== "assistant") continue;
+    if (msg.subtype === "delta") continue;
+    const content = msg.message?.content;
+    if (!Array.isArray(content) || content.length === 0) continue;
+    const prev = result[result.length - 1];
+    if (prev && prev.role === msg.type) {
+      prev.content = [
+        ...(prev.content ?? []),
+        ...content,
+      ] as AiMessage["content"];
+    } else {
+      result.push({
+        role: msg.type,
+        content: [...content] as AiMessage["content"],
+      });
+    }
   }
   return result;
 }
@@ -256,6 +276,12 @@ interface AiChatState {
   _setSessionId: (tabId: string, id: string) => void;
   _setStreaming: (tabId: string, streaming: boolean) => void;
   _setError: (tabId: string, error: string | null) => void;
+  /**
+   * Called when a provider turn finishes successfully. If the turn ended with
+   * unanswered tool calls, executes them and continues the conversation;
+   * otherwise finalizes the stream.
+   */
+  _handleTurnComplete: (tabId: string) => Promise<void>;
   _cancelledByUser: boolean;
 }
 
@@ -382,6 +408,9 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
       };
     });
 
+    // Fresh prompt — reset the tool round-trip counter
+    toolIterations.set(activeTabId, 0);
+
     // Flush unsaved edits to disk so the selected AI provider reads the latest content
     if (docState.files.some((f) => f.isDirty)) {
       log.debug("saving dirty files...");
@@ -455,6 +484,7 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
                   files: [],
                   action: "chat",
                 }),
+        tools: AI_TOOL_DEFINITIONS,
       };
 
       await invoke("ai_execute", { request: aiRequest });
@@ -606,8 +636,24 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
       const tab = state.tabs.find((t) => t.id === tabId);
       if (!tab) return {};
 
+      // A complete (non-delta) assistant block supersedes the incremental
+      // delta messages that streamed it — drop the trailing deltas so the
+      // transcript holds exactly one copy of the text.
+      let messages = tab.messages;
+      if (msg.type === "assistant" && msg.subtype !== "delta") {
+        let end = messages.length;
+        while (
+          end > 0 &&
+          messages[end - 1].type === "assistant" &&
+          messages[end - 1].subtype === "delta"
+        ) {
+          end--;
+        }
+        if (end < messages.length) messages = messages.slice(0, end);
+      }
+
       return applyTabUpdate(state, tabId, {
-        messages: [...tab.messages, msg],
+        messages: [...messages, msg],
         totalInputTokens: tab.totalInputTokens + inputDelta,
         totalOutputTokens: tab.totalOutputTokens + outputDelta,
       });
@@ -624,5 +670,119 @@ export const useAiChatStore = create<AiChatState>()((set, get) => ({
 
   _setError: (tabId: string, error: string | null) => {
     set((state) => applyTabUpdate(state, tabId, { error }));
+  },
+
+  _handleTurnComplete: async (tabId: string) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    // Cancelled (isStreaming already false) or tab gone — nothing to do
+    if (!tab || !tab.isStreaming) return;
+
+    // Collect tool calls from the trailing assistant messages (i.e. after the
+    // last user / tool_result message) — these have no results yet.
+    const pendingCalls: ContentBlock[] = [];
+    for (let i = tab.messages.length - 1; i >= 0; i--) {
+      const m = tab.messages[i];
+      if (m.type === "user") break;
+      if (m.type === "assistant" && Array.isArray(m.message?.content)) {
+        const calls = m.message.content.filter(
+          (b) => b.type === "tool_use" && b.id && b.name,
+        );
+        pendingCalls.unshift(...calls);
+      }
+    }
+
+    if (pendingCalls.length === 0) {
+      set((s) => applyTabUpdate(s, tabId, { isStreaming: false }));
+      // If the turn left proposed edits in files other than the active one,
+      // bring the first into view so the review UI is visible.
+      const changes = useProposedChangesStore.getState().changes;
+      if (changes.length > 0) {
+        const doc = useDocumentStore.getState();
+        const activeFile = doc.files.find((f) => f.id === doc.activeFileId);
+        const activeHasChange = changes.some(
+          (c) => c.filePath === activeFile?.relativePath,
+        );
+        if (!activeHasChange) {
+          const target = changes.find((c) =>
+            doc.files.some((f) => f.relativePath === c.filePath),
+          );
+          if (target) doc.setActiveFile(target.filePath);
+        }
+      }
+      return;
+    }
+
+    const iteration = (toolIterations.get(tabId) ?? 0) + 1;
+    toolIterations.set(tabId, iteration);
+    if (iteration > MAX_TOOL_ITERATIONS) {
+      log.error(`Tool iteration limit reached for tab ${tabId}`);
+      set((s) =>
+        applyTabUpdate(s, tabId, {
+          isStreaming: false,
+          error:
+            "Tool call limit reached — send a follow-up message to continue.",
+        }),
+      );
+      return;
+    }
+
+    log.info(`Executing ${pendingCalls.length} tool call(s)`, {
+      iteration,
+      tools: pendingCalls.map((c) => c.name),
+    });
+
+    const results: ContentBlock[] = [];
+    for (const call of pendingCalls) {
+      const res = await executeAiTool(call.name!, call.input, call.id!);
+      results.push({
+        type: "tool_result",
+        tool_use_id: call.id!,
+        content: res.content,
+        is_error: res.isError || undefined,
+      });
+    }
+
+    // Append the results as a user message (hidden in the transcript; the
+    // ToolWidget picks them up via tool_use_id for inline display).
+    set((s) => {
+      const t = s.tabs.find((t) => t.id === tabId);
+      if (!t) return {};
+      return applyTabUpdate(s, tabId, {
+        messages: [...t.messages, { type: "user", message: { content: results } }],
+      });
+    });
+
+    // Re-check cancellation after async tool execution
+    const current = get().tabs.find((t) => t.id === tabId);
+    if (!current || !current.isStreaming) return;
+
+    const projectPath = useDocumentStore.getState().projectRoot;
+    if (!projectPath) {
+      set((s) =>
+        applyTabUpdate(s, tabId, { isStreaming: false, error: "No project open" }),
+      );
+      return;
+    }
+
+    const request: AiRequest = {
+      tabId,
+      projectPath,
+      prompt: "", // continuation — the tool results are already in messages
+      model: get().selectedModel,
+      messages: toAiMessages(current.messages),
+      tools: AI_TOOL_DEFINITIONS,
+    };
+
+    try {
+      await invoke("ai_execute", { request });
+    } catch (err: any) {
+      log.error("Tool-loop continuation failed", { error: String(err) });
+      set((s) =>
+        applyTabUpdate(s, tabId, {
+          isStreaming: false,
+          error: err?.message || String(err),
+        }),
+      );
+    }
   },
 }));

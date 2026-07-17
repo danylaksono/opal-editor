@@ -1,14 +1,6 @@
 import { useEffect, useRef } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useAiChatStore } from "@/stores/ai-chat-store";
-import { useDocumentStore } from "@/stores/document-store";
-import { useHistoryStore } from "@/stores/history-store";
-import { useSettingsStore } from "@/stores/settings-store";
-import {
-  compileLatex,
-  resolveCompileTarget,
-  formatCompileError,
-} from "@/lib/latex-compiler";
 import { createLogger } from "@/lib/debug/logger";
 import {
   parseAnthropicSSE,
@@ -44,31 +36,13 @@ interface AiErrorPayload {
  * and `ai-error` Tauri events.
  *
  * The data lines are raw SSE chunks that need provider-specific parsing
- * (Anthropic or OpenAI stream format).
+ * (Anthropic or OpenAI stream format). When a turn completes, control is
+ * handed to the chat store's `_handleTurnComplete`, which either executes
+ * pending tool calls and continues the conversation or finalizes the stream.
  */
 export function useAiEvents() {
-  const hasTexChangesRef = useRef(new Map<string, boolean>());
-  const msgCountRef = useRef(new Map<string, number>());
-  const streamStartTimeRef = useRef(new Map<string, number>());
-  const lastMsgTimeRef = useRef(new Map<string, number>());
   const anthropicStateRef = useRef(new Map<string, AnthropicStreamState>());
   const openaiStateRef = useRef(new Map<string, OpenAIStreamState>());
-
-  const tabs = useAiChatStore((s) => s.tabs);
-  useEffect(() => {
-    for (const tab of tabs) {
-      if (tab.isStreaming && !msgCountRef.current.has(tab.id)) {
-        hasTexChangesRef.current.set(tab.id, false);
-        msgCountRef.current.set(tab.id, 0);
-        streamStartTimeRef.current.delete(tab.id);
-        lastMsgTimeRef.current.delete(tab.id);
-      } else if (!tab.isStreaming) {
-        msgCountRef.current.delete(tab.id);
-        streamStartTimeRef.current.delete(tab.id);
-        lastMsgTimeRef.current.delete(tab.id);
-      }
-    }
-  }, [tabs]);
 
   useEffect(() => {
     let unlistenOutput: UnlistenFn | undefined;
@@ -82,43 +56,26 @@ export function useAiEvents() {
         const tab = chatStore.tabs.find((t) => t.id === tabId);
         if (!tab?.isStreaming) return;
 
-        const count = (msgCountRef.current.get(tabId) ?? 0) + 1;
-        msgCountRef.current.set(tabId, count);
-        const now = performance.now();
-        if (count === 1) streamStartTimeRef.current.set(tabId, now);
-        lastMsgTimeRef.current.set(tabId, now);
-
         if (provider === "anthropic") {
-          // Parse Anthropic SSE events
           let state = anthropicStateRef.current.get(tabId);
           if (!state) {
             state = createAnthropicStreamState();
             anthropicStateRef.current.set(tabId, state);
           }
-          const messages = parseAnthropicSSE(data, state);
-          for (const msg of messages) {
+          for (const msg of parseAnthropicSSE(data, state)) {
             chatStore._appendMessage(tabId, msg);
-            if (msg.message?.content?.some((b: any) => b.type === "tool_use")) {
-              hasTexChangesRef.current.set(tabId, true);
-            }
           }
         } else if (provider === "openai") {
-          // Parse OpenAI SSE events
           let state = openaiStateRef.current.get(tabId);
           if (!state) {
             state = createOpenAIStreamState();
             openaiStateRef.current.set(tabId, state);
           }
-          const messages = parseOpenAISSE(data, state);
-          for (const msg of messages) {
+          for (const msg of parseOpenAISSE(data, state)) {
             chatStore._appendMessage(tabId, msg);
-            if (msg.message?.content?.some((b: any) => b.type === "tool_use")) {
-              hasTexChangesRef.current.set(tabId, true);
-            }
           }
-        } else {
-          // Unknown provider — skip
         }
+        // Unknown provider — skip
       });
 
       unlistenComplete = await listen<AiCompletePayload>(
@@ -127,59 +84,19 @@ export function useAiEvents() {
           const { tab_id: tabId, success } = event.payload;
           const chatStore = useAiChatStore.getState();
 
-          chatStore._setStreaming(tabId, false);
-
-          if (!success) {
-            chatStore._setError(tabId, "AI process exited with an error");
-          }
-
-          msgCountRef.current.delete(tabId);
-          streamStartTimeRef.current.delete(tabId);
-          lastMsgTimeRef.current.delete(tabId);
+          // Reset per-turn parser state — a tool-loop continuation starts a
+          // fresh provider stream
           anthropicStateRef.current.delete(tabId);
           openaiStateRef.current.delete(tabId);
 
-          if (hasTexChangesRef.current.get(tabId)) {
-            hasTexChangesRef.current.delete(tabId);
-            try {
-              const docState = useDocumentStore.getState();
-              const projectRoot = docState.projectRoot;
-              if (projectRoot) {
-                const activeFileId =
-                  docState.activeFileId ??
-                  docState.files.find((f) => f.type === "tex")?.id;
-                const target = activeFileId
-                  ? resolveCompileTarget(activeFileId, docState.files)
-                  : null;
-                if (target) {
-                  const useTexlive =
-                    useSettingsStore.getState().compilerBackend === "texlive";
-                  const data = await compileLatex(
-                    projectRoot,
-                    target.targetPath,
-                    useTexlive,
-                  );
-                  docState.setPdfData(data, target.rootId);
-                }
-              }
-            } catch (error) {
-              const docState = useDocumentStore.getState();
-              const activeFileId =
-                docState.activeFileId ??
-                docState.files.find((f) => f.type === "tex")?.id;
-              docState.setCompileError(formatCompileError(error), activeFileId);
-            }
-            try {
-              await useHistoryStore
-                .getState()
-                .createSnapshot(
-                  useDocumentStore.getState().projectRoot ?? "",
-                  "[ai] After AI edit",
-                );
-            } catch {
-              // snapshot failure is non-critical
-            }
+          if (!success) {
+            chatStore._setStreaming(tabId, false);
+            chatStore._setError(tabId, "AI request failed");
+            return;
           }
+
+          // Execute pending tool calls and continue, or finalize the stream
+          await chatStore._handleTurnComplete(tabId);
         },
       );
 

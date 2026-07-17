@@ -26,6 +26,26 @@ interface ToolWidgetProps {
 export const ToolWidget: FC<ToolWidgetProps> = ({ toolUse, toolResult }) => {
   const name = toolUse.name?.toLowerCase() || "";
 
+  // ── Built-in editor tools ──
+  if (name === "propose_edit")
+    return <ProposeEditWidget input={toolUse.input} result={toolResult} />;
+  if (name === "read_file")
+    return (
+      <ReadWidget
+        input={{ file_path: toolUse.input?.path }}
+        result={toolResult}
+      />
+    );
+  if (name === "search_project")
+    return (
+      <GrepWidget
+        input={{ pattern: toolUse.input?.query }}
+        result={toolResult}
+      />
+    );
+  if (name === "list_files")
+    return <ListFilesWidget result={toolResult} />;
+
   if (name === "write")
     return <WriteWidget input={toolUse.input} result={toolResult} />;
   if (name === "edit" || name === "multiedit")
@@ -131,6 +151,82 @@ const EditWidget: FC<{ input: any; result?: ContentBlock }> = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// ─── Propose Edit Widget ───
+
+const ProposeEditWidget: FC<{ input: any; result?: ContentBlock }> = ({
+  input,
+  result,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const failed = result?.is_error;
+
+  return (
+    <div className="my-1.5 rounded-lg border border-violet-500/30 bg-violet-500/5 text-sm">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <StatusIcon result={result} />
+        <FileEditIcon className="size-3.5 shrink-0 text-violet-500" />
+        <span className="min-w-0 truncate text-muted-foreground">
+          {failed
+            ? "Edit failed for"
+            : result
+              ? "Proposed edit to"
+              : "Proposing edit to"}{" "}
+          <code className="rounded bg-muted px-1 text-xs">{input?.path}</code>
+        </span>
+        {!failed && result && (
+          <span className="shrink-0 rounded bg-violet-500/15 px-1.5 py-0.5 font-medium text-[10px] text-violet-600 dark:text-violet-400">
+            Review in editor
+          </span>
+        )}
+        {(input?.search || input?.reason) &&
+          (expanded ? (
+            <ChevronDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRightIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+          ))}
+      </button>
+      {expanded && (
+        <div className="space-y-1.5 border-violet-500/20 border-t px-3 py-2">
+          {input?.reason && (
+            <div className="text-muted-foreground text-xs">{input.reason}</div>
+          )}
+          {input?.search && (
+            <div className="font-mono text-xs">
+              <div className="mb-1 whitespace-pre-wrap text-red-500">
+                - {truncate(input.search, 300)}
+              </div>
+              <div className="whitespace-pre-wrap text-green-500">
+                + {truncate(input.replace ?? "", 300)}
+              </div>
+            </div>
+          )}
+          {failed && typeof result?.content === "string" && (
+            <div className="text-destructive text-xs">{result.content}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── List Files Widget ───
+
+const ListFilesWidget: FC<{ result?: ContentBlock }> = ({ result }) => {
+  return (
+    <div className="my-1.5 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
+      <StatusIcon result={result} />
+      <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="text-muted-foreground">
+        {result ? "Listed project files" : "Listing project files"}
+      </span>
     </div>
   );
 };

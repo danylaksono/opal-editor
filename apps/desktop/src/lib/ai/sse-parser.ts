@@ -50,9 +50,11 @@ export function parseAnthropicSSE(
         state.currentTextBlock.type === "text"
       ) {
         state.currentTextBlock.text += delta.text;
-        // Emit incremental text
+        // Emit incremental text — marked as a delta so it can be replaced by
+        // the complete block at content_block_stop
         messages.push({
           type: "assistant",
+          subtype: "delta",
           model: state.model,
           message: {
             content: [{ type: "text", text: delta.text }],
@@ -84,27 +86,12 @@ export function parseAnthropicSSE(
         state.pendingToolInput = "";
       }
 
-      // Emit the complete block
-      const content = [block];
-      if (state.outputTokens > 0) {
-        messages.push({
-          type: "assistant",
-          model: state.model,
-          message: {
-            content,
-            usage: {
-              input_tokens: state.inputTokens,
-              output_tokens: state.outputTokens,
-            },
-          },
-        });
-      } else {
-        messages.push({
-          type: "assistant",
-          model: state.model,
-          message: { content },
-        });
-      }
+      // Emit the complete block (replaces any streamed deltas for it)
+      messages.push({
+        type: "assistant",
+        model: state.model,
+        message: { content: [block] },
+      });
 
       state.currentTextBlock = null;
       return messages;
@@ -114,10 +101,20 @@ export function parseAnthropicSSE(
       if (json.delta?.stop_reason) {
         state.stopReason = json.delta.stop_reason;
       }
-      if (json.usage) {
+      if (json.usage?.output_tokens) {
         state.outputTokens = json.usage.output_tokens;
+        // Emit usage once, at end of turn (content_block_stop fires before
+        // this event, so attaching usage to blocks would never trigger)
+        messages.push({
+          type: "system",
+          subtype: "usage",
+          usage: {
+            input_tokens: state.inputTokens,
+            output_tokens: state.outputTokens,
+          },
+        } as AiStreamMessage);
       }
-      return [];
+      return messages;
     }
 
     case "message_stop":
@@ -162,11 +159,12 @@ export function parseOpenAISSE(
 
   const messages: AiStreamMessage[] = [];
 
-  // Handle text content
+  // Handle text content — deltas are replaced by the complete block on finish
   if (delta.content) {
     state.accumulatedText += delta.content;
     messages.push({
       type: "assistant",
+      subtype: "delta",
       message: {
         content: [{ type: "text", text: delta.content }],
       },
@@ -191,26 +189,38 @@ export function parseOpenAISSE(
     }
   }
 
-  // Handle finish
-  if (choice.finish_reason === "stop" && state.toolCalls.length > 0) {
-    // Emit tool calls
-    const toolBlocks: ContentBlock[] = state.toolCalls.map((tc) => ({
-      type: "tool_use",
-      id: tc.id,
-      name: tc.name,
-      input: (() => {
-        try {
-          return JSON.parse(tc.arguments);
-        } catch {
-          return {};
-        }
-      })(),
-    }));
-    messages.push({
-      type: "assistant",
-      message: { content: toolBlocks },
-    });
-    state.toolCalls = [];
+  // Handle finish — emit the complete accumulated text (replacing the
+  // streamed deltas) and any tool calls. OpenAI reports tool-call turns with
+  // finish_reason "tool_calls", plain turns with "stop".
+  if (choice.finish_reason) {
+    if (state.accumulatedText) {
+      messages.push({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: state.accumulatedText }],
+        },
+      });
+      state.accumulatedText = "";
+    }
+    if (state.toolCalls.length > 0) {
+      const toolBlocks: ContentBlock[] = state.toolCalls.map((tc) => ({
+        type: "tool_use",
+        id: tc.id,
+        name: tc.name,
+        input: (() => {
+          try {
+            return JSON.parse(tc.arguments);
+          } catch {
+            return {};
+          }
+        })(),
+      }));
+      messages.push({
+        type: "assistant",
+        message: { content: toolBlocks },
+      });
+      state.toolCalls = [];
+    }
   }
 
   if (choice.finish_reason && state.completionTokens > 0) {

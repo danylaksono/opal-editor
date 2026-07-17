@@ -52,18 +52,35 @@ impl AiProvider for AnthropicProvider {
             .iter()
             .filter_map(|m| anthropic_message_to_json(m))
             .collect();
-        messages.push(serde_json::json!({
-            "role": "user",
-            "content": request.prompt
-        }));
+        // Empty prompt = tool-loop continuation; the tool results are already
+        // the trailing user message in `messages`
+        if !request.prompt.is_empty() {
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": request.prompt
+            }));
+        }
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model,
             "max_tokens": 16000,
             "messages": messages,
             "stream": true,
             "system": request.system_prompt.unwrap_or_else(|| default_latex_system_prompt()),
         });
+
+        if let Some(tools) = &request.tools {
+            if !tools.is_empty() {
+                body["tools"] = serde_json::json!(tools
+                    .iter()
+                    .map(|t| serde_json::json!({
+                        "name": t.name,
+                        "description": t.description,
+                        "input_schema": t.input_schema,
+                    }))
+                    .collect::<Vec<_>>());
+            }
+        }
 
         let client = reqwest::Client::new();
         let response = client
@@ -190,6 +207,10 @@ fn anthropic_message_to_json(msg: &AiMessage) -> Option<serde_json::Value> {
         }
     }
 
+    if blocks.is_empty() {
+        return None;
+    }
+
     Some(serde_json::json!({
         "role": role,
         "content": blocks
@@ -197,25 +218,5 @@ fn anthropic_message_to_json(msg: &AiMessage) -> Option<serde_json::Value> {
 }
 
 fn default_latex_system_prompt() -> String {
-    concat!(
-        "You are an AI assistant integrated into a LaTeX document editor. ",
-        "Follow these rules strictly:\n",
-        "1. PLANNING FIRST: Before making changes, create a step-by-step plan. ",
-        "Break large tasks into small, incremental steps.\n",
-        "2. INCREMENTAL EDITS: Make small, targeted changes — one step at a time. ",
-        "NEVER rewrite an entire file at once.\n",
-        "3. PRESERVE EXISTING CONTENT: Always read the file first. Keep the existing ",
-        "preamble, packages, and structure intact.\n",
-        "4. LaTeX BEST PRACTICES: Use proper sectioning, citations, cross-references, ",
-        "and BibTeX for bibliographies.\n",
-        "5. OUTPUT FORMAT: When editing files, use this format:\n",
-        "   ```edit:path/to/file.tex\n",
-        "   <<<<<<< SEARCH\n",
-        "   old content\n",
-        "   =======\n",
-        "   new content\n",
-        "   >>>>>>> REPLACE\n",
-        "   ```"
-    )
-    .to_string()
+    super::default_latex_system_prompt()
 }

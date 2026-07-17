@@ -51,31 +51,49 @@ impl AiProvider for OpenAiProvider {
 
         let system = request
             .system_prompt
-            .unwrap_or_else(default_latex_system_prompt);
+            .unwrap_or_else(super::default_latex_system_prompt);
         messages.push(serde_json::json!({
             "role": "system",
             "content": system
         }));
 
         for msg in &request.messages {
-            if let Some(json) = openai_message_to_json(msg) {
-                messages.push(json);
-            }
+            messages.extend(openai_messages_to_json(msg));
         }
 
-        messages.push(serde_json::json!({
-            "role": "user",
-            "content": request.prompt
-        }));
+        // Empty prompt = tool-loop continuation; the tool results are already
+        // the trailing messages
+        if !request.prompt.is_empty() {
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": request.prompt
+            }));
+        }
 
         // Note: no max_tokens — newer OpenAI models reject it (they use
         // max_completion_tokens), and omitting it works across all
         // OpenAI-compatible endpoints (OpenRouter, Ollama, etc.).
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model,
             "messages": messages,
             "stream": true,
         });
+
+        if let Some(tools) = &request.tools {
+            if !tools.is_empty() {
+                body["tools"] = serde_json::json!(tools
+                    .iter()
+                    .map(|t| serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": t.input_schema,
+                        }
+                    }))
+                    .collect::<Vec<_>>());
+            }
+        }
 
         let client = reqwest::Client::new();
         let response = client
@@ -164,75 +182,83 @@ impl AiProvider for OpenAiProvider {
     }
 }
 
-fn openai_message_to_json(msg: &AiMessage) -> Option<serde_json::Value> {
-    let role = match msg.role.as_str() {
-        "user" | "assistant" | "system" => msg.role.as_str(),
-        "tool" => "tool",
-        _ => return None,
+/// Convert a provider-neutral message (Anthropic-style content blocks) into
+/// OpenAI chat-completions messages. One input message can expand to several
+/// outputs: tool_result blocks become separate `role: "tool"` messages, and
+/// assistant tool_use blocks become `tool_calls` on the assistant message.
+fn openai_messages_to_json(msg: &AiMessage) -> Vec<serde_json::Value> {
+    use super::super::AiContentBlock;
+
+    let Some(content) = msg.content.as_ref() else {
+        return Vec::new();
     };
 
-    let content = msg.content.as_ref()?;
-    let mut text_parts: Vec<String> = Vec::new();
-
-    for block in content {
-        match block {
-            super::super::AiContentBlock::Text { text } => {
-                text_parts.push(text.clone());
-            }
-            _ => {}
-        }
-    }
-
-    let content_str = text_parts.join("\n");
-    let mut json = serde_json::json!({
-        "role": role,
-        "content": content_str
-    });
-
-    if let Some(ref name) = msg.name {
-        json["name"] = serde_json::json!(name);
-    }
-
-    if let Some(ref tool_calls) = msg.tool_calls {
-        let calls: Vec<serde_json::Value> = tool_calls
-            .iter()
-            .map(|tc| {
-                serde_json::json!({
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
+    match msg.role.as_str() {
+        "assistant" => {
+            let mut text_parts: Vec<String> = Vec::new();
+            let mut tool_calls: Vec<serde_json::Value> = Vec::new();
+            for block in content {
+                match block {
+                    AiContentBlock::Text { text } => text_parts.push(text.clone()),
+                    AiContentBlock::ToolUse { id, name, input } => {
+                        tool_calls.push(serde_json::json!({
+                            "id": id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": input.to_string(),
+                            }
+                        }));
                     }
-                })
-            })
-            .collect();
-        json["tool_calls"] = serde_json::json!(calls);
+                    _ => {}
+                }
+            }
+            if text_parts.is_empty() && tool_calls.is_empty() {
+                return Vec::new();
+            }
+            let mut json = serde_json::json!({
+                "role": "assistant",
+                "content": if text_parts.is_empty() {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::Value::String(text_parts.join("\n"))
+                },
+            });
+            if !tool_calls.is_empty() {
+                json["tool_calls"] = serde_json::json!(tool_calls);
+            }
+            vec![json]
+        }
+        "user" => {
+            let mut out: Vec<serde_json::Value> = Vec::new();
+            let mut text_parts: Vec<String> = Vec::new();
+            for block in content {
+                match block {
+                    AiContentBlock::Text { text } => text_parts.push(text.clone()),
+                    AiContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                        ..
+                    } => {
+                        // Tool results answer the preceding assistant
+                        // tool_calls, so they must come first
+                        out.push(serde_json::json!({
+                            "role": "tool",
+                            "tool_call_id": tool_use_id,
+                            "content": content,
+                        }));
+                    }
+                    _ => {}
+                }
+            }
+            if !text_parts.is_empty() {
+                out.push(serde_json::json!({
+                    "role": "user",
+                    "content": text_parts.join("\n"),
+                }));
+            }
+            out
+        }
+        _ => Vec::new(),
     }
-
-    if let Some(ref tool_call_id) = msg.tool_call_id {
-        json["tool_call_id"] = serde_json::json!(tool_call_id);
-    }
-
-    Some(json)
-}
-
-fn default_latex_system_prompt() -> String {
-    concat!(
-        "You are an AI assistant integrated into a LaTeX document editor. ",
-        "Follow these rules strictly:\n",
-        "1. PLANNING FIRST: Before making changes, create a step-by-step plan.\n",
-        "2. INCREMENTAL EDITS: Make small, targeted changes — one step at a time.\n",
-        "3. PRESERVE EXISTING CONTENT: Keep existing preamble, packages, and structure.\n",
-        "4. LaTeX BEST PRACTICES: Use proper sectioning, citations, cross-references.\n",
-        "5. OUTPUT FORMAT: When editing files, use this format:\n",
-        "   ```edit:path/to/file.tex\n",
-        "   <<<<<<< SEARCH\n",
-        "   old content\n",
-        "   =======\n",
-        "   new content\n",
-        "   >>>>>>> REPLACE\n",
-        "   ```"
-    )
-    .to_string()
 }

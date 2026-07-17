@@ -89,7 +89,7 @@ export const ChatMessages: FC = () => {
       }
     }
 
-    return messages.filter((msg) => {
+    const filtered = messages.filter((msg) => {
       if (msg.type === "system" && msg.subtype === "init") return false;
       if (
         msg.type !== "user" &&
@@ -110,6 +110,33 @@ export const ChatMessages: FC = () => {
       }
       return true;
     });
+
+    // Coalesce runs of streaming text deltas into a single message so
+    // in-progress text renders as one flowing block, not stacked fragments.
+    // (Completed blocks replace their deltas in the store; this only affects
+    // the block currently being streamed.)
+    const coalesced: AiStreamMessage[] = [];
+    for (const msg of filtered) {
+      const prev = coalesced[coalesced.length - 1];
+      if (
+        msg.type === "assistant" &&
+        msg.subtype === "delta" &&
+        prev?.type === "assistant" &&
+        prev.subtype === "delta"
+      ) {
+        const prevText = prev.message?.content?.[0]?.text ?? "";
+        const deltaText = msg.message?.content?.[0]?.text ?? "";
+        coalesced[coalesced.length - 1] = {
+          ...prev,
+          message: {
+            content: [{ type: "text", text: prevText + deltaText }],
+          },
+        };
+      } else {
+        coalesced.push(msg);
+      }
+    }
+    return coalesced;
   }, [messages]);
 
   // Auto-scroll to bottom (only if user hasn't scrolled up)
