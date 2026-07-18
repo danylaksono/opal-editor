@@ -24,6 +24,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
@@ -1013,7 +1014,10 @@ export function PdfViewer({
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={onStartCapture}>
               <CrosshairIcon />
-              Capture area
+              Capture &amp; Ask
+              <ContextMenuShortcut>
+                {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
+              </ContextMenuShortcut>
             </ContextMenuItem>
           </>
         )}

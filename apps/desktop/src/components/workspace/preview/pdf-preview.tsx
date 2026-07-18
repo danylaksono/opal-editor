@@ -1074,7 +1074,9 @@ export function PdfPreview() {
                     isActive ? () => setCaptureMode(false) : undefined
                   }
                   onStartCapture={
-                    isActive ? () => setCaptureMode(true) : undefined
+                    isActive && aiProvider !== "none"
+                      ? () => setCaptureMode(true)
+                      : undefined
                   }
                   highlightLocation={isActive ? synctexHighlight : null}
                   reviewAnnotations={isActive ? reviewAnnotations : []}
@@ -1289,31 +1291,6 @@ export function PdfPreview() {
                 </SelectContent>
               </Select>
               <div className="mx-1 h-4 w-px bg-border" />
-              {/* Capture mode — AI feature, only shown when a provider is configured */}
-              {aiProvider !== "none" && (
-                <>
-                  <Button
-                    variant={captureMode ? "default" : "secondary"}
-                    size="sm"
-                    className={`h-7 gap-1.5 px-2 text-xs ${
-                      captureMode
-                        ? "ring-2 ring-primary/30"
-                        : "bg-foreground text-background hover:bg-foreground/90"
-                    }`}
-                    onClick={() => setCaptureMode(!captureMode)}
-                    title={`Capture & Ask (${navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"})`}
-                  >
-                    <CrosshairIcon className="size-3.5 shrink-0" />
-                    <span className="@[36rem]/pv:inline hidden">
-                      Capture & Ask
-                    </span>
-                    <kbd className="pointer-events-none ml-0.5 @[36rem]/pv:inline hidden rounded border border-background/30 bg-background/20 px-1 py-0.5 font-medium text-[10px] text-background leading-none">
-                      {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
-                    </kbd>
-                  </Button>
-                  <div className="mx-1 h-4 w-px bg-border" />
-                </>
-              )}
               <Button
                 variant={reviewMode ? "secondary" : "ghost"}
                 size="sm"
