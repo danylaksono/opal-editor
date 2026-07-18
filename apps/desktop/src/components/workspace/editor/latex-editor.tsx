@@ -51,10 +51,7 @@ import {
   forEachDiagnostic,
   type Diagnostic,
 } from "@codemirror/lint";
-import {
-  useDocumentStore,
-  type ProjectFile,
-} from "@/stores/document-store";
+import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import {
   useProposedChangesStore,
   type ProposedChange,
