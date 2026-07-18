@@ -127,7 +127,7 @@ function TabButton({
           : file.relativePath
       }
       className={cn(
-        "group relative flex min-w-0 max-w-[180px] shrink-0 items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs transition-colors",
+        "group relative flex min-w-0 max-w-[180px] shrink-0 items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2",
         isActive
           ? "border-primary bg-muted/50 text-foreground"
           : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground",

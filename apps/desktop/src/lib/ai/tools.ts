@@ -7,6 +7,14 @@ import {
   resolveCompileTarget,
 } from "@/lib/latex-compiler";
 import { readTexFileContent, join } from "@/lib/tauri/fs";
+import {
+  findCandidateDuplicates,
+  generateCitationKey,
+  lookupReference,
+  serializeCandidate,
+  type CitationCandidate,
+} from "@/lib/bibliography-import";
+import { findBibEntries } from "@/lib/bibtex-entries";
 import type { AiToolDefinition } from "./types";
 
 /**
@@ -109,6 +117,72 @@ export const AI_TOOL_DEFINITIONS: AiToolDefinition[] = [
       type: "object",
       properties: {},
       required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "check_citations",
+    description:
+      "Cross-check every \\cite command in the project against the .bib " +
+      "files. Reports citation keys with no bibliography entry (with file " +
+      "and line), bibliography entries that are never cited, and duplicate " +
+      "keys. Runs locally on the current buffers — no network needed.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "lookup_reference",
+    description:
+      "Resolve a DOI, arXiv ID, ISBN, or URL against Crossref/arXiv/Open " +
+      "Library and return the authoritative metadata plus the BibTeX entry " +
+      "that add_citation would create. Use it to verify an existing .bib " +
+      "entry against the real publication record, or to preview a new " +
+      "reference before adding it. Requires network access.",
+    input_schema: {
+      type: "object",
+      properties: {
+        identifier: {
+          type: "string",
+          description:
+            "DOI (e.g. '10.1000/xyz'), arXiv ID (e.g. '2101.00001'), ISBN, or a doi.org/arxiv.org URL",
+        },
+      },
+      required: ["identifier"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_citation",
+    description:
+      "Add a new bibliography entry for a DOI, arXiv ID, or ISBN. The entry " +
+      "is built from the resolver's metadata — never write .bib entries by " +
+      "hand or from memory, and never use propose_edit to add references. " +
+      "The entry is proposed for user review like any edit (not applied " +
+      "silently). Refuses identifiers already present in the bibliography. " +
+      "Returns the citation key to use in \\cite once accepted.",
+    input_schema: {
+      type: "object",
+      properties: {
+        identifier: {
+          type: "string",
+          description: "DOI, arXiv ID, ISBN, or a doi.org/arxiv.org URL",
+        },
+        key: {
+          type: "string",
+          description:
+            "Optional citation key to use; a key is generated from the metadata when omitted",
+        },
+        bib_file: {
+          type: "string",
+          description:
+            "Optional project-relative .bib file to add the entry to; required only when the project has more than one .bib file",
+        },
+      },
+      required: ["identifier"],
       additionalProperties: false,
     },
   },
@@ -381,6 +455,219 @@ async function readBuildLog(): Promise<ToolExecutionResult> {
   }
 }
 
+/** \cite / \citep / \parencite / … including starred and optioned variants. */
+const CITE_COMMAND_RE =
+  /\\(?:no)?cite[a-zA-Z]*\*?(?:\[[^\]]*\]){0,2}\{([^}]*)\}/g;
+
+function collectBibKeys(): Map<string, string> {
+  // key → bib file path (first definition wins; duplicates reported separately)
+  const keys = new Map<string, string>();
+  for (const file of useDocumentStore.getState().files) {
+    if (file.type !== "bib") continue;
+    const content = effectiveContent(file);
+    if (content == null) continue;
+    for (const entry of findBibEntries(content)) {
+      if (!keys.has(entry.key)) keys.set(entry.key, file.relativePath);
+    }
+  }
+  return keys;
+}
+
+function checkCitations(): ToolExecutionResult {
+  const { files, projectRoot } = useDocumentStore.getState();
+  if (!projectRoot) return err("No project is open.");
+
+  const bibFiles = files.filter((f) => f.type === "bib");
+  const bibKeys = collectBibKeys();
+
+  // Duplicate keys across all bib files
+  const seen = new Set<string>();
+  const duplicated = new Set<string>();
+  for (const file of bibFiles) {
+    const content = effectiveContent(file);
+    if (content == null) continue;
+    for (const entry of findBibEntries(content)) {
+      if (seen.has(entry.key)) duplicated.add(entry.key);
+      else seen.add(entry.key);
+    }
+  }
+
+  // Cited keys with first-use location
+  const citedAt = new Map<string, string>();
+  for (const file of files) {
+    if (file.type !== "tex") continue;
+    const content = effectiveContent(file);
+    if (content == null) continue;
+    for (const match of content.matchAll(CITE_COMMAND_RE)) {
+      const line = content.slice(0, match.index ?? 0).split("\n").length;
+      for (const rawKey of match[1].split(",")) {
+        const key = rawKey.trim();
+        if (!key || key === "*" || citedAt.has(key)) continue;
+        citedAt.set(key, `${file.relativePath}:${line}`);
+      }
+    }
+  }
+
+  const undefinedKeys = [...citedAt.entries()].filter(
+    ([key]) => !bibKeys.has(key),
+  );
+  const uncitedEntries = [...bibKeys.entries()].filter(
+    ([key]) => !citedAt.has(key),
+  );
+
+  const sections: string[] = [
+    `${citedAt.size} distinct keys cited, ${bibKeys.size} bibliography entries in ${bibFiles.length} .bib file(s).`,
+  ];
+  if (undefinedKeys.length > 0) {
+    sections.push(
+      `Cited but MISSING from the bibliography (${undefinedKeys.length}):\n` +
+        undefinedKeys
+          .map(([key, loc]) => `- ${key} (first cited at ${loc})`)
+          .join("\n"),
+    );
+  }
+  if (duplicated.size > 0) {
+    sections.push(
+      `Duplicate bibliography keys (${duplicated.size}):\n` +
+        [...duplicated].map((key) => `- ${key}`).join("\n"),
+    );
+  }
+  if (uncitedEntries.length > 0) {
+    sections.push(
+      `Bibliography entries never cited (${uncitedEntries.length}):\n` +
+        uncitedEntries.map(([key, path]) => `- ${key} (${path})`).join("\n"),
+    );
+  }
+  if (undefinedKeys.length === 0 && duplicated.size === 0) {
+    sections.push("No missing or duplicate citation keys found.");
+  }
+  return ok(sections.join("\n\n"));
+}
+
+function describeCandidate(candidate: CitationCandidate): string {
+  const lines = [
+    `Provider: ${candidate.provider}${candidate.fromCache ? " (cached)" : ""}`,
+    `Title: ${candidate.title}`,
+    `Authors: ${candidate.authors.join("; ") || "—"}`,
+    `Year: ${candidate.year || "—"}`,
+  ];
+  if (candidate.journal) lines.push(`Journal: ${candidate.journal}`);
+  if (candidate.publisher) lines.push(`Publisher: ${candidate.publisher}`);
+  if (candidate.doi) lines.push(`DOI: ${candidate.doi}`);
+  if (candidate.arxivId) lines.push(`arXiv: ${candidate.arxivId}`);
+  if (candidate.isbn) lines.push(`ISBN: ${candidate.isbn}`);
+  return lines.join("\n");
+}
+
+async function lookupReferenceTool(input: any): Promise<ToolExecutionResult> {
+  const identifier =
+    typeof input?.identifier === "string" ? input.identifier.trim() : "";
+  if (!identifier) return err("Missing required parameter: identifier");
+  let candidate: CitationCandidate;
+  try {
+    candidate = await lookupReference(identifier);
+  } catch (e) {
+    return err(
+      `Could not resolve "${identifier}": ${String(e)}. ` +
+        "Check the identifier, or the network may be unavailable.",
+    );
+  }
+  const key = generateCitationKey(candidate, collectBibKeys().keys());
+  return ok(
+    `${describeCandidate(candidate)}\n\nBibTeX that add_citation would create (key: ${key}):\n${serializeCandidate(candidate, key)}`,
+  );
+}
+
+async function addCitation(
+  input: any,
+  toolUseId: string,
+): Promise<ToolExecutionResult> {
+  const identifier =
+    typeof input?.identifier === "string" ? input.identifier.trim() : "";
+  if (!identifier) return err("Missing required parameter: identifier");
+  const requestedKey =
+    typeof input?.key === "string"
+      ? input.key.trim().replace(/[^a-zA-Z0-9_:-]/g, "")
+      : "";
+  const requestedBibFile =
+    typeof input?.bib_file === "string" ? input.bib_file : "";
+
+  const { files, projectRoot } = useDocumentStore.getState();
+  if (!projectRoot) return err("No project is open.");
+
+  const bibFiles = files.filter((f) => f.type === "bib");
+  if (bibFiles.length === 0) {
+    return err(
+      "The project has no .bib file. Ask the user to create one (e.g. references.bib) first.",
+    );
+  }
+  let target = bibFiles[0];
+  if (requestedBibFile) {
+    const found = findFile(requestedBibFile);
+    if (!found || found.type !== "bib") {
+      return err(
+        `${requestedBibFile} is not a .bib file in this project. Available: ${bibFiles.map((f) => f.relativePath).join(", ")}`,
+      );
+    }
+    target = found;
+  } else if (bibFiles.length > 1) {
+    return err(
+      `The project has multiple .bib files — pass bib_file to choose one: ${bibFiles.map((f) => f.relativePath).join(", ")}`,
+    );
+  }
+
+  let candidate: CitationCandidate;
+  try {
+    candidate = await lookupReference(identifier);
+  } catch (e) {
+    return err(
+      `Could not resolve "${identifier}": ${String(e)}. ` +
+        "Only add references that resolve to a real publication record.",
+    );
+  }
+
+  // Refuse duplicates across all bib files
+  for (const file of bibFiles) {
+    const content = effectiveContent(file);
+    if (content == null) continue;
+    const reasons = findCandidateDuplicates(candidate, content);
+    if (reasons.length > 0) {
+      return err(
+        `This reference already appears to be in ${file.relativePath} (${reasons.join(", ")}). Cite the existing entry instead — use check_citations or read the .bib file to find its key.`,
+      );
+    }
+  }
+
+  const existingKeys = collectBibKeys();
+  if (requestedKey && existingKeys.has(requestedKey)) {
+    return err(
+      `The key "${requestedKey}" already exists in ${existingKeys.get(requestedKey)}. Choose another key or omit it.`,
+    );
+  }
+  const key =
+    requestedKey || generateCitationKey(candidate, existingKeys.keys());
+  const entry = serializeCandidate(candidate, key);
+
+  const base = effectiveContent(target);
+  if (base == null) {
+    return err(`${target.relativePath} is not loaded in the editor.`);
+  }
+  const separator = base.trim() ? "\n\n" : "";
+  useProposedChangesStore.getState().addChange({
+    id: toolUseId,
+    filePath: target.relativePath,
+    absolutePath: target.absolutePath,
+    oldContent: base,
+    newContent: `${base}${separator}${entry}\n`,
+    toolName: "add_citation",
+  });
+
+  return ok(
+    `Proposed adding "${candidate.title}" (${candidate.year}) to ${target.relativePath} with key "${key}" — metadata from ${candidate.provider}. ` +
+      `The user must accept the proposal before \\cite{${key}} will resolve.`,
+  );
+}
+
 export async function executeAiTool(
   name: string,
   input: unknown,
@@ -400,6 +687,12 @@ export async function executeAiTool(
         return await compileDocument();
       case "read_build_log":
         return await readBuildLog();
+      case "check_citations":
+        return checkCitations();
+      case "lookup_reference":
+        return await lookupReferenceTool(input);
+      case "add_citation":
+        return await addCitation(input, toolUseId);
       default:
         return err(`Unknown tool: ${name}`);
     }

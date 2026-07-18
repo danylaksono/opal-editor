@@ -226,7 +226,7 @@ describe("compile_document", () => {
 
   it("returns a structured error summary on failure", async () => {
     vi.mocked(invoke).mockRejectedValue(
-      "Compilation failed\n! Undefined control sequence.\nl.3 \badcmd",
+      "Compilation failed\n! Undefined control sequence.\nl.3 \\badcmd",
     );
     const res = await executeAiTool("compile_document", {}, "tu1");
     expect(res.isError).toBe(true);
@@ -265,7 +265,7 @@ describe("read_build_log", () => {
 
   it("returns the log file content from the build directory", async () => {
     vi.mocked(readTextFile).mockResolvedValue(
-      "This is pdfTeX\nOverfull hbox (12.3pt too wide)",
+      "This is pdfTeX\nOverfull \\hbox (12.3pt too wide)",
     );
     const res = await executeAiTool("read_build_log", {}, "tu1");
     expect(res.isError).toBeFalsy();
@@ -306,5 +306,231 @@ describe("read_build_log", () => {
     const res = await executeAiTool("read_build_log", {}, "tu1");
     expect(res.isError).toBe(true);
     expect(res.content).toContain("Run compile_document first");
+  });
+});
+
+const REFS_BIB = [
+  "@article{smith2020deep,",
+  "  title = {Deep Learning for Maps},",
+  "  author = {Smith, Jane},",
+  "  year = {2020},",
+  "  doi = {10.1000/existing},",
+  "}",
+  "",
+  "@book{orphan2019unused,",
+  "  title = {Never Cited},",
+  "  author = {Orphan, Alex},",
+  "  year = {2019},",
+  "}",
+].join("\n");
+
+const CITING_TEX = [
+  "\\documentclass{article}",
+  "\\begin{document}",
+  "As shown by \\cite{smith2020deep} and \\citep[p.~4]{missing2021}.",
+  "\\end{document}",
+].join("\n");
+
+function makeCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    provider: "Crossref",
+    attribution: "Crossref",
+    identifier: "10.5555/new",
+    entryType: "article",
+    title: "A Novel Method",
+    authors: ["Ada Lovelace"],
+    year: "2024",
+    journal: "Journal of Methods",
+    publisher: "",
+    doi: "10.5555/new",
+    isbn: "",
+    arxivId: "",
+    url: "https://doi.org/10.5555/new",
+    rawMetadata: "{}",
+    fromCache: false,
+    ...overrides,
+  };
+}
+
+describe("check_citations", () => {
+  beforeEach(() => {
+    useDocumentStore.setState({
+      files: [
+        makeFile("main.tex", CITING_TEX),
+        makeFile("refs.bib", REFS_BIB, "bib"),
+      ],
+    } as any);
+  });
+
+  it("reports missing keys with location, uncited entries, and counts", async () => {
+    const res = await executeAiTool("check_citations", {}, "tu1");
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("2 distinct keys cited");
+    expect(res.content).toContain("2 bibliography entries");
+    expect(res.content).toContain("missing2021 (first cited at main.tex:3)");
+    expect(res.content).toContain("orphan2019unused (refs.bib)");
+    expect(res.content).not.toContain("smith2020deep (first cited");
+  });
+
+  it("reports duplicate bibliography keys", async () => {
+    useDocumentStore.setState({
+      files: [
+        makeFile("main.tex", "\\cite{smith2020deep}"),
+        makeFile("refs.bib", REFS_BIB, "bib"),
+        makeFile("extra.bib", REFS_BIB, "bib"),
+      ],
+    } as any);
+    const res = await executeAiTool("check_citations", {}, "tu1");
+    expect(res.content).toContain("Duplicate bibliography keys");
+    expect(res.content).toContain("- smith2020deep");
+  });
+
+  it("reports a clean project", async () => {
+    useDocumentStore.setState({
+      files: [
+        makeFile("main.tex", "\\cite{smith2020deep}\\cite{orphan2019unused}"),
+        makeFile("refs.bib", REFS_BIB, "bib"),
+      ],
+    } as any);
+    const res = await executeAiTool("check_citations", {}, "tu1");
+    expect(res.content).toContain("No missing or duplicate citation keys");
+  });
+});
+
+describe("lookup_reference", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    useDocumentStore.setState({
+      files: [makeFile("refs.bib", REFS_BIB, "bib")],
+    } as any);
+  });
+
+  it("returns resolver metadata and the BibTeX preview", async () => {
+    vi.mocked(invoke).mockResolvedValue(makeCandidate() as never);
+    const res = await executeAiTool(
+      "lookup_reference",
+      { identifier: "10.5555/new" },
+      "tu1",
+    );
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("Title: A Novel Method");
+    expect(res.content).toContain("DOI: 10.5555/new");
+    expect(res.content).toContain("@article{lovelace2024novel,");
+    expect(invoke).toHaveBeenCalledWith("lookup_reference", {
+      identifier: "10.5555/new",
+      refresh: false,
+    });
+  });
+
+  it("errors when the identifier cannot be resolved", async () => {
+    vi.mocked(invoke).mockRejectedValue("No metadata found");
+    const res = await executeAiTool(
+      "lookup_reference",
+      { identifier: "10.9999/nope" },
+      "tu1",
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("Could not resolve");
+  });
+});
+
+describe("add_citation", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    useProposedChangesStore.setState({ changes: [] });
+    useDocumentStore.setState({
+      files: [
+        makeFile("main.tex", CITING_TEX),
+        makeFile("refs.bib", REFS_BIB, "bib"),
+      ],
+    } as any);
+  });
+
+  it("proposes a resolver-built entry for user review", async () => {
+    vi.mocked(invoke).mockResolvedValue(makeCandidate() as never);
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.5555/new" },
+      "tu1",
+    );
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain('key "lovelace2024novel"');
+    expect(res.content).toContain("must accept");
+
+    const changes = useProposedChangesStore.getState().changes;
+    expect(changes).toHaveLength(1);
+    expect(changes[0].filePath).toBe("refs.bib");
+    expect(changes[0].newContent).toContain("@article{lovelace2024novel,");
+    expect(changes[0].newContent).toContain("title = {A Novel Method}");
+    // The buffer itself is untouched
+    const bib = useDocumentStore
+      .getState()
+      .files.find((f) => f.relativePath === "refs.bib");
+    expect(bib?.content).toBe(REFS_BIB);
+  });
+
+  it("honors a requested unique key", async () => {
+    vi.mocked(invoke).mockResolvedValue(makeCandidate() as never);
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.5555/new", key: "lovelace2024" },
+      "tu1",
+    );
+    expect(res.content).toContain('key "lovelace2024"');
+  });
+
+  it("refuses an identifier already in the bibliography", async () => {
+    vi.mocked(invoke).mockResolvedValue(
+      makeCandidate({ doi: "10.1000/existing" }) as never,
+    );
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.1000/existing" },
+      "tu1",
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("already appears");
+    expect(useProposedChangesStore.getState().changes).toHaveLength(0);
+  });
+
+  it("refuses a key that already exists", async () => {
+    vi.mocked(invoke).mockResolvedValue(makeCandidate() as never);
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.5555/new", key: "smith2020deep" },
+      "tu1",
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("already exists");
+  });
+
+  it("errors when the project has no .bib file", async () => {
+    useDocumentStore.setState({
+      files: [makeFile("main.tex", CITING_TEX)],
+    } as any);
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.5555/new" },
+      "tu1",
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("no .bib file");
+  });
+
+  it("requires bib_file when several .bib files exist", async () => {
+    useDocumentStore.setState({
+      files: [
+        makeFile("refs.bib", REFS_BIB, "bib"),
+        makeFile("extra.bib", "", "bib"),
+      ],
+    } as any);
+    const res = await executeAiTool(
+      "add_citation",
+      { identifier: "10.5555/new" },
+      "tu1",
+    );
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("multiple .bib files");
+    expect(res.content).toContain("refs.bib");
   });
 });

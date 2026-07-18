@@ -7,12 +7,15 @@ import {
   CircleIcon,
   FileTextIcon,
   MousePointer2Icon,
+  SparklesIcon,
 } from "lucide-react";
 import { hasPdfData, useDocumentStore } from "@/stores/document-store";
 import { useProblemsStore } from "@/stores/problems-store";
+import { useProposedChangesStore } from "@/stores/proposed-changes-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { usePreviewStore } from "@/stores/preview-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { countProposedChunks } from "@/lib/proposed-chunks";
 
 function countWords(text: string): number {
   const matches = text.trim().match(/\S+/g);
@@ -33,6 +36,11 @@ export function StatusBar() {
   const currentPage = usePreviewStore((s) => s.currentPage);
   const setProblemsDrawerOpen = useWorkspaceLayoutStore(
     (s) => s.setProblemsDrawerOpen,
+  );
+  const proposedChanges = useProposedChangesStore((s) => s.changes);
+  const proposedChunkCount = useMemo(
+    () => countProposedChunks(proposedChanges),
+    [proposedChanges],
   );
 
   const activeFile = files.find((f) => f.id === activeFileId);
@@ -107,6 +115,26 @@ export function StatusBar() {
               {warningCount}
             </span>
           )}
+        </button>
+      )}
+
+      {/* Pending AI edits — click to jump to the next file awaiting review */}
+      {proposedChunkCount > 0 && (
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded px-1 font-medium text-violet-600 hover:bg-sidebar-accent dark:text-violet-400"
+          onClick={() => {
+            const next = proposedChanges.find((c) =>
+              files.some((f) => f.relativePath === c.filePath),
+            );
+            if (next) useDocumentStore.getState().setActiveFile(next.filePath);
+          }}
+          title="Review pending AI edits (F8 / Shift+F8 to step through changes)"
+        >
+          <SparklesIcon className="size-3" />
+          {proposedChunkCount} AI edit{proposedChunkCount === 1 ? "" : "s"} to
+          review
+          {proposedChanges.length > 1 && ` · ${proposedChanges.length} files`}
         </button>
       )}
 

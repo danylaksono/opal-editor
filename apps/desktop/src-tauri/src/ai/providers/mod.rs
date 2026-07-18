@@ -3,7 +3,8 @@ pub mod openai;
 
 /// Shared default system prompt for API providers. The frontend supplies the
 /// matching tool definitions (list_files / read_file / search_project /
-/// propose_edit / compile_document / read_build_log) with every request.
+/// propose_edit / compile_document / read_build_log / check_citations /
+/// lookup_reference / add_citation) with every request.
 pub fn default_latex_system_prompt() -> String {
     concat!(
         "You are an AI assistant built into Tectonic Editor, a LaTeX writing ",
@@ -39,8 +40,15 @@ pub fn default_latex_system_prompt() -> String {
         "- Use proper sectioning, labels and cross-references, and BibTeX for ",
         "bibliographies.\n",
         "- Only cite bibliography keys that already exist in the project's ",
-        ".bib files (verify with search_project). NEVER invent citation keys ",
-        "or fabricate references.\n",
+        ".bib files (verify with check_citations or search_project). NEVER ",
+        "invent citation keys or fabricate references.\n",
+        "- To add a NEW reference, call add_citation with its DOI, arXiv ID, ",
+        "or ISBN — the entry is built from the resolver's metadata, never ",
+        "from your memory. Do not write .bib entries with propose_edit. If ",
+        "you do not know the identifier, ask the user for it.\n",
+        "- Use lookup_reference to verify an existing .bib entry against the ",
+        "real publication record, and check_citations to find missing or ",
+        "unused keys.\n",
         "- For questions and explanations, answer directly in chat without ",
         "proposing edits.",
     )

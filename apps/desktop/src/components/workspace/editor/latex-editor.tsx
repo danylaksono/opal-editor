@@ -43,6 +43,8 @@ import {
   getChunks,
   acceptChunk,
   rejectChunk,
+  goToNextChunk,
+  goToPreviousChunk,
 } from "@codemirror/merge";
 import {
   latex,
@@ -104,6 +106,7 @@ import {
 } from "lucide-react";
 import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
 import { ProposedChangesPanel } from "@/components/ai-chat/proposed-changes-panel";
+import { findUnverifiedBibAdditions } from "@/lib/citation-review";
 import { ImagePreview } from "./image-preview";
 import { SearchPanel } from "./search-panel";
 import { CitationInlineEditor } from "./citation-inline-editor";
@@ -449,6 +452,8 @@ export function LatexEditor() {
   const pendingChangeRef = useRef<ProposedChange | null>(null);
   const handleKeepAllRef = useRef<() => void>(() => {});
   const handleUndoAllRef = useRef<() => void>(() => {});
+  const acceptCurrentChunkRef = useRef<() => void>(() => {});
+  const rejectCurrentChunkRef = useRef<() => void>(() => {});
   const diagnosticsRef = useRef<DiagnosticItem[]>([]);
   const bibliographyEntriesRef = useRef<BibCitation[]>([]);
   const labelDefinitionsRef = useRef<LabelDefinition[]>([]);
@@ -841,6 +846,13 @@ export function LatexEditor() {
     const view = viewRef.current;
     const change = pendingChangeRef.current;
     if (!view || !change) return;
+    // Unverified bibliography entries must be reviewed chunk by chunk
+    if (findUnverifiedBibAdditions(change).length > 0) {
+      toast.warning(
+        "Keep All is blocked: this change adds bibliography entries that were not built by the reference resolver. Accept them chunk by chunk (Ctrl+Shift+Y).",
+      );
+      return;
+    }
     isMergeActiveRef.current = false;
     setMergeChunkInfo({ total: 0, current: 0 });
     view.dispatch({ effects: mergeCompartmentRef.current.reconfigure([]) });
@@ -961,6 +973,8 @@ export function LatexEditor() {
     rejectChunk(view, chunks.chunks[idx].fromB);
     afterChunkAction(view, idx);
   };
+  acceptCurrentChunkRef.current = acceptCurrentChunk;
+  rejectCurrentChunkRef.current = rejectCurrentChunk;
 
   useEffect(() => {
     if (!searchQuery || !activeFileContent) {
@@ -1269,6 +1283,32 @@ export function LatexEditor() {
               return true;
             }
             return false;
+          },
+        },
+        {
+          key: "F8",
+          run: (view) =>
+            isMergeActiveRef.current ? goToNextChunk(view) : false,
+        },
+        {
+          key: "Shift-F8",
+          run: (view) =>
+            isMergeActiveRef.current ? goToPreviousChunk(view) : false,
+        },
+        {
+          key: "Mod-Shift-y",
+          run: () => {
+            if (!isMergeActiveRef.current) return false;
+            acceptCurrentChunkRef.current();
+            return true;
+          },
+        },
+        {
+          key: "Mod-Shift-n",
+          run: () => {
+            if (!isMergeActiveRef.current) return false;
+            rejectCurrentChunkRef.current();
+            return true;
           },
         },
         {
@@ -2694,7 +2734,7 @@ export function LatexEditor() {
                     )
                   }
                   className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                  title="Previous change"
+                  title="Previous change (Shift+F8)"
                   aria-label="Previous change"
                 >
                   <svg
@@ -2719,7 +2759,7 @@ export function LatexEditor() {
                     )
                   }
                   className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                  title="Next change"
+                  title="Next change (F8)"
                   aria-label="Next change"
                 >
                   <svg
@@ -2739,7 +2779,7 @@ export function LatexEditor() {
                 <button
                   onClick={acceptCurrentChunk}
                   className="rounded p-0.5 text-green-400 transition-colors hover:bg-green-600/20"
-                  title="Accept this change"
+                  title="Accept this change (Ctrl+Shift+Y)"
                   aria-label="Accept this change"
                 >
                   <svg
@@ -2758,7 +2798,7 @@ export function LatexEditor() {
                 <button
                   onClick={rejectCurrentChunk}
                   className="rounded p-0.5 text-red-400 transition-colors hover:bg-red-600/20"
-                  title="Reject this change"
+                  title="Reject this change (Ctrl+Shift+N)"
                   aria-label="Reject this change"
                 >
                   <svg

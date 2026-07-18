@@ -1284,7 +1284,7 @@ function FileTreeNode({
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <button
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-2 focus-visible:outline-sidebar-ring"
                 style={{ paddingLeft: `${depth * 16 + 4}px` }}
                 onClick={() => onToggleFolder(node.relativePath)}
                 role="treeitem"
@@ -1365,7 +1365,7 @@ function FileTreeNode({
         <ContextMenuTrigger asChild>
           <button
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sidebar-ring",
               file.id === activeFileId
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50",
