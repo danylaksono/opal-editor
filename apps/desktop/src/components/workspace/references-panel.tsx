@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { toast } from "sonner";
 import {
   AlertCircleIcon,
+  AlertTriangleIcon,
   BookOpenIcon,
   CheckIcon,
   CloudIcon,
@@ -28,6 +31,10 @@ import {
 } from "@/lib/project-references";
 import type { ZoteroCollection } from "@/lib/zotero-api";
 import { useZoteroStore, type CollectionSyncInfo } from "@/stores/zotero-store";
+import {
+  useReferenceSourcesStore,
+  type ExternalBibliographySource,
+} from "@/stores/reference-sources-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -342,6 +349,7 @@ function LibrarySourcesView() {
   return (
     <div className="h-full overflow-y-auto">
       {isAuthenticated ? <ConnectedZoteroView /> : <ConnectLibraryView />}
+      <JabRefSourceSection />
     </div>
   );
 }
@@ -459,17 +467,6 @@ function ConnectLibraryView() {
         </button>
       </section>
 
-      <section className="rounded-md border border-sidebar-border border-dashed px-2.5 py-2">
-        <div className="flex items-start gap-2">
-          <DatabaseIcon className="mt-0.5 size-3.5 text-muted-foreground" />
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            JabRef libraries already work as project .bib files. External JabRef
-            and CiteDrive source linking will be added in the next integration
-            step.
-          </p>
-        </div>
-      </section>
-
       {error && (
         <div className="rounded bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive">
           {error}
@@ -481,6 +478,207 @@ function ConnectLibraryView() {
         onOpenChange={setApiDialogOpen}
       />
     </div>
+  );
+}
+
+function JabRefSourceSection() {
+  const projectRoot = useDocumentStore((state) => state.projectRoot);
+  const allSources = useReferenceSourcesStore(
+    (state) => state.sourcesByProject,
+  );
+  const sources = projectRoot ? (allSources[projectRoot] ?? []) : [];
+  const syncingSourceId = useReferenceSourcesStore(
+    (state) => state.syncingSourceId,
+  );
+  const error = useReferenceSourcesStore((state) => state.error);
+  const linkJabRef = useReferenceSourcesStore((state) => state.linkJabRef);
+  const refreshSource = useReferenceSourcesStore(
+    (state) => state.refreshSource,
+  );
+  const unlinkSource = useReferenceSourcesStore((state) => state.unlinkSource);
+  const [conflictSource, setConflictSource] =
+    useState<ExternalBibliographySource | null>(null);
+
+  const handleLink = async () => {
+    const selected = await openFileDialog({
+      multiple: false,
+      directory: false,
+      title: "Link a JabRef or BibTeX library",
+      filters: [{ name: "BibTeX library", extensions: ["bib"] }],
+    });
+    if (typeof selected !== "string") return;
+    const source = await linkJabRef(selected);
+    if (source) {
+      toast.success(`Linked ${source.name}`, {
+        description: `Project copy: ${source.targetRelativePath}`,
+      });
+    } else {
+      toast.error(
+        useReferenceSourcesStore.getState().error ??
+          "Could not link the bibliography",
+      );
+    }
+  };
+
+  const handleRefresh = async (source: ExternalBibliographySource) => {
+    try {
+      const result = await refreshSource(source.id);
+      if (result === "conflict") {
+        setConflictSource(source);
+      } else if (result === "missing-target") {
+        toast.error("The project bibliography no longer exists", {
+          description: source.targetRelativePath,
+        });
+      } else if (result === "update") {
+        toast.success(`Refreshed ${source.name}`);
+      } else {
+        toast.info(`${source.name} is already up to date`);
+      }
+    } catch (refreshError) {
+      toast.error(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Could not refresh the bibliography",
+      );
+    }
+  };
+
+  const replaceProjectCopy = async () => {
+    if (!conflictSource) return;
+    try {
+      await refreshSource(conflictSource.id, true);
+      toast.success(`Refreshed ${conflictSource.name}`, {
+        description: "The external JabRef file replaced the project copy.",
+      });
+      setConflictSource(null);
+    } catch (refreshError) {
+      toast.error(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Could not refresh the bibliography",
+      );
+    }
+  };
+
+  return (
+    <section className="border-sidebar-border border-t px-2 py-2">
+      <div className="flex items-start gap-2">
+        <DatabaseIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-xs">JabRef / BibTeX file</h3>
+          <p className="mt-0.5 text-[10px] text-muted-foreground leading-relaxed">
+            Link an external .bib library and refresh a protected project copy
+            when JabRef changes.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="rounded p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={handleLink}
+          title="Link BibTeX library"
+          aria-label="Link JabRef or BibTeX library"
+          disabled={!projectRoot || !!syncingSourceId}
+        >
+          <PlusIcon className="size-3.5" />
+        </button>
+      </div>
+
+      {sources.length === 0 ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2 h-7 text-xs"
+          onClick={handleLink}
+          disabled={!projectRoot || !!syncingSourceId}
+        >
+          {syncingSourceId ? (
+            <LoaderIcon className="size-3 animate-spin" />
+          ) : (
+            <PlusIcon className="size-3" />
+          )}
+          Link .bib file
+        </Button>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {sources.map((source) => (
+            <div
+              key={source.id}
+              className="group flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-sidebar-accent/50"
+              title={source.sourcePath}
+            >
+              <FileTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-xs">{source.name}</p>
+                <p className="truncate text-[9px] text-muted-foreground">
+                  {source.targetRelativePath} · synced{" "}
+                  {new Date(source.lastSyncedAt).toLocaleString()}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-sidebar-accent hover:text-foreground focus:opacity-100 disabled:opacity-30 group-hover:opacity-100"
+                onClick={() => handleRefresh(source)}
+                disabled={!!syncingSourceId}
+                title="Refresh from external file"
+                aria-label={`Refresh ${source.name} from external file`}
+              >
+                {syncingSourceId === source.id ? (
+                  <LoaderIcon className="size-3 animate-spin" />
+                ) : (
+                  <RefreshCwIcon className="size-3" />
+                )}
+              </button>
+              <button
+                type="button"
+                className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-sidebar-accent hover:text-foreground focus:opacity-100 disabled:opacity-30 group-hover:opacity-100"
+                onClick={() => unlinkSource(source.id)}
+                disabled={!!syncingSourceId}
+                title="Unlink source; keep project file"
+                aria-label={`Unlink ${source.name}`}
+              >
+                <XIcon className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-2 text-[10px] text-destructive leading-relaxed">
+          {error}
+        </p>
+      )}
+
+      <Dialog
+        open={!!conflictSource}
+        onOpenChange={(open) => {
+          if (!open) setConflictSource(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangleIcon className="size-5 text-amber-600" />
+              Bibliography changed in both places
+            </DialogTitle>
+            <DialogDescription>
+              Both the external JabRef library and{" "}
+              <strong>{conflictSource?.targetRelativePath}</strong> have changed
+              since the last refresh. Replacing the project copy will discard
+              its local changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConflictSource(null)}>
+              Keep project copy
+            </Button>
+            <Button variant="destructive" onClick={replaceProjectCopy}>
+              Replace project copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }
 
@@ -547,7 +745,7 @@ function ConnectedZoteroView() {
   );
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex flex-col">
       <div className="flex items-center gap-2 border-sidebar-border border-b px-2 py-2">
         {connectionMode === "desktop" ? (
           <ServerIcon className="size-4 text-muted-foreground" />
