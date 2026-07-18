@@ -72,6 +72,11 @@ interface DocumentState {
   files: ProjectFile[];
   folders: string[];
   activeFileId: string;
+  /**
+   * Pinned editor tabs, in tab-strip order. The active file may be absent —
+   * it then shows as a transient preview tab that the next preview replaces.
+   */
+  openFileIds: string[];
   cursorPosition: number;
   selectionRange: { start: number; end: number } | null;
   jumpToPosition: number | null;
@@ -94,6 +99,12 @@ interface DocumentState {
   openProject: (rootPath: string) => Promise<void>;
   closeProject: () => void;
   setActiveFile: (id: string) => void;
+  /** Open a file as a pinned tab (explorer "Open in New Tab") and activate it. */
+  openFileInTab: (id: string) => void;
+  /** Close an editor tab without deleting the file. Keeps the last tab open. */
+  closeTab: (id: string) => void;
+  /** Switch to the next (1) or previous (-1) tab, wrapping around. */
+  cycleTab: (direction: 1 | -1) => void;
   addFile: (file: Omit<ProjectFile, "id" | "isDirty">) => string;
   deleteFile: (id: string) => void;
   deleteFolder: (folderPath: string) => Promise<void>;
@@ -148,6 +159,25 @@ interface DocumentState {
 
 function getActiveFile(state: { files: ProjectFile[]; activeFileId: string }) {
   return state.files.find((f) => f.id === state.activeFileId);
+}
+
+function addToOpenTabs(openFileIds: string[], id: string): string[] {
+  if (!id || openFileIds.includes(id)) return openFileIds;
+  return [...openFileIds, id];
+}
+
+/**
+ * The tab to activate after closing `closedId`: the tab that was to its right,
+ * or the new last tab when the rightmost one was closed.
+ */
+function pickNeighborTab(
+  openFileIds: string[],
+  closedId: string,
+): string | undefined {
+  const idx = openFileIds.indexOf(closedId);
+  const remaining = openFileIds.filter((t) => t !== closedId);
+  if (remaining.length === 0) return undefined;
+  return remaining[Math.min(Math.max(idx, 0), remaining.length - 1)];
 }
 
 /**
@@ -271,6 +301,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   files: [],
   folders: [],
   activeFileId: "",
+  openFileIds: [],
   cursorPosition: 0,
   selectionRange: null,
   jumpToPosition: null,
@@ -345,11 +376,13 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       ) || projectFiles.find((f) => f.type === "tex");
 
     clearPdfBytesCache();
+    const initialActiveId = mainTex?.id || projectFiles[0]?.id || "";
     set({
       projectRoot: rootPath,
       files: projectFiles,
       folders: fsFolders,
-      activeFileId: mainTex?.id || projectFiles[0]?.id || "",
+      activeFileId: initialActiveId,
+      openFileIds: initialActiveId ? [initialActiveId] : [],
       pdfRevision: 0,
       compileError: null,
       compileErrorCache: new Map(),
@@ -385,6 +418,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       files: [],
       folders: [],
       activeFileId: "",
+      openFileIds: [],
       pdfRevision: 0,
       compileError: null,
       compileErrorCache: new Map(),
@@ -408,6 +442,46 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     }));
   },
 
+  openFileInTab: (id) => {
+    set((s) => ({ openFileIds: addToOpenTabs(s.openFileIds, id) }));
+    get().setActiveFile(id);
+  },
+
+  closeTab: (id) => {
+    const state = get();
+    if (!state.openFileIds.includes(id)) {
+      // Closing the preview tab: return to the last pinned tab, if any
+      if (id === state.activeFileId && state.openFileIds.length > 0) {
+        get().setActiveFile(state.openFileIds[state.openFileIds.length - 1]);
+      }
+      return;
+    }
+    if (state.activeFileId === id) {
+      const neighbor = pickNeighborTab(state.openFileIds, id);
+      // Keep the last tab open — the editor always shows a file
+      if (!neighbor) return;
+      set({ openFileIds: state.openFileIds.filter((t) => t !== id) });
+      // Reuse setActiveFile for PDF-root and compile-error switching
+      get().setActiveFile(neighbor);
+    } else {
+      // A different file is showing, so even the last pinned tab can go
+      set({ openFileIds: state.openFileIds.filter((t) => t !== id) });
+    }
+  },
+
+  cycleTab: (direction) => {
+    const state = get();
+    if (!state.activeFileId) return;
+    // Include the preview tab (active file not pinned) at the end of the cycle
+    const ids = state.openFileIds.includes(state.activeFileId)
+      ? state.openFileIds
+      : [...state.openFileIds, state.activeFileId];
+    if (ids.length < 2) return;
+    const idx = ids.indexOf(state.activeFileId);
+    const next = ids[(idx + direction + ids.length) % ids.length];
+    state.setActiveFile(next);
+  },
+
   setSelectionRange: (range) => set({ selectionRange: range }),
 
   requestJumpToPosition: (position) => set({ jumpToPosition: position }),
@@ -419,6 +493,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     set((state) => ({
       files: [...state.files, { ...file, id, isDirty: false }],
       activeFileId: id,
+      openFileIds: addToOpenTabs(state.openFileIds, id),
     }));
     return id;
   },
@@ -436,7 +511,11 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     }
     const newFiles = state.files.filter((f) => f.id !== id);
     const newActiveId =
-      state.activeFileId === id ? newFiles[0].id : state.activeFileId;
+      state.activeFileId === id
+        ? (pickNeighborTab(state.openFileIds, id) ?? newFiles[0].id)
+        : state.activeFileId;
+    // The fallback active (no pinned neighbor) shows as a preview, not a pin
+    const newOpenFileIds = state.openFileIds.filter((t) => t !== id);
     const compileErrorCache = new Map(state.compileErrorCache);
     const lastCompiledGenerations = new Map(state.lastCompiledGenerations);
     _pdfBytesCache.delete(id);
@@ -453,6 +532,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     set((s) => ({
       files: newFiles,
       activeFileId: newActiveId,
+      openFileIds: newOpenFileIds,
       compileErrorCache,
       lastCompiledGenerations,
       ...(switchingActive ? { pdfRevision: s.pdfRevision + 1 } : {}),
@@ -495,9 +575,11 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     }
 
     const removedIds = new Set(filesToRemove.map((f) => f.id));
+    const survivingTabs = state.openFileIds.filter((t) => !removedIds.has(t));
     const newActiveId = removedIds.has(state.activeFileId)
-      ? remainingFiles[0].id
+      ? (survivingTabs[0] ?? remainingFiles[0].id)
       : state.activeFileId;
+    const newOpenFileIds = survivingTabs;
     const switchingActive = newActiveId !== state.activeFileId;
     const newRootId = switchingActive
       ? resolveTexRoot(newActiveId, remainingFiles)
@@ -515,6 +597,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       files: remainingFiles,
       folders: newFolders,
       activeFileId: newActiveId,
+      openFileIds: newOpenFileIds,
       compileErrorCache,
       lastCompiledGenerations,
       ...(switchingActive ? { pdfRevision: s.pdfRevision + 1 } : {}),
@@ -569,6 +652,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
             : f,
         ),
         activeFileId: isActive ? newRelativePath : s.activeFileId,
+        openFileIds: s.openFileIds.map((t) => (t === id ? newRelativePath : t)),
         compileErrorCache,
         lastCompiledGenerations,
       };
@@ -581,6 +665,10 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         f.id === id ? { ...f, content, isDirty: true } : f,
       ),
       contentGeneration: state.contentGeneration + 1,
+      // Editing a previewed file pins its tab so it doesn't vanish on switch
+      ...(id === state.activeFileId
+        ? { openFileIds: addToOpenTabs(state.openFileIds, id) }
+        : {}),
     }));
     scheduleAutoSave();
   },
@@ -670,6 +758,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
           : f,
       ),
       cursorPosition: cursorPosition + text.length,
+      openFileIds: addToOpenTabs(state.openFileIds, activeFile.id),
     });
   },
 
@@ -689,6 +778,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
           : f,
       ),
       cursorPosition: start + text.length,
+      openFileIds: addToOpenTabs(state.openFileIds, activeFile.id),
     });
   },
 
@@ -708,6 +798,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
           ? { ...f, content: newContent, isDirty: true }
           : f,
       ),
+      openFileIds: addToOpenTabs(state.openFileIds, activeFile.id),
     });
     return true;
   },
@@ -792,6 +883,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         },
       ],
       activeFileId: relativePath,
+      openFileIds: addToOpenTabs(s.openFileIds, relativePath),
     }));
   },
 
@@ -875,6 +967,9 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         ),
         activeFileId:
           s.activeFileId === fileId ? newRelativePath : s.activeFileId,
+        openFileIds: s.openFileIds.map((t) =>
+          t === fileId ? newRelativePath : t,
+        ),
         compileErrorCache,
         lastCompiledGenerations,
       };
@@ -918,7 +1013,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   },
 
   refreshFiles: async () => {
-    const { projectRoot, files, activeFileId } = get();
+    const { projectRoot, files, activeFileId, openFileIds } = get();
     if (!projectRoot) return;
 
     const { files: fsFiles, folders: fsFolders } =
@@ -1005,14 +1100,18 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       }
     }
 
-    const newActiveId = merged.some((f) => f.id === activeFileId)
+    const mergedIds = new Set(merged.map((f) => f.id));
+    const survivingTabs = openFileIds.filter((t) => mergedIds.has(t));
+    const newActiveId = mergedIds.has(activeFileId)
       ? activeFileId
-      : (merged[0]?.id ?? "");
+      : (survivingTabs[0] ?? merged[0]?.id ?? "");
+    const newOpenFileIds = survivingTabs;
 
     set((s) => ({
       files: merged,
       folders: fsFolders,
       activeFileId: newActiveId,
+      openFileIds: newOpenFileIds,
       contentGeneration: s.contentGeneration + 1,
     }));
   },
@@ -1059,6 +1158,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         f.id === state.activeFileId ? { ...f, content, isDirty: true } : f,
       ),
       contentGeneration: state.contentGeneration + 1,
+      openFileIds: addToOpenTabs(state.openFileIds, state.activeFileId),
     });
     scheduleAutoSave();
   },

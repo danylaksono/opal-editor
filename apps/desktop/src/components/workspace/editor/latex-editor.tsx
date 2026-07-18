@@ -76,6 +76,7 @@ import {
 } from "@/lib/latex-compiler";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getEditorThemeExtensions } from "@/lib/editor-themes";
+import { EditorTabs } from "./editor-tabs";
 import { EditorToolbar } from "./editor-toolbar";
 import { SelectionToolbar, type ToolbarAction } from "./selection-toolbar";
 import { Button } from "@/components/ui/button";
@@ -2313,6 +2314,7 @@ export function LatexEditor() {
 
   return (
     <div className="flex h-full flex-col bg-background">
+      <EditorTabs />
       {/* Toolbar — adapts to file type */}
       <EditorToolbar
         editorView={viewRef}

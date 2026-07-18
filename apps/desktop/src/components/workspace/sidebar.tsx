@@ -21,6 +21,7 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   FileCodeIcon,
+  PanelTopIcon,
   FileIcon,
   FileSpreadsheetIcon,
   AppWindowIcon,
@@ -247,6 +248,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
   const files = useDocumentStore((s) => s.files);
   const activeFileId = useDocumentStore((s) => s.activeFileId);
   const setActiveFile = useDocumentStore((s) => s.setActiveFile);
+  const openFileInTab = useDocumentStore((s) => s.openFileInTab);
   const deleteFile = useDocumentStore((s) => s.deleteFile);
   const deleteFolder = useDocumentStore((s) => s.deleteFolder);
   const renameFile = useDocumentStore((s) => s.renameFile);
@@ -813,6 +815,14 @@ export function Sidebar({ activePanel }: SidebarProps) {
                           setPasteTargetFolder(parent);
                           setActiveFile(id);
                         }}
+                        onOpenInTab={(id: string) => {
+                          const parent = id.includes("/")
+                            ? id.substring(0, id.lastIndexOf("/"))
+                            : undefined;
+                          setPasteTargetFolder(parent);
+                          useHistoryStore.getState().stopReview();
+                          openFileInTab(id);
+                        }}
                         onNewFile={openNewFileDialog}
                         onNewFolder={openNewFolderDialog}
                         onImport={handleImport}
@@ -1178,6 +1188,7 @@ interface FileTreeNodeProps {
   expandedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   onSelectFile: (id: string) => void;
+  onOpenInTab: (id: string) => void;
   onNewFile: (folder?: string) => void;
   onNewFolder: (parent?: string) => void;
   onImport: (folder?: string) => void;
@@ -1195,6 +1206,7 @@ function FileTreeNode({
   expandedFolders,
   onToggleFolder,
   onSelectFile,
+  onOpenInTab,
   onNewFile,
   onNewFolder,
   onImport,
@@ -1269,6 +1281,7 @@ function FileTreeNode({
               expandedFolders={expandedFolders}
               onToggleFolder={onToggleFolder}
               onSelectFile={onSelectFile}
+              onOpenInTab={onOpenInTab}
               onNewFile={onNewFile}
               onNewFolder={onNewFolder}
               onImport={onImport}
@@ -1313,6 +1326,11 @@ function FileTreeNode({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => onOpenInTab(file.id)}>
+            <PanelTopIcon className="mr-2 size-4" />
+            Open in New Tab
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={() => onRename(file.id, file.name)}>
             <PencilIcon className="mr-2 size-4" />
             Rename

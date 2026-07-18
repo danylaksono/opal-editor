@@ -107,6 +107,7 @@ describe("useDocumentStore", () => {
       files: [makeFile()],
       folders: [],
       activeFileId: "main.tex",
+      openFileIds: ["main.tex"],
       cursorPosition: 5, // after "Hello"
       selectionRange: null,
       jumpToPosition: null,
@@ -421,6 +422,197 @@ describe("useDocumentStore", () => {
       // cursorPosition is preserved — the editor restores it from per-file cache
       expect(state.cursorPosition).toBe(100);
       expect(state.selectionRange).toBeNull();
+    });
+  });
+
+  describe("editor tabs", () => {
+    const threeFiles = () => [
+      makeFile(),
+      makeFile({ id: "ch1.tex", name: "ch1.tex", relativePath: "ch1.tex" }),
+      makeFile({ id: "refs.bib", name: "refs.bib", relativePath: "refs.bib" }),
+    ];
+
+    it("setActiveFile previews without pinning a tab", () => {
+      useDocumentStore.setState({ files: threeFiles() });
+      useDocumentStore.getState().setActiveFile("ch1.tex");
+      const state = useDocumentStore.getState();
+      expect(state.activeFileId).toBe("ch1.tex");
+      expect(state.openFileIds).toEqual(["main.tex"]);
+    });
+
+    it("a second preview replaces the first (no piling)", () => {
+      useDocumentStore.setState({ files: threeFiles() });
+      useDocumentStore.getState().setActiveFile("ch1.tex");
+      useDocumentStore.getState().setActiveFile("refs.bib");
+      const state = useDocumentStore.getState();
+      expect(state.activeFileId).toBe("refs.bib");
+      expect(state.openFileIds).toEqual(["main.tex"]);
+    });
+
+    it("openFileInTab pins the file and activates it", () => {
+      useDocumentStore.setState({ files: threeFiles() });
+      useDocumentStore.getState().openFileInTab("ch1.tex");
+      const state = useDocumentStore.getState();
+      expect(state.activeFileId).toBe("ch1.tex");
+      expect(state.openFileIds).toEqual(["main.tex", "ch1.tex"]);
+    });
+
+    it("openFileInTab does not duplicate an already-pinned tab", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex"],
+      });
+      useDocumentStore.getState().openFileInTab("ch1.tex");
+      expect(useDocumentStore.getState().openFileIds).toEqual([
+        "main.tex",
+        "ch1.tex",
+      ]);
+    });
+
+    it("editing a previewed file pins its tab", () => {
+      useDocumentStore.setState({ files: threeFiles() });
+      useDocumentStore.getState().setActiveFile("ch1.tex");
+      useDocumentStore.getState().updateFileContent("ch1.tex", "edited");
+      expect(useDocumentStore.getState().openFileIds).toEqual([
+        "main.tex",
+        "ch1.tex",
+      ]);
+    });
+
+    it("editing a background file does not pin its tab", () => {
+      useDocumentStore.setState({ files: threeFiles() });
+      useDocumentStore.getState().updateFileContent("refs.bib", "edited");
+      expect(useDocumentStore.getState().openFileIds).toEqual(["main.tex"]);
+    });
+
+    it("closing the preview tab returns to the last pinned tab", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex"],
+        activeFileId: "refs.bib",
+      });
+      useDocumentStore.getState().closeTab("refs.bib");
+      const state = useDocumentStore.getState();
+      expect(state.activeFileId).toBe("ch1.tex");
+      expect(state.openFileIds).toEqual(["main.tex", "ch1.tex"]);
+    });
+
+    it("the last pinned tab can close while a preview is showing", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex"],
+        activeFileId: "ch1.tex",
+      });
+      useDocumentStore.getState().closeTab("main.tex");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual([]);
+      expect(state.activeFileId).toBe("ch1.tex");
+    });
+
+    it("addFile opens the new file as a tab", () => {
+      useDocumentStore.getState().addFile({
+        name: "refs.bib",
+        relativePath: "refs.bib",
+        absolutePath: "/project/refs.bib",
+        type: "bib",
+        content: "",
+      });
+      expect(useDocumentStore.getState().openFileIds).toEqual([
+        "main.tex",
+        "refs.bib",
+      ]);
+    });
+
+    it("closeTab of the active tab activates the tab to its right", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex", "refs.bib"],
+        activeFileId: "ch1.tex",
+      });
+      useDocumentStore.getState().closeTab("ch1.tex");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex", "refs.bib"]);
+      expect(state.activeFileId).toBe("refs.bib");
+    });
+
+    it("closeTab of the rightmost active tab activates the new last tab", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex", "refs.bib"],
+        activeFileId: "refs.bib",
+      });
+      useDocumentStore.getState().closeTab("refs.bib");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex", "ch1.tex"]);
+      expect(state.activeFileId).toBe("ch1.tex");
+    });
+
+    it("closeTab of an inactive tab keeps the active file", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex", "refs.bib"],
+        activeFileId: "main.tex",
+      });
+      useDocumentStore.getState().closeTab("refs.bib");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex", "ch1.tex"]);
+      expect(state.activeFileId).toBe("main.tex");
+    });
+
+    it("closeTab keeps the last remaining tab open", () => {
+      useDocumentStore.getState().closeTab("main.tex");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex"]);
+      expect(state.activeFileId).toBe("main.tex");
+    });
+
+    it("cycleTab wraps forward and backward", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex", "refs.bib"],
+        activeFileId: "refs.bib",
+      });
+      useDocumentStore.getState().cycleTab(1);
+      expect(useDocumentStore.getState().activeFileId).toBe("main.tex");
+      useDocumentStore.getState().cycleTab(-1);
+      expect(useDocumentStore.getState().activeFileId).toBe("refs.bib");
+    });
+
+    it("cycleTab includes the preview tab in the cycle", () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex"],
+        activeFileId: "refs.bib", // preview
+      });
+      useDocumentStore.getState().cycleTab(1);
+      expect(useDocumentStore.getState().activeFileId).toBe("main.tex");
+      // refs.bib was a preview, so leaving it dropped it from the cycle
+      useDocumentStore.getState().cycleTab(-1);
+      expect(useDocumentStore.getState().activeFileId).toBe("ch1.tex");
+    });
+
+    it("deleteFile of the active tab activates a neighboring open tab", async () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "ch1.tex", "refs.bib"],
+        activeFileId: "ch1.tex",
+      });
+      await useDocumentStore.getState().deleteFile("ch1.tex");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex", "refs.bib"]);
+      expect(state.activeFileId).toBe("refs.bib");
+    });
+
+    it("deleteFile removes a non-active file's tab", async () => {
+      useDocumentStore.setState({
+        files: threeFiles(),
+        openFileIds: ["main.tex", "refs.bib"],
+        activeFileId: "main.tex",
+      });
+      await useDocumentStore.getState().deleteFile("refs.bib");
+      const state = useDocumentStore.getState();
+      expect(state.openFileIds).toEqual(["main.tex"]);
+      expect(state.activeFileId).toBe("main.tex");
     });
   });
 
