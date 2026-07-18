@@ -5,6 +5,18 @@ import type { EditorHighlightTheme, WorkspacePalette } from "@/lib/appearance";
 type CompilerBackend = "tectonic" | "texlive";
 type AiProvider = "none" | "anthropic" | "openai";
 
+export const DEFAULT_EDITOR_FONT_SIZE = 14;
+export const MIN_EDITOR_FONT_SIZE = 10;
+export const MAX_EDITOR_FONT_SIZE = 28;
+
+export function clampEditorFontSize(size: number): number {
+  if (!Number.isFinite(size)) return DEFAULT_EDITOR_FONT_SIZE;
+  return Math.min(
+    MAX_EDITOR_FONT_SIZE,
+    Math.max(MIN_EDITOR_FONT_SIZE, Math.round(size)),
+  );
+}
+
 interface SettingsState {
   compilerBackend: CompilerBackend;
   setCompilerBackend: (backend: CompilerBackend) => void;
@@ -23,6 +35,9 @@ interface SettingsState {
    *  Alt+Enter still opens the editor for the element at the cursor. */
   inlineEditorsOnClick: boolean;
   setInlineEditorsOnClick: (enabled: boolean) => void;
+  /** Editor text size in px, clamped to [MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE]. */
+  editorFontSize: number;
+  setEditorFontSize: (size: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -44,6 +59,9 @@ export const useSettingsStore = create<SettingsState>()(
       inlineEditorsOnClick: true,
       setInlineEditorsOnClick: (enabled) =>
         set({ inlineEditorsOnClick: enabled }),
+      editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
+      setEditorFontSize: (size) =>
+        set({ editorFontSize: clampEditorFontSize(size) }),
     }),
     {
       name: "tectonic-editor-settings",

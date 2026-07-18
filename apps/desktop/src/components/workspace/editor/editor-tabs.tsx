@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, scrollBehavior } from "@/lib/utils";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 
 /**
@@ -35,7 +35,7 @@ export function EditorTabs() {
       `[data-file-id="${CSS.escape(activeFileId)}"]`,
     );
     el?.scrollIntoView({
-      behavior: "smooth",
+      behavior: scrollBehavior(),
       block: "nearest",
       inline: "nearest",
     });

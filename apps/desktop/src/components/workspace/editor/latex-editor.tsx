@@ -325,6 +325,11 @@ export function clearEditorStateCache(): void {
   editorStateCache.clear();
 }
 
+/** Editor text size, swapped via compartment so changes don't rebuild the editor. */
+function editorFontSizeTheme(size: number) {
+  return EditorView.theme({ "&": { fontSize: `${size}px` } });
+}
+
 export function LatexEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -419,6 +424,7 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
+  const editorFontSize = useSettingsStore((s) => s.editorFontSize);
   const editorHighlightTheme = useSettingsStore((s) => s.editorHighlightTheme);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const workspaceModes = useLensStore((s) => s.workspaceModes);
@@ -435,6 +441,7 @@ export function LatexEditor() {
   const compileRef = useRef<() => void>(() => {});
   const isSearchOpenRef = useRef(false);
   const themeCompartmentRef = useRef(new Compartment());
+  const fontSizeCompartmentRef = useRef(new Compartment());
   const mergeCompartmentRef = useRef(new Compartment());
   const vimCompartmentRef = useRef(new Compartment());
   const lensCompartmentRef = useRef(new Compartment());
@@ -1565,6 +1572,9 @@ export function LatexEditor() {
         themeCompartmentRef.current.of(
           getEditorThemeExtensions(editorHighlightTheme, resolvedTheme),
         ),
+        fontSizeCompartmentRef.current.of(
+          editorFontSizeTheme(useSettingsStore.getState().editorFontSize),
+        ),
         search(),
         highlightSelectionMatches(),
         mergeCompartmentRef.current.of([]),
@@ -1576,7 +1586,6 @@ export function LatexEditor() {
         EditorView.theme({
           "&": {
             height: "100%",
-            fontSize: "14px",
             color: "var(--foreground)",
             backgroundColor: "var(--background)",
             WebkitBackfaceVisibility: "hidden",
@@ -1823,6 +1832,34 @@ export function LatexEditor() {
       ),
     });
   }, [editorHighlightTheme, resolvedTheme]);
+
+  // Apply editor text size changes without rebuilding the editor.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: fontSizeCompartmentRef.current.reconfigure(
+        editorFontSizeTheme(editorFontSize),
+      ),
+    });
+  }, [editorFontSize]);
+
+  // Ctrl+scroll (and trackpad pinch, which browsers report as ctrl+wheel)
+  // adjusts the editor text size, matching common editor behavior.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isTextFile) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || e.deltaY === 0) return;
+      e.preventDefault();
+      const settings = useSettingsStore.getState();
+      settings.setEditorFontSize(
+        settings.editorFontSize + (e.deltaY < 0 ? 1 : -1),
+      );
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [isTextFile, activeFileId]);
 
   useEffect(() => {
     const view = viewRef.current;

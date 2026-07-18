@@ -505,6 +505,61 @@ export function Sidebar({ activePanel }: SidebarProps) {
     });
   }, []);
 
+  // Arrow-key navigation over the visible tree rows (ARIA tree pattern).
+  // Enter/Space activate rows natively since every row is a <button>.
+  const handleTreeKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const navKeys = [
+        "ArrowDown",
+        "ArrowUp",
+        "ArrowLeft",
+        "ArrowRight",
+        "Home",
+        "End",
+      ];
+      if (!navKeys.includes(e.key)) return;
+      const rows = Array.from(
+        e.currentTarget.querySelectorAll<HTMLElement>("[data-tree-row]"),
+      );
+      if (rows.length === 0) return;
+      const idx = rows.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      const focusRow = (i: number) =>
+        rows[Math.max(0, Math.min(rows.length - 1, i))]?.focus();
+
+      if (e.key === "ArrowDown") return focusRow(idx + 1);
+      if (e.key === "ArrowUp") return focusRow(idx <= 0 ? 0 : idx - 1);
+      if (e.key === "Home") return focusRow(0);
+      if (e.key === "End") return focusRow(rows.length - 1);
+
+      if (idx < 0) return focusRow(0);
+      const row = rows[idx];
+      const path = row.dataset.treePath ?? "";
+      const isFolder = row.dataset.treeFolder === "true";
+      const isExpanded = row.getAttribute("aria-expanded") === "true";
+
+      if (e.key === "ArrowRight" && isFolder) {
+        if (!isExpanded) toggleFolder(path);
+        else focusRow(idx + 1); // into first child
+      }
+      if (e.key === "ArrowLeft") {
+        if (isFolder && isExpanded) {
+          toggleFolder(path);
+        } else if (path.includes("/")) {
+          const parent = path.slice(0, path.lastIndexOf("/"));
+          rows
+            .find(
+              (r) =>
+                r.dataset.treePath === parent &&
+                r.dataset.treeFolder === "true",
+            )
+            ?.focus();
+        }
+      }
+    },
+    [toggleFolder],
+  );
+
   // Outline — project-wide, Overleaf-style: resolve the root document and
   // flatten \input/\include'd files into a single outline.
   const outlineRootId = useMemo(() => {
@@ -799,7 +854,10 @@ export function Sidebar({ activePanel }: SidebarProps) {
             >
               <ContextMenu>
                 <ContextMenuTrigger asChild>
-                  <DroppableRoot nativeDragOver={nativeDragOver === "__root__"}>
+                  <DroppableRoot
+                    nativeDragOver={nativeDragOver === "__root__"}
+                    onKeyDown={handleTreeKeyDown}
+                  >
                     {tree.map((node) => (
                       <FileTreeNode
                         key={node.relativePath}
@@ -1139,15 +1197,20 @@ export function Sidebar({ activePanel }: SidebarProps) {
 function DroppableRoot({
   children,
   nativeDragOver,
+  onKeyDown,
 }: {
   children: React.ReactNode;
   nativeDragOver?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "__root__" });
   return (
     <div
       ref={setNodeRef}
       data-drop-folder="__root__"
+      role="tree"
+      aria-label="Project files"
+      onKeyDown={onKeyDown}
       className={cn(
         "min-h-0 flex-1 overflow-y-auto p-1",
         (isOver || nativeDragOver) && "bg-accent/30",
@@ -1231,6 +1294,11 @@ function FileTreeNode({
                 className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
                 style={{ paddingLeft: `${depth * 16 + 4}px` }}
                 onClick={() => onToggleFolder(node.relativePath)}
+                role="treeitem"
+                aria-expanded={isExpanded}
+                data-tree-row
+                data-tree-folder="true"
+                data-tree-path={node.relativePath}
               >
                 {isExpanded ? (
                   <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -1314,6 +1382,10 @@ function FileTreeNode({
               useHistoryStore.getState().stopReview();
               onSelectFile(file.id);
             }}
+            role="treeitem"
+            aria-selected={file.id === activeFileId}
+            data-tree-row
+            data-tree-path={file.relativePath}
           >
             {getFileIcon(file)}
             <span className="min-w-0 flex-1 truncate">{node.name}</span>
@@ -1417,7 +1489,7 @@ function DraggableItem({
   name: string;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { type, name },
   });
@@ -1434,11 +1506,13 @@ function DraggableItem({
       )
     : {};
 
+  // dnd-kit `attributes` are intentionally not spread: they make every wrapper
+  // div focusable (tabIndex=0, role="button"), doubling tab stops in the tree.
+  // Only the PointerSensor is used, so keyboard drag attributes add nothing.
   return (
     <div
       ref={setNodeRef}
       {...wrappedListeners}
-      {...attributes}
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
       {children}

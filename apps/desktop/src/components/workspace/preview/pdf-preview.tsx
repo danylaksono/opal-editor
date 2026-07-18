@@ -1096,6 +1096,16 @@ export function PdfPreview() {
     );
   };
 
+  const compileStatusMessage = isSaving
+    ? "Saving files"
+    : isCompiling
+      ? "Compiling document"
+      : compileError
+        ? "Compile failed"
+        : pdfData
+          ? "Compile finished, PDF preview updated"
+          : "";
+
   return (
     <div
       ref={previewContainerRef}
@@ -1103,6 +1113,10 @@ export function PdfPreview() {
         reviewMode ? "pr-80" : ""
       }`}
     >
+      {/* Screen-reader announcement of compile progress; visually hidden. */}
+      <div aria-live="polite" role="status" className="sr-only">
+        {compileStatusMessage}
+      </div>
       <div className="preview-toolbar flex h-[calc(44px+var(--titlebar-height))] shrink-0 items-center border-border border-b px-2.5 pt-[var(--titlebar-height)]">
         <div className="flex items-center gap-1">
           <Select

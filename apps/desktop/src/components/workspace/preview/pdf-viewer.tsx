@@ -17,6 +17,7 @@ import {
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
 import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
 import { createLogger } from "@/lib/debug/logger";
+import { scrollBehavior } from "@/lib/utils";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { PageSize } from "@/lib/mupdf/types";
 import {
@@ -617,7 +618,7 @@ export function PdfViewer({
         container.clientHeight / 2;
       container.scrollTo({
         top: Math.max(0, targetTop),
-        behavior: "smooth",
+        behavior: scrollBehavior(),
       });
     });
     return () => cancelAnimationFrame(frame);
