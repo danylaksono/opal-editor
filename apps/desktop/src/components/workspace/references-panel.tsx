@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircleIcon,
   BookOpenIcon,
@@ -11,11 +12,14 @@ import {
   LibraryIcon,
   LoaderIcon,
   LogOutIcon,
+  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   ServerIcon,
   SettingsIcon,
+  SparklesIcon,
+  WrenchIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -30,7 +34,22 @@ import { useZoteroStore, type CollectionSyncInfo } from "@/stores/zotero-store";
 import { useDocumentStore } from "@/stores/document-store";
 import { cn } from "@/lib/utils";
 import { ExternalBibliographySources } from "@/components/workspace/external-bibliography-sources";
+import { DuplicateBibliographyDialog } from "@/components/workspace/duplicate-bibliography-dialog";
+import {
+  buildSmartDuplicateCleanupPrompt,
+  groupDuplicateBibliographyEntries,
+  keepDuplicateBibliographyEntry,
+} from "@/lib/duplicate-bibliography";
+import { useAiChatStore } from "@/stores/ai-chat-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   Dialog,
   DialogContent,
@@ -107,9 +126,25 @@ function ProjectReferencesView() {
   const requestJumpToPosition = useDocumentStore(
     (state) => state.requestJumpToPosition,
   );
+  const aiProvider = useSettingsStore((state) => state.aiProvider);
+  const aiStreaming = useAiChatStore((state) => state.isStreaming);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ReferenceFilter>("all");
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateDialogTarget, setDuplicateDialogTarget] = useState<{
+    key: string;
+    renameEntry?: ProjectReference;
+  } | null>(null);
+  const [repairingDuplicate, setRepairingDuplicate] = useState(false);
   const index = useMemo(() => buildProjectReferenceIndex(files), [files]);
+  const duplicateGroups = useMemo(
+    () => groupDuplicateBibliographyEntries(index.entries),
+    [index.entries],
+  );
+  const duplicateGroupsByKey = useMemo(
+    () => new Map(duplicateGroups.map((group) => [group.key, group])),
+    [duplicateGroups],
+  );
   const references = useMemo(
     () => filterProjectReferences(index, filter, query),
     [filter, index, query],
@@ -121,6 +156,52 @@ function ProjectReferencesView() {
   const jumpTo = (fileId: string, from: number) => {
     setActiveFile(fileId);
     setTimeout(() => requestJumpToPosition(from), 50);
+  };
+
+  const openDuplicateDialog = (
+    entry?: ProjectReference,
+    renameEntry = false,
+  ) => {
+    setDuplicateDialogTarget(
+      entry
+        ? {
+            key: entry.key,
+            ...(renameEntry ? { renameEntry: entry } : {}),
+          }
+        : null,
+    );
+    setDuplicateDialogOpen(true);
+  };
+
+  const keepDuplicate = async (entry: ProjectReference) => {
+    const group = duplicateGroupsByKey.get(entry.key);
+    if (!group) return;
+    setRepairingDuplicate(true);
+    try {
+      if (!(await keepDuplicateBibliographyEntry(group, entry))) {
+        toast.error("The bibliography changed before it could be updated");
+      }
+    } finally {
+      setRepairingDuplicate(false);
+    }
+  };
+
+  const smartCleanup = (groups = duplicateGroups) => {
+    if (aiProvider === "none" || groups.length === 0 || aiStreaming) return;
+    const files = Array.from(
+      new Set(
+        groups.flatMap((group) => group.entries.map((entry) => entry.filePath)),
+      ),
+    );
+    setDuplicateDialogOpen(false);
+    setDuplicateDialogTarget(null);
+    void useAiChatStore
+      .getState()
+      .sendPrompt(buildSmartDuplicateCleanupPrompt(groups), undefined, {
+        scope: "bibliography",
+        files,
+        action: "explain",
+      });
   };
 
   return (
@@ -159,6 +240,18 @@ function ProjectReferencesView() {
             hasIssue={issueCount > 0}
           />
         </div>
+        {duplicateGroups.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 w-full justify-start text-xs"
+            onClick={() => openDuplicateDialog()}
+          >
+            <WrenchIcon className="size-3" />
+            Review / bulk fix {duplicateGroups.length} duplicate{" "}
+            {duplicateGroups.length === 1 ? "key" : "keys"}
+          </Button>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
@@ -197,6 +290,16 @@ function ProjectReferencesView() {
                 key={`${reference.fileId}:${reference.from}:${reference.key}`}
                 reference={reference}
                 onClick={() => jumpTo(reference.fileId, reference.from)}
+                duplicateGroup={duplicateGroupsByKey.get(reference.key)}
+                repairDisabled={repairingDuplicate}
+                onReviewDuplicate={() => openDuplicateDialog(reference)}
+                onRenameDuplicate={() => openDuplicateDialog(reference, true)}
+                onKeepDuplicate={() => void keepDuplicate(reference)}
+                onSmartCleanup={() => {
+                  const group = duplicateGroupsByKey.get(reference.key);
+                  if (group) smartCleanup([group]);
+                }}
+                smartCleanupAvailable={aiProvider !== "none" && !aiStreaming}
               />
             );
           })
@@ -209,6 +312,25 @@ function ProjectReferencesView() {
         {index.citationCount}{" "}
         {index.citationCount === 1 ? "citation" : "citations"}
       </div>
+
+      <DuplicateBibliographyDialog
+        open={duplicateDialogOpen}
+        onOpenChange={(open) => {
+          setDuplicateDialogOpen(open);
+          if (!open) setDuplicateDialogTarget(null);
+        }}
+        groups={duplicateGroups}
+        existingKeys={index.entries.map((entry) => entry.key)}
+        initialQuery={duplicateDialogTarget?.key}
+        initialRenameEntry={duplicateDialogTarget?.renameEntry}
+        onSmartCleanup={() => smartCleanup()}
+        smartCleanupAvailable={aiProvider !== "none"}
+        smartCleanupBusy={aiStreaming}
+        onOpenEntry={(entry) => {
+          setDuplicateDialogOpen(false);
+          jumpTo(entry.fileId, entry.from);
+        }}
+      />
     </div>
   );
 }
@@ -245,9 +367,23 @@ function ReferenceFilterButton({
 function ProjectReferenceRow({
   reference,
   onClick,
+  duplicateGroup,
+  repairDisabled = false,
+  onReviewDuplicate,
+  onRenameDuplicate,
+  onKeepDuplicate,
+  onSmartCleanup,
+  smartCleanupAvailable = false,
 }: {
   reference: ProjectReference;
   onClick: () => void;
+  duplicateGroup?: ReturnType<typeof groupDuplicateBibliographyEntries>[number];
+  repairDisabled?: boolean;
+  onReviewDuplicate?: () => void;
+  onRenameDuplicate?: () => void;
+  onKeepDuplicate?: () => void;
+  onSmartCleanup?: () => void;
+  smartCleanupAvailable?: boolean;
 }) {
   const source =
     reference.journal ??
@@ -255,7 +391,7 @@ function ProjectReferenceRow({
     reference.publisher ??
     reference.filePath;
 
-  return (
+  const row = (
     <button
       type="button"
       className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
@@ -292,6 +428,39 @@ function ProjectReferenceRow({
         </span>
       </span>
     </button>
+  );
+
+  if (!duplicateGroup) return row;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-56">
+        <ContextMenuItem onSelect={onReviewDuplicate}>
+          <WrenchIcon />
+          Review duplicate key…
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={onRenameDuplicate} disabled={repairDisabled}>
+          <PencilIcon />
+          Rename this copy…
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={onSmartCleanup}
+          disabled={!smartCleanupAvailable || repairDisabled}
+        >
+          <SparklesIcon />
+          Smart cleanup this key
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={onKeepDuplicate}
+          disabled={repairDisabled}
+        >
+          <CheckIcon />
+          Keep this; remove other copies
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
