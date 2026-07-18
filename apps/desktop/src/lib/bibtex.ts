@@ -19,6 +19,7 @@ export interface ParsedBibtexEntry extends BibCitation {
 function findEntryEnd(content: string, start: number, opener: "{" | "(") {
   const closer = opener === "{" ? "}" : ")";
   let depth = 0;
+  let braceDepth = 0;
   let inQuote = false;
   let escaped = false;
 
@@ -32,11 +33,25 @@ function findEntryEnd(content: string, start: number, opener: "{" | "(") {
       escaped = true;
       continue;
     }
-    if (char === '"') {
+    if (
+      char === '"' &&
+      (inQuote || (depth === 1 && (opener === "{" || braceDepth === 0)))
+    ) {
       inQuote = !inQuote;
       continue;
     }
     if (inQuote) continue;
+    if (opener === "(") {
+      if (char === "{") {
+        braceDepth++;
+        continue;
+      }
+      if (char === "}") {
+        braceDepth = Math.max(0, braceDepth - 1);
+        continue;
+      }
+      if (braceDepth > 0) continue;
+    }
     if (char === opener) depth++;
     if (char === closer) {
       depth--;
@@ -65,7 +80,7 @@ function splitFields(body: string) {
       escaped = true;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' && (inQuote || (braceDepth === 0 && parenDepth === 0))) {
       inQuote = !inQuote;
       continue;
     }

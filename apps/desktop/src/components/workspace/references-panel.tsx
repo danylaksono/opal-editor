@@ -32,9 +32,13 @@ import {
   type ReferenceFilter,
   type ReferenceIssueFilter,
 } from "@/lib/project-references";
+import {
+  resolveProjectReferenceScope,
+  selectProjectReferenceFiles,
+} from "@/lib/project-reference-scope";
 import type { ZoteroCollection } from "@/lib/zotero-api";
 import { useZoteroStore, type CollectionSyncInfo } from "@/stores/zotero-store";
-import { useDocumentStore } from "@/stores/document-store";
+import { resolveTexRoot, useDocumentStore } from "@/stores/document-store";
 import { cn } from "@/lib/utils";
 import { ExternalBibliographySources } from "@/components/workspace/external-bibliography-sources";
 import { DuplicateBibliographyDialog } from "@/components/workspace/duplicate-bibliography-dialog";
@@ -125,6 +129,7 @@ export function ReferencesHeader() {
 
 function ProjectReferencesView() {
   const files = useDocumentStore((state) => state.files);
+  const activeFileId = useDocumentStore((state) => state.activeFileId);
   const setActiveFile = useDocumentStore((state) => state.setActiveFile);
   const requestJumpToPosition = useDocumentStore(
     (state) => state.requestJumpToPosition,
@@ -134,13 +139,46 @@ function ProjectReferencesView() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ReferenceFilter>("all");
   const [issueFilter, setIssueFilter] = useState<ReferenceIssueFilter>("all");
+  const [bibliographyScope, setBibliographyScope] = useState<
+    "document" | "all"
+  >("document");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateDialogTarget, setDuplicateDialogTarget] = useState<{
     key: string;
     renameEntry?: ProjectReference;
   } | null>(null);
   const [repairingDuplicate, setRepairingDuplicate] = useState(false);
-  const index = useMemo(() => buildProjectReferenceIndex(files), [files]);
+  const rootFileId = useMemo(() => {
+    const seed =
+      files.find((file) => file.id === activeFileId && file.type === "tex")
+        ?.id ??
+      files.find((file) => file.type === "tex")?.id ??
+      activeFileId;
+    return resolveTexRoot(seed, files);
+  }, [activeFileId, files]);
+  const projectScope = useMemo(
+    () => resolveProjectReferenceScope(files, rootFileId),
+    [files, rootFileId],
+  );
+  const indexedFiles = useMemo(
+    () =>
+      selectProjectReferenceFiles(
+        files,
+        projectScope,
+        bibliographyScope === "all",
+      ),
+    [bibliographyScope, files, projectScope],
+  );
+  const index = useMemo(
+    () => buildProjectReferenceIndex(indexedFiles),
+    [indexedFiles],
+  );
+  const allBibliographyCount = files.filter(
+    (file) => file.type === "bib",
+  ).length;
+  const documentBibliographyNames = files
+    .filter((file) => projectScope.bibliographyFileIds.has(file.id))
+    .map((file) => file.relativePath);
   const duplicateGroups = useMemo(
     () => groupDuplicateBibliographyEntries(index.entries),
     [index.entries],
@@ -219,7 +257,7 @@ function ProjectReferencesView() {
     if (aiStreaming) return;
 
     const relevantFileIds = new Set(reference.uses.map((use) => use.fileId));
-    const relevantFiles = files
+    const relevantFiles = indexedFiles
       .filter(
         (file) =>
           relevantFileIds.has(file.id) ||
@@ -230,7 +268,7 @@ function ProjectReferencesView() {
     void useAiChatStore
       .getState()
       .sendPrompt(
-        buildMissingCitationSearchPrompt(reference, files),
+        buildMissingCitationSearchPrompt(reference, indexedFiles),
         undefined,
         {
           scope: "bibliography",
@@ -243,13 +281,53 @@ function ProjectReferencesView() {
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-2 border-sidebar-border border-b px-2 py-2">
+        {allBibliographyCount > 1 &&
+          !projectScope.fallbackToAllBibliographyFiles && (
+            <div className="space-y-1">
+              <div
+                className="grid grid-cols-2 rounded-md bg-muted p-0.5"
+                role="group"
+                aria-label="Bibliography file scope"
+              >
+                <BibliographyScopeButton
+                  active={bibliographyScope === "document"}
+                  label={`Document ${projectScope.bibliographyFileIds.size}`}
+                  onClick={() => setBibliographyScope("document")}
+                />
+                <BibliographyScopeButton
+                  active={bibliographyScope === "all"}
+                  label={`All .bib ${allBibliographyCount}`}
+                  onClick={() => setBibliographyScope("all")}
+                />
+              </div>
+              <p
+                className="truncate px-0.5 text-[9px] text-muted-foreground"
+                title={documentBibliographyNames.join(", ")}
+              >
+                Document uses {documentBibliographyNames.join(", ")}
+              </p>
+            </div>
+          )}
+        {allBibliographyCount > 1 &&
+          projectScope.fallbackToAllBibliographyFiles && (
+            <p className="px-0.5 text-[9px] text-muted-foreground">
+              No bibliography declaration resolved; showing all .bib files
+            </p>
+          )}
         <div className="relative">
           <SearchIcon className="absolute top-1/2 left-2 size-3 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              const nextQuery = event.target.value;
+              setQuery(nextQuery);
+              if (nextQuery.trim()) {
+                setFilter("all");
+                setIssueFilter("all");
+              }
+            }}
             className="h-7 pl-7 text-xs"
-            placeholder="Search project references"
+            placeholder="Search keys, metadata, DOI, or BibTeX"
             aria-label="Search project references"
           />
         </div>
@@ -395,7 +473,12 @@ function ProjectReferencesView() {
       </div>
 
       <div className="border-sidebar-border border-t px-2 py-1.5 text-[10px] text-muted-foreground">
-        {filter === "issues" ? (
+        {query.trim() ? (
+          <>
+            {references.length} global search{" "}
+            {references.length === 1 ? "result" : "results"}
+          </>
+        ) : filter === "issues" ? (
           <>
             {issueCount} distinct {issueCount === 1 ? "issue" : "issues"} ·{" "}
             {references.length} matching{" "}
@@ -453,6 +536,32 @@ function ReferenceFilterButton({
           ? "bg-sidebar-accent font-medium text-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
         hasIssue && !active && "text-destructive",
+      )}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function BibliographyScopeButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "rounded px-2 py-1 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "bg-background font-medium text-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
       )}
       aria-pressed={active}
       onClick={onClick}

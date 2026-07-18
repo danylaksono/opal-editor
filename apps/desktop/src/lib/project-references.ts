@@ -115,6 +115,7 @@ export function filterProjectReferences(
       entry.booktitle,
       entry.publisher,
       entry.filePath,
+      entry.source,
     ]
       .filter(Boolean)
       .join(" ")
@@ -124,6 +125,7 @@ export function filterProjectReferences(
 
   const entries = index.entries.filter((entry) => {
     if (!matchesQuery(entry)) return false;
+    if (normalizedQuery) return true;
     if (filter === "cited") return entry.citationCount > 0;
     if (filter === "unused") return entry.citationCount === 0;
     if (filter === "issues") {
@@ -132,9 +134,10 @@ export function filterProjectReferences(
     }
     return true;
   });
-  const missing =
-    filter === "all" || (filter === "issues" && issueFilter !== "duplicates")
-      ? index.missing.filter(matchesQuery)
+  const missing = normalizedQuery
+    ? index.missing.filter(matchesQuery)
+    : filter === "all" || (filter === "issues" && issueFilter !== "duplicates")
+      ? index.missing
       : [];
 
   return [...missing, ...entries].sort((a, b) => {

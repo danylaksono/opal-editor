@@ -62,6 +62,42 @@ describe("parseBibEntries", () => {
     });
   });
 
+  it("does not swallow an entry after a quote inside a braced name", () => {
+    const entries = parseBibtexSourceEntries(`@article{pelzer2014added,
+  title = {The Added Value of Planning Support Systems},
+  author = {Pelzer, Peter and Rouwette, Eti{"e}nne},
+  year = {2014}
+}
+
+@article{tebrommelstroet2010equip,
+  title = {Equip the Warrior Instead of Manning the Equipment},
+  author = {te Br{"o}mmelstroet, Marco},
+  year = {2010},
+  doi = {10.5198/jtlu.v3i1.99}
+}`);
+
+    expect(entries).toHaveLength(2);
+    expect(entries[1]).toMatchObject({
+      key: "tebrommelstroet2010equip",
+      title: "Equip the Warrior Instead of Manning the Equipment",
+      author: 'te Br"ommelstroet, Marco',
+      year: "2010",
+    });
+  });
+
+  it("handles braced values inside parenthesized entries", () => {
+    const entries = parseBibtexSourceEntries(`@article(example,
+  title = {Planning (Support) Systems},
+  author = {Rouwette, Eti{"e}nne}
+)`);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      key: "example",
+      title: "Planning (Support) Systems",
+    });
+  });
+
   it("ignores non-entry bibtex blocks", () => {
     const entries = parseBibEntries(`
       @string{jmlr = {Journal of Machine Learning Research}}

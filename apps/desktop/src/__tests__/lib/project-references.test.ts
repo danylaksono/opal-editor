@@ -86,6 +86,27 @@ describe("project reference index", () => {
     ]);
   });
 
+  it("searches raw BibTeX globally regardless of the active filter", () => {
+    const index = buildProjectReferenceIndex([
+      file("main.tex", "tex", String.raw`\cite{smith2024,missing-doi-2025}`),
+      file(
+        "references.bib",
+        "bib",
+        `@article{smith2024,
+  title = {A useful paper},
+  doi = {10.1234/equip.2024}
+}`,
+      ),
+    ]);
+
+    expect(filterProjectReferences(index, "unused", "10.1234/equip")).toEqual([
+      expect.objectContaining({ key: "smith2024" }),
+    ]);
+    expect(
+      filterProjectReferences(index, "cited", "missing-doi", "duplicates"),
+    ).toEqual([expect.objectContaining({ key: "missing-doi-2025" })]);
+  });
+
   it("marks duplicate bibliography keys as issues", () => {
     const index = buildProjectReferenceIndex([
       ...files,
