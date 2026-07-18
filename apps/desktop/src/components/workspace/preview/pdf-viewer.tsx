@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   LinkIcon,
   LoaderIcon,
+  MessageSquarePlusIcon,
 } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -14,7 +15,7 @@ import {
   getOrOpenDocument,
 } from "@/lib/mupdf/pdf-doc-cache";
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
-import { MupdfPage } from "./mupdf-page";
+import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
 import { createLogger } from "@/lib/debug/logger";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { PageSize } from "@/lib/mupdf/types";
@@ -42,6 +43,8 @@ export interface PdfTextSelection {
   position: { top: number; left: number };
   pdfX: number;
   pdfY: number;
+  pdfWidth: number;
+  pdfHeight: number;
 }
 
 export interface CaptureResult {
@@ -59,12 +62,25 @@ export interface PdfHighlightLocation {
   height: number;
 }
 
+export type PdfReviewAnnotation = MupdfReviewAnnotation;
+
+export interface PdfReviewTarget {
+  kind: "text" | "point";
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  selectedText: string;
+}
+
 interface PdfContextTarget {
   page: number;
   x: number;
   y: number;
   selectedText: string;
   href: string | null;
+  reviewTarget: PdfReviewTarget;
 }
 
 interface PdfViewerProps {
@@ -89,6 +105,10 @@ interface PdfViewerProps {
   onCancelCapture?: () => void;
   onStartCapture?: () => void;
   highlightLocation?: PdfHighlightLocation | null;
+  reviewAnnotations?: PdfReviewAnnotation[];
+  selectedReviewAnnotationId?: string | null;
+  onSelectReviewAnnotation?: (id: string) => void;
+  onAddReviewComment?: (target: PdfReviewTarget) => void;
 }
 
 export function PdfViewer({
@@ -111,6 +131,10 @@ export function PdfViewer({
   onCancelCapture,
   onStartCapture,
   highlightLocation,
+  reviewAnnotations = [],
+  selectedReviewAnnotationId,
+  onSelectReviewAnnotation,
+  onAddReviewComment,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -505,11 +529,15 @@ export function PdfViewer({
 
         let pdfX = 0;
         let pdfY = 0;
+        let pdfWidth = 0;
+        let pdfHeight = 0;
         if (pageEl) {
           const pageRect = pageEl.getBoundingClientRect();
           const currentScale = scaleRef.current;
           pdfX = (rect.left - pageRect.left) / currentScale;
           pdfY = (rect.top - pageRect.top) / currentScale;
+          pdfWidth = rect.width / currentScale;
+          pdfHeight = rect.height / currentScale;
         }
 
         cb({
@@ -518,6 +546,8 @@ export function PdfViewer({
           position: { top: rect.bottom, left: rect.left },
           pdfX,
           pdfY,
+          pdfWidth,
+          pdfHeight,
         });
       }, 300);
     };
@@ -825,7 +855,38 @@ export function PdfViewer({
       selectionAnchor && containerRef.current?.contains(selectionAnchor)
         ? (selection?.toString().trim() ?? "")
         : "";
+    const selectionRange =
+      selectedText && selection?.rangeCount
+        ? selection.getRangeAt(0).getBoundingClientRect()
+        : null;
+    const selectionPage = selectionAnchor?.closest(
+      ".mupdf-page",
+    ) as HTMLElement | null;
+    const selectionPageRect = selectionPage?.getBoundingClientRect();
+    const selectionPageNumber = selectionPage
+      ? parseInt(selectionPage.getAttribute("data-page-number") || "0", 10)
+      : 0;
     const anchor = target.closest("a") as HTMLAnchorElement | null;
+    const reviewTarget: PdfReviewTarget =
+      selectionRange && selectionPageRect && selectionPageNumber
+        ? {
+            kind: "text",
+            page: selectionPageNumber,
+            x: (selectionRange.left - selectionPageRect.left) / currentScale,
+            y: (selectionRange.top - selectionPageRect.top) / currentScale,
+            width: selectionRange.width / currentScale,
+            height: selectionRange.height / currentScale,
+            selectedText,
+          }
+        : {
+            kind: "point",
+            page,
+            x: pageRect ? (event.clientX - pageRect.left) / currentScale : 0,
+            y: pageRect ? (event.clientY - pageRect.top) / currentScale : 0,
+            width: 12,
+            height: 12,
+            selectedText: "",
+          };
 
     setContextTarget({
       page,
@@ -833,6 +894,7 @@ export function PdfViewer({
       y: pageRect ? (event.clientY - pageRect.top) / currentScale : 0,
       selectedText,
       href: anchor?.getAttribute("href") ?? null,
+      reviewTarget,
     });
   }, []);
 
@@ -874,6 +936,11 @@ export function PdfViewer({
                 highlight={
                   highlightLocation?.page === i + 1 ? highlightLocation : null
                 }
+                reviewAnnotations={reviewAnnotations.filter(
+                  (annotation) => annotation.page === i + 1,
+                )}
+                selectedReviewAnnotationId={selectedReviewAnnotationId}
+                onSelectReviewAnnotation={onSelectReviewAnnotation}
               />
             ))}
           </div>
@@ -900,6 +967,19 @@ export function PdfViewer({
           <FileTextIcon />
           Go to source location
         </ContextMenuItem>
+        {onAddReviewComment && (
+          <ContextMenuItem
+            disabled={!contextTarget?.page}
+            onSelect={() => {
+              if (contextTarget?.page) {
+                onAddReviewComment(contextTarget.reviewTarget);
+              }
+            }}
+          >
+            <MessageSquarePlusIcon />
+            Add review comment
+          </ContextMenuItem>
+        )}
         {contextTarget?.href && (
           <>
             <ContextMenuItem onSelect={() => openPdfHref(contextTarget.href!)}>

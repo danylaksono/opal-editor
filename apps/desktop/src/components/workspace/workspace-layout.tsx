@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
   AlertCircleIcon,
@@ -248,6 +248,7 @@ export function WorkspaceLayout() {
   );
   const focusMode = useWorkspaceLayoutStore((s) => s.focusMode);
   const toggleFocusMode = useWorkspaceLayoutStore((s) => s.toggleFocusMode);
+  const reviewMode = useWorkspaceLayoutStore((s) => s.reviewMode);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const activeTutorialProject = useOnboardingStore(
     (s) => s.activeTutorialProject,
@@ -298,11 +299,11 @@ export function WorkspaceLayout() {
     <div className="flex h-full bg-background">
       <PackageChangeDialog />
       <BibliographyImportDialog />
-      {!focusMode && <ActivityRail />}
+      {!focusMode && !reviewMode && <ActivityRail />}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         <PanelGroup direction="horizontal" className="min-h-0 min-w-0 flex-1">
-          {!focusMode && sidePanelOpen && (
+          {!reviewMode && !focusMode && sidePanelOpen && (
             <>
               <Panel defaultSize={18} minSize={12} maxSize={32}>
                 <Sidebar activePanel={activeSidePanel} />
@@ -312,57 +313,65 @@ export function WorkspaceLayout() {
             </>
           )}
 
-          <Panel defaultSize={previewVisible ? 42.5 : 85} minSize={25}>
-            <div className="relative h-full">
-              <LatexEditor />
-              <button
-                type="button"
-                onClick={togglePreview}
-                title={
-                  previewVisible
-                    ? "Hide PDF preview (Cmd+\\)"
-                    : "Show PDF preview (Cmd+\\)"
-                }
-                className="absolute right-3 bottom-3 z-40 rounded-md border bg-background/85 p-1.5 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {previewVisible ? (
-                  <PanelRightCloseIcon className="size-4" />
-                ) : (
-                  <PanelRightOpenIcon className="size-4" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={toggleFocusMode}
-                title={
-                  focusMode
-                    ? "Exit focus mode (Cmd+Shift+F)"
-                    : "Enter focus mode (Cmd+Shift+F)"
-                }
-                className="absolute bottom-3 left-3 z-40 rounded-md border bg-background/85 p-1.5 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {focusMode ? (
-                  <Minimize2Icon className="size-4" />
-                ) : (
-                  <Maximize2Icon className="size-4" />
-                )}
-              </button>
-            </div>
-          </Panel>
+          {!reviewMode && (
+            <Panel
+              key="latex-editor"
+              defaultSize={previewVisible ? 42.5 : 85}
+              minSize={25}
+            >
+              <div className="relative h-full">
+                <LatexEditor />
+                <button
+                  type="button"
+                  onClick={togglePreview}
+                  title={
+                    previewVisible
+                      ? "Hide PDF preview (Cmd+\\)"
+                      : "Show PDF preview (Cmd+\\)"
+                  }
+                  className="absolute right-3 bottom-3 z-40 rounded-md border bg-background/85 p-1.5 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {previewVisible ? (
+                    <PanelRightCloseIcon className="size-4" />
+                  ) : (
+                    <PanelRightOpenIcon className="size-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleFocusMode}
+                  title={
+                    focusMode
+                      ? "Exit focus mode (Cmd+Shift+F)"
+                      : "Enter focus mode (Cmd+Shift+F)"
+                  }
+                  className="absolute bottom-3 left-3 z-40 rounded-md border bg-background/85 p-1.5 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {focusMode ? (
+                    <Minimize2Icon className="size-4" />
+                  ) : (
+                    <Maximize2Icon className="size-4" />
+                  )}
+                </button>
+              </div>
+            </Panel>
+          )}
 
-          {previewVisible && (
-            <>
-              <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-ring" />
+          {(reviewMode || previewVisible) && (
+            <Fragment key="pdf-preview">
+              {!reviewMode && (
+                <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-ring" />
+              )}
 
-              <Panel defaultSize={42.5} minSize={25}>
+              <Panel defaultSize={reviewMode ? 100 : 42.5} minSize={25}>
                 <PdfPreview />
               </Panel>
-            </>
+            </Fragment>
           )}
         </PanelGroup>
 
-        {!focusMode && <WorkspaceProblemsDrawer />}
-        {!focusMode && <StatusBar />}
+        {!focusMode && !reviewMode && <WorkspaceProblemsDrawer />}
+        {!focusMode && !reviewMode && <StatusBar />}
       </div>
     </div>
   );

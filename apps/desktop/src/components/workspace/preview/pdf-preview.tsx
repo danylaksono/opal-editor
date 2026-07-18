@@ -14,6 +14,9 @@ import {
   CrosshairIcon,
   ChevronUpIcon,
   ChevronDownIcon,
+  MessageSquarePlusIcon,
+  MessageSquareTextIcon,
+  Minimize2Icon,
 } from "lucide-react";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -57,11 +60,24 @@ import { save } from "@tauri-apps/plugin-dialog";
 import {
   PdfViewer,
   type PdfHighlightLocation,
+  type PdfReviewAnnotation,
+  type PdfReviewTarget,
   type PdfTextSelection,
   type CaptureResult,
 } from "./pdf-viewer";
 import { resolveTexRoot } from "@/stores/document-store";
 import { createLogger } from "@/lib/debug/logger";
+import {
+  useReviewStore,
+  type ReviewComment,
+  type ReviewSourceLocation,
+} from "@/stores/review-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import {
+  ReviewCommentDialog,
+  ReviewCommentsPanel,
+  type ReviewCommentDraft,
+} from "./review-comments-panel";
 
 const log = createLogger("pdf-preview");
 
@@ -121,9 +137,21 @@ export function PdfPreview() {
   const setStatusPageCount = usePreviewStore((state) => state.setPageCount);
   const setStatusCurrentPage = usePreviewStore((state) => state.setCurrentPage);
   const locationRequest = usePreviewStore((state) => state.locationRequest);
+  const requestPdfLocation = usePreviewStore((state) => state.requestLocation);
   const clearLocationRequest = usePreviewStore(
     (state) => state.clearLocationRequest,
   );
+  const reviewMode = useWorkspaceLayoutStore((state) => state.reviewMode);
+  const setReviewMode = useWorkspaceLayoutStore((state) => state.setReviewMode);
+  const reviewComments = useReviewStore((state) => state.comments);
+  const reviewLoading = useReviewStore((state) => state.loading);
+  const loadReviewProject = useReviewStore((state) => state.loadProject);
+  const clearReviewProject = useReviewStore((state) => state.clearProject);
+  const addReviewComment = useReviewStore((state) => state.addComment);
+  const setReviewCommentStatus = useReviewStore(
+    (state) => state.setCommentStatus,
+  );
+  const deleteReviewComment = useReviewStore((state) => state.deleteComment);
   const [pageInputValue, setPageInputValue] = useState<string>("1");
   const [isEditingPage, setIsEditingPage] = useState(false);
   const scrollToPageRef = useRef<((page: number) => void) | null>(null);
@@ -131,6 +159,10 @@ export function PdfPreview() {
   const [captureMode, setCaptureMode] = useState(false);
   const [synctexHighlight, setSynctexHighlight] =
     useState<PdfHighlightLocation | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<ReviewCommentDraft | null>(
+    null,
+  );
   const [fitMode, setFitMode] = useState<FitMode>(null);
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -164,6 +196,25 @@ export function PdfPreview() {
   );
   const rootFileName =
     files.find((f) => f.id === currentRootFileId)?.relativePath ?? "main.tex";
+  const documentReviewComments = useMemo(
+    () =>
+      reviewComments.filter((comment) => comment.documentRoot === rootFileName),
+    [reviewComments, rootFileName],
+  );
+  const reviewAnnotations: PdfReviewAnnotation[] = useMemo(
+    () =>
+      documentReviewComments.map((comment) => ({
+        id: comment.id,
+        page: comment.anchor.page,
+        x: comment.anchor.x,
+        y: comment.anchor.y,
+        width: comment.anchor.width,
+        height: comment.anchor.height,
+        kind: comment.anchor.kind,
+        status: comment.status,
+      })),
+    [documentReviewComments],
+  );
   const previewIsStale =
     !!pdfData &&
     isTexActive &&
@@ -171,6 +222,16 @@ export function PdfPreview() {
     contentGeneration !== lastCompiledGeneration;
   const [aliveOrder, setAliveOrder] = useState<string[]>([]);
   const prevRootRef = useRef(currentRootFileId);
+
+  useEffect(() => {
+    if (!projectRoot) {
+      clearReviewProject();
+      return;
+    }
+    if (useReviewStore.getState().projectRoot !== projectRoot) {
+      void loadReviewProject(projectRoot);
+    }
+  }, [projectRoot, loadReviewProject, clearReviewProject]);
 
   // Save/restore zoom state per root file on switch
   useEffect(() => {
@@ -239,6 +300,10 @@ export function PdfPreview() {
 
       const state = useDocumentStore.getState();
       const needsSwitch = state.activeFileId !== targetFile.id;
+      const leavingReview = reviewMode;
+      if (leavingReview) {
+        setReviewMode(false);
+      }
       if (needsSwitch) {
         setActiveFile(targetFile.id);
       }
@@ -257,13 +322,20 @@ export function PdfPreview() {
         );
       }
 
-      if (needsSwitch) {
+      if (needsSwitch || leavingReview) {
         setTimeout(() => requestJumpToPosition(offset), 100);
       } else {
         requestJumpToPosition(offset);
       }
     },
-    [projectRoot, files, setActiveFile, requestJumpToPosition],
+    [
+      projectRoot,
+      files,
+      reviewMode,
+      setReviewMode,
+      setActiveFile,
+      requestJumpToPosition,
+    ],
   );
 
   // Resolved source location from synctex
@@ -304,42 +376,46 @@ export function PdfPreview() {
       ? `~@PDF page ${pdfSelection.pageNumber}`
       : "";
 
-  const navigateToSource = useCallback(() => {
-    if (!resolvedSource) return;
-    const normalize = (p: string) => p.replace(/\\/g, "/").replace(/^\.\//, "");
-    const normalizedTarget = normalize(resolvedSource.file);
-    const targetFile = files.find(
-      (f) => normalize(f.relativePath) === normalizedTarget,
-    );
-    if (!targetFile) return;
-
-    const state = useDocumentStore.getState();
-    const needsSwitch = state.activeFileId !== targetFile.id;
-    if (needsSwitch) setActiveFile(targetFile.id);
-
-    const fileContent = targetFile.content ?? "";
-    const fileLines = fileContent.split("\n");
-    const targetLine = Math.max(
-      1,
-      Math.min(resolvedSource.line, fileLines.length),
-    );
-    let offset = 0;
-    for (let i = 0; i < targetLine - 1; i++) {
-      offset += fileLines[i].length + 1;
-    }
-    if (resolvedSource.column > 0) {
-      offset += Math.min(
-        resolvedSource.column,
-        fileLines[targetLine - 1]?.length ?? 0,
+  const navigateToSourceLocation = useCallback(
+    (source: ReviewSourceLocation) => {
+      const normalize = (p: string) =>
+        p.replace(/\\/g, "/").replace(/^\.\//, "");
+      const normalizedTarget = normalize(source.file);
+      const targetFile = files.find(
+        (f) => normalize(f.relativePath) === normalizedTarget,
       );
-    }
+      if (!targetFile) return;
 
-    if (needsSwitch) {
-      setTimeout(() => requestJumpToPosition(offset), 100);
-    } else {
-      requestJumpToPosition(offset);
-    }
-  }, [resolvedSource, files, setActiveFile, requestJumpToPosition]);
+      const state = useDocumentStore.getState();
+      const needsSwitch = state.activeFileId !== targetFile.id;
+      if (needsSwitch) setActiveFile(targetFile.id);
+
+      const fileContent = targetFile.content ?? "";
+      const fileLines = fileContent.split("\n");
+      const targetLine = Math.max(1, Math.min(source.line, fileLines.length));
+      let offset = 0;
+      for (let i = 0; i < targetLine - 1; i++) {
+        offset += fileLines[i].length + 1;
+      }
+      if (source.column > 0) {
+        offset += Math.min(
+          source.column,
+          fileLines[targetLine - 1]?.length ?? 0,
+        );
+      }
+
+      if (needsSwitch) {
+        setTimeout(() => requestJumpToPosition(offset), 100);
+      } else {
+        requestJumpToPosition(offset);
+      }
+    },
+    [files, setActiveFile, requestJumpToPosition],
+  );
+
+  const navigateToSource = useCallback(() => {
+    if (resolvedSource) navigateToSourceLocation(resolvedSource);
+  }, [resolvedSource, navigateToSourceLocation]);
 
   const buildPdfContext = useCallback(
     (text: string) => {
@@ -369,8 +445,36 @@ export function PdfPreview() {
     [pdfSelection, pdfContextLabel, resolvedSource, buildPdfContext],
   );
 
+  const startReviewComment = useCallback(
+    async (target: PdfReviewTarget) => {
+      if (!target.page) return;
+      const source = projectRoot
+        ? await synctexEdit(projectRoot, target.page, target.x, target.y)
+        : null;
+      setReviewDraft({
+        documentRoot: rootFileName,
+        anchor: {
+          kind: target.kind,
+          page: target.page,
+          x: target.x,
+          y: target.y,
+          width: Math.max(12, target.width),
+          height: Math.max(12, target.height),
+          selectedText: target.selectedText || undefined,
+          source: source ?? undefined,
+        },
+      });
+    },
+    [projectRoot, rootFileName],
+  );
+
   const pdfToolbarActions: ToolbarAction[] = useMemo(
     () => [
+      {
+        id: "comment",
+        label: "Add review comment",
+        icon: <MessageSquarePlusIcon className="size-4" />,
+      },
       // Proofread feeds the AI chat — only offer it when a provider is configured.
       ...(aiProvider !== "none"
         ? [
@@ -398,7 +502,17 @@ export function PdfPreview() {
       const sel = pdfSelection;
       setPdfSelection(null);
       window.getSelection()?.removeAllRanges();
-      if (actionId === "proofread") {
+      if (actionId === "comment") {
+        void startReviewComment({
+          kind: "text",
+          page: sel.pageNumber,
+          x: sel.pdfX,
+          y: sel.pdfY,
+          width: sel.pdfWidth,
+          height: sel.pdfHeight,
+          selectedText: sel.text,
+        });
+      } else if (actionId === "proofread") {
         useAiChatStore
           .getState()
           .sendPrompt("Proofread and fix any errors in this text", {
@@ -416,7 +530,57 @@ export function PdfPreview() {
       resolvedSource,
       navigateToSource,
       buildPdfContext,
+      startReviewComment,
     ],
+  );
+
+  const handleSaveReviewComment = useCallback(
+    (body: string) => {
+      if (!reviewDraft) return;
+      const comment = addReviewComment({
+        documentRoot: reviewDraft.documentRoot,
+        anchor: reviewDraft.anchor,
+        body,
+      });
+      setSelectedReviewId(comment.id);
+      setReviewDraft(null);
+      setPdfSelection(null);
+      window.getSelection()?.removeAllRanges();
+      setReviewMode(true);
+    },
+    [reviewDraft, addReviewComment, setReviewMode],
+  );
+
+  const handleSelectReviewComment = useCallback(
+    (comment: ReviewComment) => {
+      setSelectedReviewId(comment.id);
+      requestPdfLocation({
+        page: comment.anchor.page,
+        x: comment.anchor.x,
+        y: comment.anchor.y,
+        width: comment.anchor.width,
+        height: comment.anchor.height,
+      });
+    },
+    [requestPdfLocation],
+  );
+
+  const handleSelectReviewAnnotation = useCallback(
+    (id: string) => {
+      const comment = documentReviewComments.find((item) => item.id === id);
+      if (comment) handleSelectReviewComment(comment);
+    },
+    [documentReviewComments, handleSelectReviewComment],
+  );
+
+  const handleReviewGoToSource = useCallback(
+    (comment: ReviewComment) => {
+      if (!comment.anchor.source) return;
+      const source = comment.anchor.source;
+      setReviewMode(false);
+      setTimeout(() => navigateToSourceLocation(source), 50);
+    },
+    [navigateToSourceLocation, setReviewMode],
   );
 
   const handlePdfToolbarDismiss = useCallback(() => {
@@ -913,6 +1077,14 @@ export function PdfPreview() {
                     isActive ? () => setCaptureMode(true) : undefined
                   }
                   highlightLocation={isActive ? synctexHighlight : null}
+                  reviewAnnotations={isActive ? reviewAnnotations : []}
+                  selectedReviewAnnotationId={
+                    isActive ? selectedReviewId : null
+                  }
+                  onSelectReviewAnnotation={
+                    isActive ? handleSelectReviewAnnotation : undefined
+                  }
+                  onAddReviewComment={isActive ? startReviewComment : undefined}
                 />
               </div>
             </ErrorBoundary>
@@ -925,7 +1097,9 @@ export function PdfPreview() {
   return (
     <div
       ref={previewContainerRef}
-      className="paper-stage @container/pv relative flex h-full flex-col"
+      className={`paper-stage @container/pv relative flex h-full min-w-0 flex-col ${
+        reviewMode ? "pr-80" : ""
+      }`}
     >
       <div className="preview-toolbar flex h-[calc(44px+var(--titlebar-height))] shrink-0 items-center border-border border-b px-2.5 pt-[var(--titlebar-height)]">
         <div className="flex items-center gap-1">
@@ -1141,6 +1315,22 @@ export function PdfPreview() {
                 </>
               )}
               <Button
+                variant={reviewMode ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setReviewMode(!reviewMode)}
+                title={reviewMode ? "Exit PDF review" : "Review PDF"}
+              >
+                {reviewMode ? (
+                  <Minimize2Icon className="size-3.5" />
+                ) : (
+                  <MessageSquareTextIcon className="size-3.5" />
+                )}
+                <span className="@[42rem]/pv:inline hidden">
+                  {reviewMode ? "Exit review" : "Review"}
+                </span>
+              </Button>
+              <Button
                 variant="ghost"
                 size="icon"
                 className="size-7"
@@ -1205,6 +1395,37 @@ export function PdfPreview() {
           </div>
         </div>
       )}
+      {reviewMode && (
+        <div className="absolute inset-y-0 right-0 z-40">
+          <ReviewCommentsPanel
+            comments={documentReviewComments}
+            loading={reviewLoading}
+            selectedId={selectedReviewId}
+            onSelect={handleSelectReviewComment}
+            onGoToSource={handleReviewGoToSource}
+            onSetStatus={(comment, status) =>
+              setReviewCommentStatus(comment.id, status)
+            }
+            onDelete={(comment) => {
+              if (
+                window.confirm(
+                  "Delete this review comment? This cannot be undone.",
+                )
+              ) {
+                deleteReviewComment(comment.id);
+                if (selectedReviewId === comment.id) setSelectedReviewId(null);
+              }
+            }}
+          />
+        </div>
+      )}
+      <ReviewCommentDialog
+        draft={reviewDraft}
+        onOpenChange={(open) => {
+          if (!open) setReviewDraft(null);
+        }}
+        onSave={handleSaveReviewComment}
+      />
     </div>
   );
 }

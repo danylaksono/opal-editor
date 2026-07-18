@@ -8,6 +8,7 @@ describe("useWorkspaceLayoutStore", () => {
       activeSidePanel: "files",
       problemsDrawerOpen: false,
       focusMode: false,
+      reviewMode: false,
     });
   });
 
@@ -33,5 +34,19 @@ describe("useWorkspaceLayoutStore", () => {
 
     useWorkspaceLayoutStore.getState().setFocusMode(false);
     expect(useWorkspaceLayoutStore.getState().focusMode).toBe(false);
+  });
+
+  it("enters review mode and closes the problems drawer", () => {
+    useWorkspaceLayoutStore.setState({ problemsDrawerOpen: true });
+
+    useWorkspaceLayoutStore.getState().setReviewMode(true);
+
+    expect(useWorkspaceLayoutStore.getState()).toMatchObject({
+      reviewMode: true,
+      problemsDrawerOpen: false,
+    });
+
+    useWorkspaceLayoutStore.getState().toggleReviewMode();
+    expect(useWorkspaceLayoutStore.getState().reviewMode).toBe(false);
   });
 });

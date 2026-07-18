@@ -3,8 +3,21 @@ import { getMupdfClient } from "@/lib/mupdf/mupdf-client";
 import { createLogger } from "@/lib/debug/logger";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { StructuredTextData, LinkData } from "@/lib/mupdf/types";
+import { MessageSquareIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const log = createLogger("mupdf-page");
+
+export interface MupdfReviewAnnotation {
+  id: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  kind: "text" | "point";
+  status: "open" | "resolved";
+}
 
 interface MupdfPageProps {
   docId: number;
@@ -19,6 +32,9 @@ interface MupdfPageProps {
     width: number;
     height: number;
   } | null;
+  reviewAnnotations?: MupdfReviewAnnotation[];
+  selectedReviewAnnotationId?: string | null;
+  onSelectReviewAnnotation?: (id: string) => void;
 }
 
 /** Check if a canvas appears blank (GPU context was silently invalidated).
@@ -46,6 +62,9 @@ export const MupdfPage = memo(function MupdfPage({
   pageHeight,
   isVisible,
   highlight,
+  reviewAnnotations = [],
+  selectedReviewAnnotationId,
+  onSelectReviewAnnotation,
 }: MupdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [textData, setTextData] = useState<StructuredTextData | null>(null);
@@ -206,6 +225,55 @@ export const MupdfPage = memo(function MupdfPage({
           aria-hidden="true"
         />
       )}
+
+      {reviewAnnotations.map((annotation) => (
+        <div key={annotation.id}>
+          {annotation.kind === "text" && (
+            <div
+              className={cn(
+                "pointer-events-none absolute z-[3] rounded-sm border",
+                annotation.status === "resolved"
+                  ? "border-slate-400/50 bg-slate-300/15"
+                  : "border-amber-500/50 bg-amber-300/25",
+                selectedReviewAnnotationId === annotation.id &&
+                  "ring-2 ring-blue-500/60",
+              )}
+              style={{
+                left: annotation.x * scale,
+                top: annotation.y * scale,
+                width: Math.max(10, annotation.width * scale),
+                height: Math.max(10, annotation.height * scale),
+              }}
+              aria-hidden="true"
+            />
+          )}
+          <button
+            type="button"
+            className={cn(
+              "absolute z-[4] flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-transform hover:scale-110",
+              annotation.status === "resolved"
+                ? "border-slate-400 bg-slate-100 text-slate-500"
+                : "border-amber-500 bg-amber-300 text-amber-950",
+              selectedReviewAnnotationId === annotation.id &&
+                "ring-2 ring-blue-500 ring-offset-1",
+            )}
+            style={{
+              left:
+                (annotation.x +
+                  (annotation.kind === "text" ? annotation.width : 0)) *
+                scale,
+              top: annotation.y * scale,
+            }}
+            aria-label={`Open review comment on page ${annotation.page}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectReviewAnnotation?.(annotation.id);
+            }}
+          >
+            <MessageSquareIcon className="size-3" />
+          </button>
+        </div>
+      ))}
     </div>
   );
 });
