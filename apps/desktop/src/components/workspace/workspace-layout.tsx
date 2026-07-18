@@ -49,7 +49,7 @@ const sidePanelItems: Array<{
   { id: "files", label: "Files", icon: FolderIcon },
   { id: "search", label: "Search", icon: SearchIcon },
   { id: "outline", label: "Outline", icon: ListIcon },
-  { id: "citations", label: "Citations", icon: BookOpenIcon },
+  { id: "citations", label: "References", icon: BookOpenIcon },
   { id: "health", label: "Project health", icon: StethoscopeIcon },
 ];
 

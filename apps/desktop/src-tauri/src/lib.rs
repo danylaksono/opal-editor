@@ -660,6 +660,7 @@ pub fn run() {
             zotero::zotero_start_oauth,
             zotero::zotero_complete_oauth,
             zotero::zotero_cancel_oauth,
+            zotero::zotero_local_request,
             history::history_init,
             history::history_snapshot,
             history::history_list,

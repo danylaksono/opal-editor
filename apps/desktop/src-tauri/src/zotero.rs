@@ -28,6 +28,7 @@ fn consumer_secret() -> String {
 const REQUEST_TOKEN_URL: &str = "https://www.zotero.org/oauth/request";
 const AUTHORIZE_URL: &str = "https://www.zotero.org/oauth/authorize";
 const ACCESS_TOKEN_URL: &str = "https://www.zotero.org/oauth/access";
+const LOCAL_API_BASE: &str = "http://127.0.0.1:23119/api";
 
 // ─── Types ───
 
@@ -41,6 +42,13 @@ pub struct ZoteroOAuthResult {
     pub api_key: String,
     pub user_id: String,
     pub username: String,
+}
+
+#[derive(Serialize)]
+pub struct ZoteroLocalResponse {
+    pub status: u16,
+    pub body: String,
+    pub headers: HashMap<String, String>,
 }
 
 pub struct ZoteroOAuthPending {
@@ -372,6 +380,75 @@ pub async fn zotero_cancel_oauth(state: tauri::State<'_, ZoteroOAuthState>) -> R
     Ok(())
 }
 
+/// Proxy read-only Zotero Desktop API requests through Rust. Keeping this
+/// transport native avoids webview CORS differences while restricting requests
+/// to Zotero's fixed loopback endpoint.
+fn is_valid_local_api_path(path: &str) -> bool {
+    let route = path.split(['?', '#']).next().unwrap_or(path);
+    let normalized_route = route.to_ascii_lowercase();
+    path.starts_with("/users/0/")
+        && !path.contains("://")
+        && !path.contains('\\')
+        && !normalized_route.contains("%2e")
+        && !normalized_route.contains("%2f")
+        && !normalized_route.contains("%5c")
+        && !route
+            .split('/')
+            .any(|segment| segment == "." || segment == "..")
+}
+
+#[tauri::command]
+pub async fn zotero_local_request(path: String) -> Result<ZoteroLocalResponse, String> {
+    if !is_valid_local_api_path(&path) {
+        return Err("Invalid Zotero local API path".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|error| format!("Failed to initialize Zotero client: {}", error))?;
+    let response = client
+        .get(format!("{}{}", LOCAL_API_BASE, path))
+        .header("Zotero-API-Version", "3")
+        .header(
+            reqwest::header::USER_AGENT,
+            concat!("TectonicEditor/", env!("CARGO_PKG_VERSION")),
+        )
+        .send()
+        .await
+        .map_err(|error| {
+            if error.is_connect() {
+                "Zotero Desktop is not running".to_string()
+            } else if error.is_timeout() {
+                "Zotero Desktop did not respond".to_string()
+            } else {
+                format!("Could not contact Zotero Desktop: {}", error)
+            }
+        })?;
+
+    let status = response.status().as_u16();
+    let headers = response
+        .headers()
+        .iter()
+        .filter_map(|(name, value)| {
+            value
+                .to_str()
+                .ok()
+                .map(|value| (name.as_str().to_string(), value.to_string()))
+        })
+        .collect();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("Failed to read Zotero Desktop response: {}", error))?;
+
+    Ok(ZoteroLocalResponse {
+        status,
+        body,
+        headers,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +474,17 @@ mod tests {
     #[test]
     fn test_percent_encode_empty() {
         assert_eq!(percent_encode(""), "");
+    }
+
+    #[test]
+    fn test_local_api_path_validation() {
+        assert!(is_valid_local_api_path("/users/0/collections?limit=1"));
+        assert!(is_valid_local_api_path("/users/0/items/top"));
+        assert!(!is_valid_local_api_path("users/0/items"));
+        assert!(!is_valid_local_api_path("//example.com/items"));
+        assert!(!is_valid_local_api_path("/../connector/ping"));
+        assert!(!is_valid_local_api_path("/users/0/%2e%2e/connector/ping"));
+        assert!(!is_valid_local_api_path("/users\\0\\items"));
     }
 
     #[test]

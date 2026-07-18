@@ -251,7 +251,7 @@ export function CitationInlineEditor({
           <div className="max-h-40 overflow-y-auto rounded-md border border-border p-1">
             {entries.length === 0 ? (
               <p className="px-2 py-5 text-center text-muted-foreground text-xs">
-                No .bib entries found. Add a bibliography or import Zotero.
+                No .bib entries found. Add a bibliography or import a library.
               </p>
             ) : filteredEntries.length === 0 ? (
               <p className="px-2 py-5 text-center text-muted-foreground text-xs">

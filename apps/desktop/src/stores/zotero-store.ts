@@ -2,12 +2,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   validateApiKey,
+  validateDesktop,
   fetchCollections,
   importCollection,
   syncCollection,
   startOAuth,
   completeOAuth,
   cancelOAuth,
+  type ZoteroConnection,
+  type ZoteroConnectionMode,
   type ZoteroCollection,
 } from "@/lib/zotero-api";
 import { useDocumentStore } from "@/stores/document-store";
@@ -31,8 +34,16 @@ type ProjectSyncedCollections = Record<
   Record<string, CollectionSyncInfo>
 >;
 
+export type ZoteroDesktopStatus =
+  | "unknown"
+  | "checking"
+  | "available"
+  | "unavailable"
+  | "disabled";
+
 interface ZoteroState {
   // Persisted
+  connectionMode: ZoteroConnectionMode | null;
   apiKey: string | null;
   userID: string | null;
   username: string | null;
@@ -47,7 +58,10 @@ interface ZoteroState {
   error: string | null;
   collections: ZoteroCollection[];
   isLoadingCollections: boolean;
+  desktopStatus: ZoteroDesktopStatus;
 
+  checkDesktop: () => Promise<boolean>;
+  connectWithDesktop: () => Promise<boolean>;
   connectWithOAuth: () => Promise<boolean>;
   connectWithApiKey: (apiKey: string) => Promise<boolean>;
   cancelConnect: () => void;
@@ -74,6 +88,22 @@ function sanitizeFileName(name: string): string {
     .toLowerCase();
 }
 
+function getConnection(
+  state: Pick<ZoteroState, "connectionMode" | "apiKey" | "userID">,
+): ZoteroConnection | null {
+  if (state.connectionMode === "desktop") {
+    return { mode: "desktop", userID: "0" };
+  }
+  if (state.connectionMode === "cloud" && state.apiKey && state.userID) {
+    return {
+      mode: "cloud",
+      apiKey: state.apiKey,
+      userID: state.userID,
+    };
+  }
+  return null;
+}
+
 /** Parse a .bib file into a map of citekey → full entry string */
 function parseBibEntries(content: string): Map<string, string> {
   const entries = new Map<string, string>();
@@ -92,6 +122,7 @@ function parseBibEntries(content: string): Map<string, string> {
 export const useZoteroStore = create<ZoteroState>()(
   persist(
     (set, get) => ({
+      connectionMode: null,
       apiKey: null,
       userID: null,
       username: null,
@@ -104,6 +135,58 @@ export const useZoteroStore = create<ZoteroState>()(
       error: null,
       collections: [],
       isLoadingCollections: false,
+      desktopStatus: "unknown",
+
+      checkDesktop: async () => {
+        set({ desktopStatus: "checking" });
+        try {
+          await validateDesktop();
+          set({ desktopStatus: "available" });
+          return true;
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Zotero Desktop unavailable";
+          set({
+            desktopStatus: message.includes("Local access is disabled")
+              ? "disabled"
+              : "unavailable",
+          });
+          return false;
+        }
+      },
+
+      connectWithDesktop: async () => {
+        set({
+          isValidating: true,
+          desktopStatus: "checking",
+          error: null,
+        });
+        try {
+          const creds = await validateDesktop();
+          set({
+            connectionMode: "desktop",
+            apiKey: null,
+            userID: creds.userID,
+            username: creds.username,
+            isAuthenticated: true,
+            isValidating: false,
+            desktopStatus: "available",
+          });
+          get().loadCollections();
+          return true;
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Connection failed";
+          set({
+            error: message,
+            isValidating: false,
+            desktopStatus: message.includes("Local access is disabled")
+              ? "disabled"
+              : "unavailable",
+          });
+          return false;
+        }
+      },
 
       connectWithOAuth: async () => {
         log.info("Starting OAuth connection");
@@ -113,6 +196,7 @@ export const useZoteroStore = create<ZoteroState>()(
           const creds = await completeOAuth();
           log.info(`OAuth connected as ${creds.username}`);
           set({
+            connectionMode: "cloud",
             apiKey: creds.apiKey,
             userID: creds.userID,
             username: creds.username,
@@ -136,6 +220,7 @@ export const useZoteroStore = create<ZoteroState>()(
         try {
           const creds = await validateApiKey(apiKey);
           set({
+            connectionMode: "cloud",
             apiKey: creds.apiKey,
             userID: creds.userID,
             username: creds.username,
@@ -160,10 +245,10 @@ export const useZoteroStore = create<ZoteroState>()(
 
       disconnect: () => {
         set({
+          connectionMode: null,
           apiKey: null,
           userID: null,
           username: null,
-          syncedCollections: {},
           isAuthenticated: false,
           error: null,
           collections: [],
@@ -171,29 +256,49 @@ export const useZoteroStore = create<ZoteroState>()(
       },
 
       revalidate: async () => {
-        const { apiKey } = get();
-        if (!apiKey) return;
+        const state = get();
+        const connection = getConnection(state);
+        if (!connection) return;
         try {
-          const creds = await validateApiKey(apiKey);
+          const creds =
+            connection.mode === "desktop"
+              ? await validateDesktop()
+              : await validateApiKey(connection.apiKey);
           log.debug(`Revalidated as ${creds.username}`);
           set({
+            connectionMode: creds.mode,
+            apiKey: creds.apiKey,
             userID: creds.userID,
             username: creds.username,
             isAuthenticated: true,
+            desktopStatus:
+              creds.mode === "desktop" ? "available" : get().desktopStatus,
+            error: null,
           });
           get().loadCollections();
         } catch (err) {
           log.warn("Revalidation failed", { error: String(err) });
-          set({ isAuthenticated: false });
+          const message =
+            err instanceof Error ? err.message : "Connection failed";
+          set({
+            isAuthenticated: false,
+            error: message,
+            desktopStatus:
+              connection.mode === "desktop"
+                ? message.includes("Local access is disabled")
+                  ? "disabled"
+                  : "unavailable"
+                : get().desktopStatus,
+          });
         }
       },
 
       loadCollections: async () => {
-        const { apiKey, userID } = get();
-        if (!apiKey || !userID) return;
+        const connection = getConnection(get());
+        if (!connection) return;
         set({ isLoadingCollections: true });
         try {
-          const collections = await fetchCollections(apiKey, userID);
+          const collections = await fetchCollections(connection);
           log.debug(`Loaded ${collections.length} collections`);
           set({ collections, isLoadingCollections: false });
         } catch (err) {
@@ -203,8 +308,8 @@ export const useZoteroStore = create<ZoteroState>()(
       },
 
       importCollectionToBib: async (collectionKey, name) => {
-        const { apiKey, userID } = get();
-        if (!apiKey || !userID) return;
+        const connection = getConnection(get());
+        if (!connection) return;
 
         const docStore = useDocumentStore.getState();
         if (!docStore.projectRoot) return;
@@ -215,8 +320,7 @@ export const useZoteroStore = create<ZoteroState>()(
 
         try {
           const result = await importCollection(
-            apiKey,
-            userID,
+            connection,
             collectionKey,
             (loaded, total) => {
               set({ syncProgress: { loaded, total } });
@@ -242,7 +346,7 @@ export const useZoteroStore = create<ZoteroState>()(
               name: bibFileName,
               relativePath: bibFileName,
               absolutePath: fullPath,
-              type: "tex",
+              type: "bib",
               content: result.bibtex,
             });
           }
@@ -276,8 +380,10 @@ export const useZoteroStore = create<ZoteroState>()(
       },
 
       syncCollectionBib: async (collectionKey) => {
-        const { apiKey, userID, syncedCollections } = get();
-        if (!apiKey || !userID) return;
+        const state = get();
+        const connection = getConnection(state);
+        if (!connection) return;
+        const { syncedCollections } = state;
 
         const docStore = useDocumentStore.getState();
         if (!docStore.projectRoot) return;
@@ -297,8 +403,7 @@ export const useZoteroStore = create<ZoteroState>()(
 
         try {
           const result = await syncCollection(
-            apiKey,
-            userID,
+            connection,
             collectionKey,
             syncInfo.libraryVersion,
             (loaded, total) => {
@@ -412,13 +517,17 @@ export const useZoteroStore = create<ZoteroState>()(
     {
       name: "tectonic-editor-zotero",
       partialize: (state) => ({
+        connectionMode: state.connectionMode,
         apiKey: state.apiKey,
         userID: state.userID,
         username: state.username,
         syncedCollections: state.syncedCollections,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state?.apiKey) {
+        if (state?.apiKey && !state.connectionMode) {
+          state.connectionMode = "cloud";
+        }
+        if (state?.connectionMode) {
           state.isAuthenticated = true;
         }
       },

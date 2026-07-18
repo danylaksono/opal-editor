@@ -47,7 +47,10 @@ import { useHistoryStore } from "@/stores/history-store";
 import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
 import { parseProjectOutline, type OutlineItem } from "@/lib/document-outline";
 import { cn } from "@/lib/utils";
-import { ZoteroPanel, ZoteroHeader } from "@/components/workspace/zotero-panel";
+import {
+  ReferencesHeader,
+  ReferencesPanel,
+} from "@/components/workspace/references-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -1041,10 +1044,10 @@ export function Sidebar({ activePanel }: SidebarProps) {
         {activePanel === "citations" && (
           <div className="flex h-full flex-col">
             <div className="flex h-8 shrink-0 items-center border-sidebar-border border-b">
-              <ZoteroHeader />
+              <ReferencesHeader />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              <ZoteroPanel />
+              <ReferencesPanel />
             </div>
           </div>
         )}
