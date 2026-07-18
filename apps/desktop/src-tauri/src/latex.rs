@@ -201,6 +201,74 @@ enum BibTool {
     None,
 }
 
+/// Strip an (unescaped) `%` comment from a line of TeX source.
+fn strip_tex_comment(line: &str) -> &str {
+    let bytes = line.as_bytes();
+    for i in 0..bytes.len() {
+        if bytes[i] == b'%' && (i == 0 || bytes[i - 1] != b'\\') {
+            return &line[..i];
+        }
+    }
+    line
+}
+
+/// Concatenate the root file's content with every file pulled in via
+/// (uncommented) `\input`, `\include`, or `\subfile`, recursively.
+///
+/// Bibliography detection must see this combined content: projects commonly
+/// keep `\bibliography{...}` in an included file (e.g. references.tex), and
+/// scanning only the root file would skip the bibtex pass entirely.
+fn collect_tex_content_with_includes(work_dir: &Path, main_file: &str) -> String {
+    fn walk(
+        work_dir: &Path,
+        rel: &str,
+        visited: &mut std::collections::HashSet<PathBuf>,
+        out: &mut String,
+        depth: usize,
+    ) {
+        if depth > 10 {
+            return;
+        }
+        let mut path = work_dir.join(rel);
+        if path.extension().is_none() {
+            path.set_extension("tex");
+        }
+        let Ok(canonical) = path.canonicalize() else {
+            return;
+        };
+        if !visited.insert(canonical) {
+            return;
+        }
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        out.push_str(&content);
+        out.push('\n');
+        for line in content.lines() {
+            let code = strip_tex_comment(line);
+            for cmd in ["\\input{", "\\include{", "\\subfile{"] {
+                let mut rest = code;
+                while let Some(pos) = rest.find(cmd) {
+                    let after = &rest[pos + cmd.len()..];
+                    let Some(end) = after.find('}') else {
+                        break;
+                    };
+                    let target = after[..end].trim();
+                    if !target.is_empty() {
+                        walk(work_dir, target, visited, out, depth + 1);
+                    }
+                    rest = &after[end + 1..];
+                }
+            }
+        }
+    }
+
+    let mut out = String::new();
+    let mut visited = std::collections::HashSet::new();
+    walk(work_dir, main_file, &mut visited, &mut out, 0);
+    out
+}
+
 /// Detect which bibliography tool is needed by scanning .tex content.
 fn detect_bib_tool(content: &str) -> BibTool {
     for line in content.lines() {
@@ -989,9 +1057,14 @@ pub async fn compile_latex(
         )));
     }
 
-    // Detect TeX engine from magic comment
+    // Detect TeX engine from magic comment (root file only — that's where
+    // `% !TEX program` conventionally lives)
     let main_tex_content = std::fs::read_to_string(&main_tex_path).unwrap_or_default();
     let engine = detect_tex_engine(&main_tex_content);
+
+    // Bibliography detection scans the whole include tree: \bibliography
+    // often lives in an included file, not the root document.
+    let project_tex_content = collect_tex_content_with_includes(&work_dir, &main_file);
 
     // Save engine name before `engine` is moved into the spawn_blocking closure
     let engine_name_for_label = match &engine {
@@ -1021,7 +1094,12 @@ pub async fn compile_latex(
         let main_file_clone = main_file.clone();
         let result = tokio::task::spawn_blocking(move || {
             lower_thread_priority();
-            compile_with_texlive(&work_dir_clone, &main_file_clone, engine, &main_tex_content)
+            compile_with_texlive(
+                &work_dir_clone,
+                &main_file_clone,
+                engine,
+                &project_tex_content,
+            )
         })
         .await
         .map_err(|e| format!("Compilation task panicked: {}", e))?;
@@ -1251,6 +1329,44 @@ mod tests {
     fn test_detect_bib_tool_commented_out() {
         let content = "\\documentclass{article}\n% \\bibliography{refs}\n% \\usepackage{biblatex}\n\\end{document}";
         assert_eq!(detect_bib_tool(content), BibTool::None);
+    }
+
+    // --- collect_tex_content_with_includes ---
+
+    #[test]
+    fn test_bib_detection_in_included_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("_main.tex"),
+            "\\documentclass{book}\n\\include{references}\n% \\input{commented}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("references.tex"),
+            "\\bibliographystyle{plain}\n\\bibliography{refs}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("commented.tex"),
+            "\\usepackage[backend=biber]{biblatex}\n",
+        )
+        .unwrap();
+
+        let content = collect_tex_content_with_includes(dir.path(), "_main.tex");
+        // \bibliography from the included references.tex must be visible
+        assert_eq!(detect_bib_tool(&content), BibTool::BibTeX);
+        // the commented-out include must not be followed
+        assert!(!content.contains("biblatex"));
+    }
+
+    #[test]
+    fn test_collect_includes_handles_cycles() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.tex"), "\\input{b}\n").unwrap();
+        std::fs::write(dir.path().join("b.tex"), "\\input{a}\n\\bibliography{refs}\n").unwrap();
+
+        let content = collect_tex_content_with_includes(dir.path(), "a.tex");
+        assert_eq!(detect_bib_tool(&content), BibTool::BibTeX);
     }
 
     // --- extract_error_lines ---
