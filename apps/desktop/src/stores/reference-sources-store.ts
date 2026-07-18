@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createFileOnDisk, getUniqueTargetName } from "@/lib/tauri/fs";
 import { useDocumentStore } from "@/stores/document-store";
 
 export interface ExternalBibliographyResponse {
@@ -9,17 +10,31 @@ export interface ExternalBibliographyResponse {
   size: number;
 }
 
-export interface ExternalBibliographySource {
+interface ExternalBibliographySourceBase {
   id: string;
-  kind: "jabref";
   name: string;
-  sourcePath: string;
   targetRelativePath: string;
   lastSourceHash: string;
   lastTargetHash: string;
   lastSyncedAt: number;
   sourceModifiedMs: number;
 }
+
+export interface JabRefBibliographySource
+  extends ExternalBibliographySourceBase {
+  kind: "jabref";
+  sourcePath: string;
+}
+
+export interface CiteDriveBibliographySource
+  extends ExternalBibliographySourceBase {
+  kind: "citedrive";
+  sourceUrl: string;
+}
+
+export type ExternalBibliographySource =
+  | JabRefBibliographySource
+  | CiteDriveBibliographySource;
 
 export type ExternalRefreshDecision = "unchanged" | "update" | "conflict";
 export type ExternalRefreshResult = ExternalRefreshDecision | "missing-target";
@@ -30,6 +45,9 @@ interface ReferenceSourcesState {
   error: string | null;
   linkJabRef: (
     sourcePath: string,
+  ) => Promise<ExternalBibliographySource | null>;
+  linkCiteDrive: (
+    sourceUrl: string,
   ) => Promise<ExternalBibliographySource | null>;
   refreshSource: (
     sourceId: string,
@@ -67,13 +85,13 @@ function normalizePath(path: string) {
     : normalized;
 }
 
-function sourceId(projectRoot: string, sourcePath: string) {
+function jabRefSourceId(projectRoot: string, sourcePath: string) {
   return `jabref:${hashBibliographyContent(
     `${normalizePath(projectRoot)}\0${normalizePath(sourcePath)}`,
   )}`;
 }
 
-function sourceName(path: string) {
+function jabRefSourceName(path: string) {
   return (
     path
       .split(/[/\\]/)
@@ -88,6 +106,34 @@ async function readExternalBibliography(sourcePath: string) {
   });
 }
 
+async function fetchCiteDriveBibliography(sourceUrl: string) {
+  return invoke<ExternalBibliographyResponse>("fetch_citedrive_bibliography", {
+    url: sourceUrl,
+  });
+}
+
+async function readSource(source: ExternalBibliographySource) {
+  return source.kind === "jabref"
+    ? readExternalBibliography(source.sourcePath)
+    : fetchCiteDriveBibliography(source.sourceUrl);
+}
+
+export function citeDriveTargetName(sourceUrl: string) {
+  try {
+    const url = new URL(sourceUrl.trim());
+    const candidate = decodeURIComponent(
+      url.pathname.split("/").filter(Boolean).pop() ?? "",
+    )
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return candidate.toLowerCase().endsWith(".bib")
+      ? candidate
+      : "citedrive.bib";
+  } catch {
+    return "citedrive.bib";
+  }
+}
+
 export const useReferenceSourcesStore = create<ReferenceSourcesState>()(
   persist(
     (set, get) => ({
@@ -100,7 +146,7 @@ export const useReferenceSourcesStore = create<ReferenceSourcesState>()(
         const projectRoot = documentStore.projectRoot;
         if (!projectRoot) return null;
 
-        const id = sourceId(projectRoot, sourcePath);
+        const id = jabRefSourceId(projectRoot, sourcePath);
         const existing = get().sourcesByProject[projectRoot]?.find(
           (source) => source.id === id,
         );
@@ -124,8 +170,69 @@ export const useReferenceSourcesStore = create<ReferenceSourcesState>()(
           const source: ExternalBibliographySource = {
             id,
             kind: "jabref",
-            name: sourceName(sourcePath),
+            name: jabRefSourceName(sourcePath),
             sourcePath,
+            targetRelativePath,
+            lastSourceHash: contentHash,
+            lastTargetHash: contentHash,
+            lastSyncedAt: Date.now(),
+            sourceModifiedMs: external.modifiedMs,
+          };
+          set((state) => ({
+            sourcesByProject: {
+              ...state.sourcesByProject,
+              [projectRoot]: [
+                ...(state.sourcesByProject[projectRoot] ?? []),
+                source,
+              ],
+            },
+            syncingSourceId: null,
+          }));
+          return source;
+        } catch (error) {
+          set({
+            syncingSourceId: null,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        }
+      },
+
+      linkCiteDrive: async (sourceUrl) => {
+        const documentStore = useDocumentStore.getState();
+        const projectRoot = documentStore.projectRoot;
+        if (!projectRoot) return null;
+
+        const normalizedUrl = sourceUrl.trim();
+        const id = `citedrive:${hashBibliographyContent(
+          `${normalizePath(projectRoot)}\0${normalizedUrl}`,
+        )}`;
+        const existing = get().sourcesByProject[projectRoot]?.find(
+          (source) => source.id === id,
+        );
+        if (existing) return existing;
+
+        set({ syncingSourceId: id, error: null });
+        try {
+          const external = await fetchCiteDriveBibliography(normalizedUrl);
+          const requestedName = citeDriveTargetName(normalizedUrl);
+          const targetRelativePath = await getUniqueTargetName(
+            projectRoot,
+            requestedName,
+          );
+          await createFileOnDisk(
+            projectRoot,
+            targetRelativePath,
+            external.content,
+          );
+          await documentStore.refreshFiles();
+
+          const contentHash = hashBibliographyContent(external.content);
+          const source: CiteDriveBibliographySource = {
+            id,
+            kind: "citedrive",
+            name: "CiteDrive",
+            sourceUrl: normalizedUrl,
             targetRelativePath,
             lastSourceHash: contentHash,
             lastTargetHash: contentHash,
@@ -167,7 +274,7 @@ export const useReferenceSourcesStore = create<ReferenceSourcesState>()(
 
         set({ syncingSourceId: source.id, error: null });
         try {
-          const external = await readExternalBibliography(source.sourcePath);
+          const external = await readSource(source);
           const decision = getExternalRefreshDecision(
             source,
             target.content,

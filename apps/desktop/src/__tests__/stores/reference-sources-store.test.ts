@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  citeDriveTargetName,
   getExternalRefreshDecision,
   hashBibliographyContent,
   type ExternalBibliographySource,
@@ -50,5 +51,22 @@ describe("external bibliography refresh decisions", () => {
     expect(getExternalRefreshDecision(source(), changed, changed)).toBe(
       "update",
     );
+  });
+});
+
+describe("CiteDrive target names", () => {
+  it("uses the filename from a dynamic bibliography URL", () => {
+    expect(
+      citeDriveTargetName(
+        "https://api.citedrive.com/bib/project/references.bib?x=token",
+      ),
+    ).toBe("references.bib");
+  });
+
+  it("falls back to a safe bibliography filename", () => {
+    expect(citeDriveTargetName("https://app.citedrive.com/project/123")).toBe(
+      "citedrive.bib",
+    );
+    expect(citeDriveTargetName("not a url")).toBe("citedrive.bib");
   });
 });

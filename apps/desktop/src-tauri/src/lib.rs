@@ -647,6 +647,7 @@ pub fn run() {
             project_import::import_zip_project,
             project_import::import_github_project,
             reference_sources::read_external_bibliography,
+            reference_sources::fetch_citedrive_bibliography,
             // Unified AI provider commands
             ai_list_providers,
             ai_get_active_provider,
