@@ -305,7 +305,13 @@ export function WorkspaceLayout() {
         <PanelGroup direction="horizontal" className="min-h-0 min-w-0 flex-1">
           {!reviewMode && !focusMode && sidePanelOpen && (
             <>
-              <Panel defaultSize={18} minSize={12} maxSize={32}>
+              <Panel
+                id="sidebar"
+                order={1}
+                defaultSize={18}
+                minSize={12}
+                maxSize={32}
+              >
                 <Sidebar activePanel={activeSidePanel} />
               </Panel>
 
@@ -316,6 +322,8 @@ export function WorkspaceLayout() {
           {!reviewMode && (
             <Panel
               key="latex-editor"
+              id="latex-editor"
+              order={2}
               defaultSize={previewVisible ? 42.5 : 85}
               minSize={25}
             >
@@ -363,7 +371,12 @@ export function WorkspaceLayout() {
                 <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-ring" />
               )}
 
-              <Panel defaultSize={reviewMode ? 100 : 42.5} minSize={25}>
+              <Panel
+                id="pdf-preview"
+                order={3}
+                defaultSize={reviewMode ? 100 : 42.5}
+                minSize={25}
+              >
                 <PdfPreview />
               </Panel>
             </Fragment>

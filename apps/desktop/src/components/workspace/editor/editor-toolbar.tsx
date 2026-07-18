@@ -22,6 +22,7 @@ import {
   ChevronDownIcon,
   MoreHorizontalIcon,
   MousePointerClickIcon,
+  RadicalIcon,
   SigmaIcon,
   Table2Icon,
 } from "lucide-react";
@@ -500,15 +501,6 @@ export function EditorToolbar({
           variant="ghost"
           size="sm"
           className="calm-toolbar-action"
-          onClick={() => setMathEditorOpen(true)}
-        >
-          <SigmaIcon className="size-3.5" />
-          <span className="@[34rem]:inline hidden">Equation</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="calm-toolbar-action"
           onClick={() => setTableEditorOpen(true)}
         >
           <Table2Icon className="size-3.5" />
@@ -580,12 +572,16 @@ export function EditorToolbar({
               Code
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setMathEditorOpen(true)}>
+              <SigmaIcon className="size-4" />
+              Equation…
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrapSelection("$")}>
               <FunctionSquareIcon className="size-4" />
               Inline math
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => insertText("\\[\n  ", "\n\\]")}>
-              <SigmaIcon className="size-4" />
+              <RadicalIcon className="size-4" />
               Display math
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCrossReferencePickerOpen(true)}>
