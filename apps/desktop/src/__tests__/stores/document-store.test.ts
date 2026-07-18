@@ -10,6 +10,8 @@ import {
   useDocumentStore,
   getCurrentPdfBytes,
   clearPdfBytesCache,
+  resolveTexRoot,
+  hasDocumentclass,
   type ProjectFile,
 } from "@/stores/document-store";
 
@@ -36,6 +38,65 @@ function makeFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
     ...overrides,
   };
 }
+
+describe("hasDocumentclass", () => {
+  it("detects a real \\documentclass", () => {
+    expect(hasDocumentclass("\\documentclass[12pt]{article}")).toBe(true);
+  });
+
+  it("ignores \\documentclass inside comments", () => {
+    expect(
+      hasDocumentclass(
+        "%% 2. In main.tex, right after \\documentclass{discothesis} add:\n\\usepackage{ebgaramond}",
+      ),
+    ).toBe(false);
+  });
+
+  it("still detects it after an escaped percent", () => {
+    expect(hasDocumentclass("50\\% off \\documentclass{book}")).toBe(true);
+  });
+
+  it("ignores commented \\documentclass in CRLF files", () => {
+    expect(
+      hasDocumentclass(
+        "%% right after \\documentclass{discothesis} add:\r\n\\usepackage{ebgaramond}\r\n",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("resolveTexRoot", () => {
+  it("does not treat a config file with commented \\documentclass as root", () => {
+    const files = [
+      makeFile({
+        id: "_main.tex",
+        name: "_main.tex",
+        relativePath: "_main.tex",
+        content: "\\documentclass{discothesis}\n\\begin{document}",
+      }),
+      makeFile({
+        id: "thesis-config.tex",
+        name: "thesis-config.tex",
+        relativePath: "thesis-config.tex",
+        content:
+          "%% In main.tex, right after \\documentclass{discothesis} add:\n\\usepackage{ebgaramond}",
+      }),
+      makeFile({
+        id: "chapter01.tex",
+        name: "chapter01.tex",
+        relativePath: "chapter01.tex",
+        content: "\\chapter{Introduction}",
+      }),
+    ];
+
+    // Compiling from the config file itself resolves to the real root
+    expect(resolveTexRoot("thesis-config.tex", files)).toBe("_main.tex");
+    // Compiling from an included chapter resolves to the real root
+    expect(resolveTexRoot("chapter01.tex", files)).toBe("_main.tex");
+    // The real root resolves to itself
+    expect(resolveTexRoot("_main.tex", files)).toBe("_main.tex");
+  });
+});
 
 describe("useDocumentStore", () => {
   beforeEach(() => {

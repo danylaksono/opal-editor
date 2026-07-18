@@ -151,6 +151,23 @@ function getActiveFile(state: { files: ProjectFile[]; activeFileId: string }) {
 }
 
 /**
+ * True when the content has a `\documentclass` outside of LaTeX comments.
+ * A commented occurrence (e.g. usage instructions in a config file's header)
+ * must not mark the file as a compilable root.
+ */
+export function hasDocumentclass(content: string): boolean {
+  if (!/\\documentclass[\s{[]/.test(content)) return false;
+  // Split on \r?\n: a trailing \r would keep `$` from anchoring in the
+  // comment-stripping regex on CRLF files
+  for (const line of content.split(/\r?\n/)) {
+    // Strip comments; an unescaped % starts one (\% does not)
+    const code = line.replace(/(^|[^\\])%.*$/, "$1");
+    if (/\\documentclass[\s{[]/.test(code)) return true;
+  }
+  return false;
+}
+
+/**
  * Resolve the root .tex file for compilation.
  *
  * Priority order:
@@ -178,7 +195,7 @@ export function resolveTexRoot(fileId: string, files: ProjectFile[]): string {
   }
 
   // 2. If the current file contains \documentclass, it is a root file
-  if (/\\documentclass[\s{[]/.test(file.content)) {
+  if (hasDocumentclass(file.content)) {
     return fileId;
   }
 
@@ -188,7 +205,7 @@ export function resolveTexRoot(fileId: string, files: ProjectFile[]): string {
       (f.name === "main.tex" || f.name === "document.tex") &&
       f.type === "tex" &&
       f.content &&
-      /\\documentclass[\s{[]/.test(f.content),
+      hasDocumentclass(f.content),
   );
   if (wellKnown) return wellKnown.id;
 
@@ -198,7 +215,7 @@ export function resolveTexRoot(fileId: string, files: ProjectFile[]): string {
       f.type === "tex" &&
       f.id !== fileId &&
       f.content &&
-      /\\documentclass[\s{[]/.test(f.content),
+      hasDocumentclass(f.content),
   );
   if (anyRoot) return anyRoot.id;
 

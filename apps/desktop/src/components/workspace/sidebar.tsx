@@ -11,8 +11,12 @@ import {
   PencilIcon,
   UploadIcon,
   RefreshCwIcon,
-  ListIcon,
+  ListTreeIcon,
   HashIcon,
+  BookOpenIcon,
+  Table2Icon,
+  SigmaIcon,
+  BookMarkedIcon,
   GithubIcon,
   ChevronRightIcon,
   ChevronDownIcon,
@@ -34,10 +38,15 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
+import {
+  useDocumentStore,
+  resolveTexRoot,
+  hasDocumentclass,
+  type ProjectFile,
+} from "@/stores/document-store";
 import { useHistoryStore } from "@/stores/history-store";
 import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
-import { parseDocumentOutline, type OutlineItem } from "@/lib/document-outline";
+import { parseProjectOutline, type OutlineItem } from "@/lib/document-outline";
 import { cn } from "@/lib/utils";
 import { ZoteroPanel, ZoteroHeader } from "@/components/workspace/zotero-panel";
 import { Button } from "@/components/ui/button";
@@ -76,24 +85,60 @@ const log = createLogger("sidebar");
 
 // ─── Document Outline ───
 
-function outlineKindLabel(item: OutlineItem) {
-  if (item.kind === "subsubsection") return "subsub";
-  return item.kind;
-}
+/** part/chapter/appendix render as bold group starts with a book icon. */
+const CHAPTER_LIKE = new Set(["part", "chapter", "appendix"]);
 
-function OutlineIcon({ item }: { item: OutlineItem }) {
-  if (item.kind === "figure") {
-    return <ImageIcon className="size-3 shrink-0 text-muted-foreground" />;
-  }
-  if (item.kind === "table") {
+const STRUCTURE_TEXT_STYLES: Record<string, string> = {
+  part: "font-semibold",
+  chapter: "font-semibold",
+  appendix: "font-semibold",
+  section: "font-medium",
+  subsection: "text-muted-foreground",
+  subsubsection: "text-muted-foreground",
+};
+
+function OutlineObjectIcon({ kind }: { kind: OutlineItem["kind"] }) {
+  if (kind === "figure") {
     return (
-      <FileSpreadsheetIcon className="size-3 shrink-0 text-muted-foreground" />
+      <ImageIcon className="size-3 shrink-0 text-sky-600 dark:text-sky-400" />
     );
   }
-  if (item.kind === "bibliography") {
-    return <FileTextIcon className="size-3 shrink-0 text-muted-foreground" />;
+  if (kind === "table") {
+    return (
+      <Table2Icon className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+    );
   }
-  return <HashIcon className="size-3 shrink-0 text-muted-foreground" />;
+  if (kind === "equation") {
+    return (
+      <SigmaIcon className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
+    );
+  }
+  if (kind === "bibliography") {
+    return (
+      <BookMarkedIcon className="size-3 shrink-0 text-rose-600 dark:text-rose-400" />
+    );
+  }
+  return <HashIcon className="size-3 shrink-0 text-muted-foreground/70" />;
+}
+
+function OutlineGroupHeader({
+  label,
+  count,
+}: {
+  label: string;
+  count: number;
+}) {
+  return (
+    <div className="sticky top-0 z-10 -mx-1 flex items-center gap-2 bg-sidebar px-3 pt-2 pb-1">
+      <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wider">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-sidebar-border" />
+      <span className="text-[10px] text-muted-foreground tabular-nums">
+        {count}
+      </span>
+    </div>
+  );
 }
 
 // ─── File Tree Builder ───
@@ -208,14 +253,11 @@ export function Sidebar({ activePanel }: SidebarProps) {
   const createNewFile = useDocumentStore((s) => s.createNewFile);
   const createFolder = useDocumentStore((s) => s.createFolder);
   const importFiles = useDocumentStore((s) => s.importFiles);
-  const activeFileContent = useDocumentStore((s) => {
-    const active = s.files.find((f) => f.id === s.activeFileId);
-    return active?.content ?? "";
-  });
   const activeFileName = useDocumentStore((s) => {
     const active = s.files.find((f) => f.id === s.activeFileId);
     return active?.relativePath ?? "No file selected";
   });
+  const cursorPosition = useDocumentStore((s) => s.cursorPosition);
   const requestJumpToPosition = useDocumentStore(
     (s) => s.requestJumpToPosition,
   );
@@ -461,10 +503,27 @@ export function Sidebar({ activePanel }: SidebarProps) {
     });
   }, []);
 
-  // Outline
+  // Outline — project-wide, Overleaf-style: resolve the root document and
+  // flatten \input/\include'd files into a single outline.
+  const outlineRootId = useMemo(() => {
+    const active = files.find((f) => f.id === activeFileId);
+    if (active?.type === "tex") return resolveTexRoot(activeFileId, files);
+    // Non-tex file active (image, bib, …): fall back to the project's main doc
+    const isRootDoc = (f: ProjectFile) =>
+      f.type === "tex" && !!f.content && hasDocumentclass(f.content);
+    const wellKnown = files.find(
+      (f) =>
+        (f.name === "main.tex" || f.name === "document.tex") && isRootDoc(f),
+    );
+    return wellKnown?.id ?? files.find(isRootDoc)?.id ?? activeFileId;
+  }, [activeFileId, files]);
   const outlineItems = useMemo(
-    () => parseDocumentOutline(activeFileContent),
-    [activeFileContent],
+    () => parseProjectOutline(outlineRootId, files),
+    [outlineRootId, files],
+  );
+  const outlineFileCount = useMemo(
+    () => new Set(outlineItems.map((item) => item.file)).size,
+    [outlineItems],
   );
   const structureItems = useMemo(
     () => outlineItems.filter((item) => item.group === "structure"),
@@ -474,16 +533,53 @@ export function Sidebar({ activePanel }: SidebarProps) {
     () => outlineItems.filter((item) => item.group === "objects"),
     [outlineItems],
   );
+  // Normalize indentation to the shallowest heading present, so article-class
+  // documents (sections only) start flush left instead of pre-indented
+  const minStructureLevel = useMemo(
+    () => structureItems.reduce((min, item) => Math.min(min, item.level), 9),
+    [structureItems],
+  );
+  // "You are here": the structure item the cursor currently sits under
+  const activeCursorLine = useMemo(() => {
+    const content = files.find((f) => f.id === activeFileId)?.content;
+    if (!content) return 0;
+    let line = 1;
+    const upTo = Math.min(cursorPosition, content.length);
+    for (let i = 0; i < upTo; i++) {
+      if (content.charCodeAt(i) === 10) line++;
+    }
+    return line;
+  }, [files, activeFileId, cursorPosition]);
+  const currentStructureIndex = useMemo(() => {
+    let current = -1;
+    structureItems.forEach((item, index) => {
+      if (item.file === activeFileId && item.line <= activeCursorLine) {
+        current = index;
+      }
+    });
+    return current;
+  }, [structureItems, activeFileId, activeCursorLine]);
   const handleTocClick = useCallback(
-    (line: number) => {
-      const lines = activeFileContent.split("\n");
+    (item: OutlineItem) => {
+      const targetId = item.file ?? activeFileId;
+      const targetFile = files.find((f) => f.id === targetId);
+      if (!targetFile) return;
+
+      const lines = (targetFile.content ?? "").split("\n");
       let position = 0;
-      for (let i = 0; i < line - 1 && i < lines.length; i++) {
+      for (let i = 0; i < item.line - 1 && i < lines.length; i++) {
         position += lines[i].length + 1;
       }
-      requestJumpToPosition(position);
+
+      if (targetId !== activeFileId) {
+        setActiveFile(targetId);
+        // Let the editor swap documents before jumping
+        setTimeout(() => requestJumpToPosition(position), 100);
+      } else {
+        requestJumpToPosition(position);
+      }
     },
-    [activeFileContent, requestJumpToPosition],
+    [activeFileId, files, setActiveFile, requestJumpToPosition],
   );
 
   // Check if a name already exists in the given folder
@@ -765,7 +861,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
         {activePanel === "outline" && (
           <div className="flex h-full flex-col">
             <div className="flex h-11 shrink-0 items-center gap-2 border-sidebar-border border-b px-3">
-              <ListIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <ListTreeIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-xs">Outline</span>
@@ -776,59 +872,89 @@ export function Sidebar({ activePanel }: SidebarProps) {
                   )}
                 </div>
                 <div className="truncate text-[10px] text-muted-foreground">
-                  {activeFileName}
+                  {files.find((f) => f.id === outlineRootId)?.relativePath ??
+                    activeFileName}
+                  {outlineFileCount > 1 && ` · ${outlineFileCount} files`}
                 </div>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-1">
+            <div className="min-h-0 flex-1 overflow-y-auto p-1 pb-3">
               {outlineItems.length > 0 ? (
                 <>
                   {structureItems.length > 0 && (
                     <>
-                      <div className="px-2 py-1 font-medium text-[10px] text-muted-foreground">
-                        Structure
-                      </div>
-                      {structureItems.map((item, index) => (
-                        <button
-                          key={`${item.line}-${item.kind}-${index}`}
-                          className="flex h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
-                          style={{
-                            paddingLeft: `${item.level * 10 + 8}px`,
-                          }}
-                          onClick={() => handleTocClick(item.line)}
-                        >
-                          <OutlineIcon item={item} />
-                          <span className="min-w-0 flex-1 truncate">
-                            {item.title || "Untitled"}
-                          </span>
-                          <span className="shrink-0 text-[10px] text-muted-foreground">
-                            {outlineKindLabel(item)}
-                          </span>
-                        </button>
-                      ))}
+                      <OutlineGroupHeader
+                        label="Structure"
+                        count={structureItems.length}
+                      />
+                      {structureItems.map((item, index) => {
+                        const isChapterLike = CHAPTER_LIKE.has(item.kind);
+                        const indent = Math.max(
+                          0,
+                          item.level - minStructureLevel,
+                        );
+                        const isCurrent = index === currentStructureIndex;
+                        return (
+                          <button
+                            key={`${item.file}-${item.line}-${item.kind}-${index}`}
+                            className={cn(
+                              "relative flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors",
+                              STRUCTURE_TEXT_STYLES[item.kind],
+                              isChapterLike && "mt-1.5 text-[13px] first:mt-0",
+                              isCurrent
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                : "hover:bg-sidebar-accent/50",
+                            )}
+                            style={{ paddingLeft: `${indent * 12 + 8}px` }}
+                            title={
+                              item.file
+                                ? `${item.file}:${item.line}`
+                                : undefined
+                            }
+                            onClick={() => handleTocClick(item)}
+                          >
+                            {isCurrent && (
+                              <span className="absolute inset-y-1 left-0.5 w-0.5 rounded-full bg-sidebar-primary" />
+                            )}
+                            {isChapterLike && (
+                              <BookOpenIcon className="size-3.5 shrink-0 text-sidebar-primary" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate">
+                              {item.title || "Untitled"}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </>
                   )}
 
                   {objectItems.length > 0 && (
                     <>
-                      <div className="mt-1 px-2 py-1 font-medium text-[10px] text-muted-foreground">
-                        Objects
-                      </div>
+                      <OutlineGroupHeader
+                        label="Objects"
+                        count={objectItems.length}
+                      />
                       {objectItems.map((item, index) => (
                         <button
-                          key={`${item.line}-${item.kind}-${item.title}-${index}`}
-                          className="flex h-7 w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                          key={`${item.file}-${item.line}-${item.kind}-${item.title}-${index}`}
+                          className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent/50"
                           style={{
-                            paddingLeft: `${Math.max(0, item.level - 1) * 8 + 8}px`,
+                            paddingLeft: `${Math.max(0, item.level - 1) * 12 + 8}px`,
                           }}
-                          onClick={() => handleTocClick(item.line)}
+                          title={
+                            item.file ? `${item.file}:${item.line}` : undefined
+                          }
+                          onClick={() => handleTocClick(item)}
                         >
-                          <OutlineIcon item={item} />
-                          <span className="min-w-0 flex-1 truncate">
+                          <OutlineObjectIcon kind={item.kind} />
+                          <span
+                            className={cn(
+                              "min-w-0 flex-1 truncate",
+                              item.kind === "label" &&
+                                "font-mono text-[11px] text-muted-foreground",
+                            )}
+                          >
                             {item.title || "Untitled"}
-                          </span>
-                          <span className="shrink-0 text-[10px] text-muted-foreground">
-                            {outlineKindLabel(item)}
                           </span>
                         </button>
                       ))}
@@ -836,8 +962,12 @@ export function Sidebar({ activePanel }: SidebarProps) {
                   )}
                 </>
               ) : (
-                <div className="px-2 py-3 text-muted-foreground text-xs">
-                  Add sections, labels, figures, or tables to build an outline.
+                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                  <ListTreeIcon className="size-6 text-muted-foreground/40" />
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    Add sections, figures, or tables to your document to build
+                    an outline.
+                  </p>
                 </div>
               )}
             </div>

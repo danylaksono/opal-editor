@@ -20,6 +20,8 @@ export interface OutlineItem {
   title: string;
   detail?: string;
   line: number;
+  /** Relative path of the file this item lives in (set by parseProjectOutline). */
+  file?: string;
 }
 
 const HEADING_LEVELS: Record<string, number> = {
@@ -69,12 +71,23 @@ function findLabels(line: string) {
 }
 
 export function parseDocumentOutline(content: string): OutlineItem[] {
-  const lines = content.split("\n");
+  return parseOutlineCore(content);
+}
+
+function parseOutlineCore(
+  content: string,
+  file?: string,
+  expandInclude?: (target: string) => OutlineItem[],
+): OutlineItem[] {
+  // Split on \r?\n so CRLF files don't leave a trailing \r on each line,
+  // which would break $-anchored regexes (comment stripping)
+  const lines = content.split(/\r?\n/);
   const items: OutlineItem[] = [];
   let openFloatIndex: number | null = null;
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
+    const lineStartIndex = items.length;
 
     const headingMatch = line.match(
       /\\(part|chapter|section|subsection|subsubsection)\*?(?:\[[^\]]*\])?\s*\{/,
@@ -168,7 +181,107 @@ export function parseDocumentOutline(content: string): OutlineItem[] {
         line: lineNumber,
       });
     }
+
+    if (file) {
+      for (let i = lineStartIndex; i < items.length; i++) {
+        items[i].file = file;
+      }
+    }
+
+    if (expandInclude) {
+      // Ignore commented-out includes (unescaped % starts a comment)
+      const codeLine = line.replace(/(^|[^\\])%.*$/, "$1");
+      const includeRegex =
+        /\\(?:input|include|subfile|subfileinclude)\s*\{([^}]+)\}|\\(?:import|subimport)\s*\{([^}]*)\}\s*\{([^}]+)\}/g;
+      let match: RegExpExecArray | null;
+      while ((match = includeRegex.exec(codeLine))) {
+        const target =
+          match[1] ??
+          (match[2] ? `${match[2].replace(/\/+$/, "")}/${match[3]}` : match[3]);
+        items.push(...expandInclude(target.trim()));
+      }
+    }
   });
 
   return items;
+}
+
+// ─── Project-wide outline (Overleaf-style) ───
+
+export interface OutlineSourceFile {
+  relativePath: string;
+  type?: string;
+  content?: string;
+}
+
+function normalizeOutlinePath(path: string): string {
+  const parts = path.replace(/\\/g, "/").split("/");
+  const out: string[] = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
+  }
+  return out.join("/");
+}
+
+function resolveIncludePath(
+  target: string,
+  fromDir: string,
+  byPath: Map<string, OutlineSourceFile>,
+): string | null {
+  const raw = normalizeOutlinePath(target);
+  if (!raw) return null;
+  // \input{chapters/intro} → chapters/intro.tex; explicit extensions win
+  const candidates = /\.[a-zA-Z]+$/.test(raw) ? [raw] : [`${raw}.tex`, raw];
+  for (const candidate of candidates) {
+    // LaTeX resolves relative to the compile root; also try relative to the
+    // including file's directory since both layouts are common in practice.
+    if (byPath.has(candidate)) return candidate;
+    if (fromDir) {
+      const joined = normalizeOutlinePath(`${fromDir}/${candidate}`);
+      if (byPath.has(joined)) return joined;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a single outline for the whole document tree, starting from the root
+ * file and splicing in the outline of every file pulled in via \input,
+ * \include, \subfile, or \import at the point where it appears — the way
+ * Overleaf's file outline flattens multi-file projects.
+ *
+ * Each item carries the `file` it came from so callers can jump across files.
+ * Files are expanded at most once (guards against include cycles).
+ */
+export function parseProjectOutline(
+  rootPath: string,
+  files: OutlineSourceFile[],
+): OutlineItem[] {
+  const byPath = new Map<string, OutlineSourceFile>();
+  for (const f of files) {
+    byPath.set(normalizeOutlinePath(f.relativePath), f);
+  }
+
+  const visited = new Set<string>();
+
+  function parseFile(path: string): OutlineItem[] {
+    const normalized = normalizeOutlinePath(path);
+    const file = byPath.get(normalized);
+    if (!file || typeof file.content !== "string") return [];
+    if (file.type && file.type !== "tex") return [];
+    if (visited.has(normalized)) return [];
+    visited.add(normalized);
+
+    const fromDir = normalized.includes("/")
+      ? normalized.slice(0, normalized.lastIndexOf("/"))
+      : "";
+    return parseOutlineCore(file.content, file.relativePath, (target) => {
+      const resolved = resolveIncludePath(target, fromDir, byPath);
+      return resolved ? parseFile(resolved) : [];
+    });
+  }
+
+  return parseFile(rootPath);
 }
