@@ -1,5 +1,12 @@
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useProposedChangesStore } from "@/stores/proposed-changes-store";
+import { useSettingsStore } from "@/stores/settings-store";
+import {
+  compileLatex,
+  formatCompileError,
+  resolveCompileTarget,
+} from "@/lib/latex-compiler";
+import { readTexFileContent, join } from "@/lib/tauri/fs";
 import type { AiToolDefinition } from "./types";
 
 /**
@@ -12,6 +19,7 @@ import type { AiToolDefinition } from "./types";
 const TEXT_FILE_TYPES = new Set(["tex", "bib", "style", "other"]);
 const MAX_FILE_CHARS = 120_000;
 const MAX_SEARCH_RESULTS = 50;
+const MAX_LOG_CHARS = 40_000;
 
 export const AI_TOOL_DEFINITIONS: AiToolDefinition[] = [
   {
@@ -85,6 +93,36 @@ export const AI_TOOL_DEFINITIONS: AiToolDefinition[] = [
         },
       },
       required: ["path", "search", "replace"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "compile_document",
+    description:
+      "Compile the project's root .tex file. Saves all unsaved editor changes " +
+      "first, then runs the LaTeX engine and updates the user's PDF preview. " +
+      "On failure, returns the error category, summary, and source location. " +
+      "NOTE: proposed edits the user has not yet accepted are NOT included in " +
+      "the compile — after proposing a fix, ask the user to accept it before " +
+      "compiling again to verify.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "read_build_log",
+    description:
+      "Read the LaTeX engine log from the most recent compile — the full " +
+      "output including warnings (overfull boxes, missing references, font " +
+      "substitutions) that compile_document's summary omits. Use it to " +
+      "diagnose cryptic compile errors or to find quality warnings.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: [],
       additionalProperties: false,
     },
   },
@@ -247,6 +285,102 @@ function proposeEdit(input: any, toolUseId: string): ToolExecutionResult {
   );
 }
 
+async function compileDocument(): Promise<ToolExecutionResult> {
+  const state = useDocumentStore.getState();
+  if (!state.projectRoot) return err("No project is open.");
+  if (state.isCompiling) {
+    return err(
+      "A compile is already in progress. Wait for it to finish before compiling again.",
+    );
+  }
+  const target = resolveCompileTarget(state.activeFileId, state.files);
+  if (!target) return err("The project has no compilable .tex file.");
+
+  await state.saveAllFiles();
+  state.setIsCompiling(true);
+  try {
+    const useTexlive =
+      useSettingsStore.getState().compilerBackend === "texlive";
+    const pdf = await compileLatex(
+      state.projectRoot,
+      target.targetPath,
+      useTexlive,
+    );
+    state.setPdfData(pdf, target.rootId);
+    return ok(
+      `Compile succeeded for ${target.targetPath}. The user's PDF preview has been updated. ` +
+        "Call read_build_log if you need to check for warnings (overfull boxes, undefined references).",
+    );
+  } catch (e) {
+    const failure = formatCompileError(e);
+    state.setCompileError(failure, target.rootId);
+    const location =
+      failure.sourceFile || failure.sourceLine
+        ? `\nLocation: ${failure.sourceFile ?? target.targetPath}${
+            failure.sourceLine ? `:${failure.sourceLine}` : ""
+          }`
+        : "";
+    const diagnostics = failure.relatedDiagnostics
+      .map(
+        (d) =>
+          `- ${d.file ?? ""}${d.line != null ? `:${d.line}` : ""} ${d.message}`,
+      )
+      .join("\n");
+    return err(
+      `Compile failed (${failure.category}) for ${target.targetPath}.\n` +
+        `Summary: ${failure.summary}${location}\n` +
+        (diagnostics ? `Diagnostics:\n${diagnostics}\n` : "") +
+        "Call read_build_log for the full engine output if the cause is unclear.",
+    );
+  } finally {
+    useDocumentStore.getState().setIsCompiling(false);
+  }
+}
+
+async function readBuildLog(): Promise<ToolExecutionResult> {
+  const state = useDocumentStore.getState();
+  if (!state.projectRoot) return err("No project is open.");
+  const target = resolveCompileTarget(state.activeFileId, state.files);
+  if (!target) return err("The project has no compilable .tex file.");
+
+  const stem = (target.targetPath.split("/").pop() ?? "").replace(
+    /\.[^.]+$/,
+    "",
+  );
+  try {
+    const logPath = await join(
+      state.projectRoot,
+      `.tectonic-editor/build/${stem}.log`,
+    );
+    const content = await readTexFileContent(logPath);
+    if (!content.trim()) {
+      return err("The build log is empty. Run compile_document first.");
+    }
+    if (content.length > MAX_LOG_CHARS) {
+      return ok(
+        `[Log truncated — showing the last ${MAX_LOG_CHARS} of ${content.length} characters]\n…` +
+          content.slice(-MAX_LOG_CHARS),
+      );
+    }
+    return ok(content);
+  } catch {
+    // No log on disk (e.g. engine failed before writing one) — fall back to
+    // the raw engine output captured from the last failed compile.
+    const failure =
+      state.compileErrorCache.get(target.rootId) ?? state.compileError;
+    if (failure != null) {
+      const raw =
+        typeof failure === "string" ? failure : failure.rawEngineOutput;
+      if (raw) {
+        return ok(
+          `[No log file found — showing the last compile's engine output]\n${raw}`,
+        );
+      }
+    }
+    return err("No build log found. Run compile_document first.");
+  }
+}
+
 export async function executeAiTool(
   name: string,
   input: unknown,
@@ -262,6 +396,10 @@ export async function executeAiTool(
         return searchProject(input);
       case "propose_edit":
         return proposeEdit(input, toolUseId);
+      case "compile_document":
+        return await compileDocument();
+      case "read_build_log":
+        return await readBuildLog();
       default:
         return err(`Unknown tool: ${name}`);
     }

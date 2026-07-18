@@ -3,7 +3,7 @@ pub mod openai;
 
 /// Shared default system prompt for API providers. The frontend supplies the
 /// matching tool definitions (list_files / read_file / search_project /
-/// propose_edit) with every request.
+/// propose_edit / compile_document / read_build_log) with every request.
 pub fn default_latex_system_prompt() -> String {
     concat!(
         "You are an AI assistant built into Tectonic Editor, a LaTeX writing ",
@@ -22,6 +22,16 @@ pub fn default_latex_system_prompt() -> String {
         "- propose_edit's `search` text must be copied exactly from the file ",
         "and match exactly once; include enough surrounding lines to make it ",
         "unique.\n",
+        "\n",
+        "Fixing compile errors:\n",
+        "- Use compile_document to compile and read_build_log for the full ",
+        "engine output. When the user reports a broken build, compile first ",
+        "to see the real error instead of guessing.\n",
+        "- Diagnose from the log, then propose a minimal fix with ",
+        "propose_edit. Unaccepted proposals are NOT part of the compile — ",
+        "ask the user to accept the fix, then compile again to verify.\n",
+        "- Compile warnings (overfull boxes, undefined references) appear ",
+        "only in read_build_log, not in compile_document's summary.\n",
         "\n",
         "LaTeX guidelines:\n",
         "- Preserve the document's existing preamble, packages, formatting ",

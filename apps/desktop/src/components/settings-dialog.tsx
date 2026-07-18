@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   FileCogIcon,
@@ -11,7 +11,9 @@ import {
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUvSetupStore } from "@/stores/uv-setup-store";
+import { useDocumentStore } from "@/stores/document-store";
 import { AiSettings } from "@/components/ai-settings";
+import { UvSetupDialog } from "@/components/uv-setup";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -173,6 +175,9 @@ function PythonSection() {
   const checkUv = useUvSetupStore((s) => s.checkStatus);
   const installUv = useUvSetupStore((s) => s.install);
   const finishUvInstall = useUvSetupStore((s) => s._finishInstall);
+  const venvReady = useUvSetupStore((s) => s.venvReady);
+  const projectRoot = useDocumentStore((s) => s.projectRoot);
+  const [showUvDialog, setShowUvDialog] = useState(false);
 
   useEffect(() => {
     checkUv();
@@ -224,10 +229,26 @@ function PythonSection() {
           <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
         )}
       </div>
+      {ready && projectRoot && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => setShowUvDialog(true)}
+        >
+          {venvReady
+            ? "Manage project environment"
+            : "Set up project environment"}
+        </Button>
+      )}
       <p className="text-muted-foreground/70 text-xs">
         Optional. Enables running Python scripts and generating plots from
         within a project.
       </p>
+      <UvSetupDialog
+        open={showUvDialog}
+        onClose={() => setShowUvDialog(false)}
+      />
     </div>
   );
 }

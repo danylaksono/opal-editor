@@ -24,8 +24,6 @@ import {
   PanelTopIcon,
   FileIcon,
   FileSpreadsheetIcon,
-  AppWindowIcon,
-  TerminalIcon,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -75,8 +73,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { useUvSetupStore } from "@/stores/uv-setup-store";
-import { UvSetupDialog } from "@/components/uv-setup";
 import { createLogger } from "@/lib/debug/logger";
 import { HealthPanel } from "@/components/workspace/health-panel";
 import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
@@ -1055,9 +1051,6 @@ export function Sidebar({ activePanel }: SidebarProps) {
         {activePanel === "health" && <HealthPanel />}
       </div>
 
-      {/* Environment section — Python */}
-      <EnvironmentSection />
-
       {/* Footer */}
       <div className="flex items-center justify-between border-sidebar-border border-t px-3 py-2 text-muted-foreground text-xs">
         <span className="truncate">TectonicEditor v{appVersion}</span>
@@ -1418,61 +1411,6 @@ function FileTreeNode({
         </ContextMenuContent>
       </ContextMenu>
     </DraggableItem>
-  );
-}
-
-// ─── Environment Section (Python) ───
-
-function EnvironmentSection() {
-  const venvReady = useUvSetupStore((s) => s.venvReady);
-  const uvStatus = useUvSetupStore((s) => s.status);
-  const [showUvDialog, setShowUvDialog] = useState(false);
-
-  const pythonLabel = venvReady
-    ? "Active"
-    : uvStatus === "not-installed"
-      ? "Not installed"
-      : uvStatus === "ready"
-        ? "No venv"
-        : "";
-
-  return (
-    <>
-      <div className="border-sidebar-border border-t">
-        <div className="flex h-8 shrink-0 items-center justify-center gap-2 px-3">
-          <AppWindowIcon className="size-3.5 text-muted-foreground" />
-          <span className="font-medium text-xs">Environment</span>
-        </div>
-        <div className="space-y-0.5 px-1 pb-1.5">
-          {/* Python / uv row */}
-          <button
-            className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
-            onClick={() => setShowUvDialog(true)}
-          >
-            <TerminalIcon
-              className={cn(
-                "size-3.5 shrink-0",
-                venvReady ? "text-foreground" : "text-muted-foreground",
-              )}
-            />
-            <span className="min-w-0 flex-1 truncate text-xs">Python</span>
-            <span
-              className={cn(
-                "shrink-0 text-xs",
-                venvReady ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {pythonLabel}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <UvSetupDialog
-        open={showUvDialog}
-        onClose={() => setShowUvDialog(false)}
-      />
-    </>
   );
 }
 

@@ -1,7 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { executeAiTool } from "@/lib/ai/tools";
 import { useDocumentStore } from "@/stores/document-store";
 import { useProposedChangesStore } from "@/stores/proposed-changes-store";
+import type { CompileFailure } from "@/lib/latex-compiler";
 
 function makeFile(relativePath: string, content: string, type = "tex") {
   return {
@@ -195,5 +198,113 @@ describe("propose_edit", () => {
     expect(changes[0].oldContent).toBe(MAIN_TEX); // original baseline
     expect(changes[0].newContent).toContain("Hi world.");
     expect(changes[0].newContent).toContain("Bye again.");
+  });
+});
+
+describe("compile_document", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    useDocumentStore.setState({
+      activeFileId: "main.tex",
+      isCompiling: false,
+      compileErrorCache: new Map(),
+    } as any);
+  });
+
+  it("compiles the root file and reports success", async () => {
+    vi.mocked(invoke).mockResolvedValue(new ArrayBuffer(4) as never);
+    const res = await executeAiTool("compile_document", {}, "tu1");
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("Compile succeeded for main.tex");
+    expect(invoke).toHaveBeenCalledWith("compile_latex", {
+      projectDir: "/project",
+      mainFile: "main.tex",
+      useTexlive: false,
+    });
+    expect(useDocumentStore.getState().isCompiling).toBe(false);
+  });
+
+  it("returns a structured error summary on failure", async () => {
+    vi.mocked(invoke).mockRejectedValue(
+      "Compilation failed\n! Undefined control sequence.\nl.3 \badcmd",
+    );
+    const res = await executeAiTool("compile_document", {}, "tu1");
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("Compile failed (undefined-command)");
+    expect(res.content).toContain(":3");
+    expect(res.content).toContain("read_build_log");
+    // The failure is surfaced to the user's UI as well
+    expect(useDocumentStore.getState().compileError).not.toBeNull();
+    expect(useDocumentStore.getState().isCompiling).toBe(false);
+  });
+
+  it("refuses when a compile is already in progress", async () => {
+    useDocumentStore.setState({ isCompiling: true } as any);
+    const res = await executeAiTool("compile_document", {}, "tu1");
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("already in progress");
+    expect(invoke).not.toHaveBeenCalledWith("compile_latex", expect.anything());
+  });
+
+  it("errors when no project is open", async () => {
+    useDocumentStore.setState({ projectRoot: null, files: [] } as any);
+    const res = await executeAiTool("compile_document", {}, "tu1");
+    expect(res.isError).toBe(true);
+  });
+});
+
+describe("read_build_log", () => {
+  beforeEach(() => {
+    vi.mocked(readTextFile).mockReset();
+    useDocumentStore.setState({
+      activeFileId: "main.tex",
+      compileError: null,
+      compileErrorCache: new Map(),
+    } as any);
+  });
+
+  it("returns the log file content from the build directory", async () => {
+    vi.mocked(readTextFile).mockResolvedValue(
+      "This is pdfTeX\nOverfull hbox (12.3pt too wide)",
+    );
+    const res = await executeAiTool("read_build_log", {}, "tu1");
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("Overfull");
+    expect(readTextFile).toHaveBeenCalledWith(
+      "/project/.tectonic-editor/build/main.log",
+    );
+  });
+
+  it("truncates very large logs, keeping the tail", async () => {
+    vi.mocked(readTextFile).mockResolvedValue(`${"x".repeat(50_000)}THE-END`);
+    const res = await executeAiTool("read_build_log", {}, "tu1");
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("[Log truncated");
+    expect(res.content).toContain("THE-END");
+    expect(res.content.length).toBeLessThan(41_000);
+  });
+
+  it("falls back to the stored engine output when no log exists", async () => {
+    vi.mocked(readTextFile).mockRejectedValue(new Error("not found"));
+    const failure: CompileFailure = {
+      backend: "tectonic",
+      category: "syntax",
+      summary: "Missing $ inserted",
+      relatedDiagnostics: [],
+      rawEngineOutput: "RAW ENGINE OUTPUT",
+    };
+    useDocumentStore.setState({
+      compileErrorCache: new Map([["main.tex", failure]]),
+    } as any);
+    const res = await executeAiTool("read_build_log", {}, "tu1");
+    expect(res.isError).toBeFalsy();
+    expect(res.content).toContain("RAW ENGINE OUTPUT");
+  });
+
+  it("errors when there is no log and no stored output", async () => {
+    vi.mocked(readTextFile).mockRejectedValue(new Error("not found"));
+    const res = await executeAiTool("read_build_log", {}, "tu1");
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain("Run compile_document first");
   });
 });
