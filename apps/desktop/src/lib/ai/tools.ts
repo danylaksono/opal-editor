@@ -11,6 +11,7 @@ import {
   findCandidateDuplicates,
   generateCitationKey,
   lookupReference,
+  searchReferences,
   serializeCandidate,
   type CitationCandidate,
 } from "@/lib/bibliography-import";
@@ -131,6 +132,32 @@ export const AI_TOOL_DEFINITIONS: AiToolDefinition[] = [
       type: "object",
       properties: {},
       required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "search_references",
+    description:
+      "Search Crossref for scholarly works using a title, author, year, or " +
+      "other bibliographic clues. Returns candidate metadata and DOIs. Search " +
+      "results are leads, not proof: compare them with the project context, " +
+      "then call lookup_reference with the best DOI before proposing an " +
+      "addition. Requires network access.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Focused bibliographic query, ideally title words plus author or year",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Number of candidates to return, from 1 to 10 (default 5)",
+        },
+      },
+      required: ["query"],
       additionalProperties: false,
     },
   },
@@ -559,6 +586,36 @@ function describeCandidate(candidate: CitationCandidate): string {
   return lines.join("\n");
 }
 
+async function searchReferencesTool(input: any): Promise<ToolExecutionResult> {
+  const query = typeof input?.query === "string" ? input.query.trim() : "";
+  if (!query) return err("Missing required parameter: query");
+  const requestedLimit =
+    typeof input?.limit === "number" ? Math.trunc(input.limit) : 5;
+  const limit = Math.min(Math.max(requestedLimit, 1), 10);
+  let candidates: CitationCandidate[];
+  try {
+    candidates = await searchReferences(query, limit);
+  } catch (e) {
+    return err(
+      `Could not search Crossref for "${query}": ${String(e)}. ` +
+        "The network or scholarly metadata service may be unavailable.",
+    );
+  }
+  if (candidates.length === 0) {
+    return ok(`Crossref returned no matches for "${query}".`);
+  }
+  return ok(
+    `Crossref candidates for "${query}" (verify before use):\n\n${candidates
+      .map(
+        (candidate, index) =>
+          `${index + 1}. ${describeCandidate(candidate)}${
+            candidate.url ? `\nURL: ${candidate.url}` : ""
+          }`,
+      )
+      .join("\n\n")}`,
+  );
+}
+
 async function lookupReferenceTool(input: any): Promise<ToolExecutionResult> {
   const identifier =
     typeof input?.identifier === "string" ? input.identifier.trim() : "";
@@ -689,6 +746,8 @@ export async function executeAiTool(
         return await readBuildLog();
       case "check_citations":
         return checkCitations();
+      case "search_references":
+        return await searchReferencesTool(input);
       case "lookup_reference":
         return await lookupReferenceTool(input);
       case "add_citation":

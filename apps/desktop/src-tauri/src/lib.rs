@@ -643,6 +643,7 @@ pub fn run() {
             latex::synctex_view,
             latex::detect_texlive,
             metadata::lookup_reference,
+            metadata::search_references,
             metadata::clear_metadata_cache,
             project_import::import_zip_project,
             project_import::import_github_project,

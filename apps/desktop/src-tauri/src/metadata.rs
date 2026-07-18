@@ -100,6 +100,115 @@ async fn lookup_doi(client: &reqwest::Client, doi: &str) -> Result<CitationCandi
     Ok(CitationCandidate { provider: "crossref".into(), attribution: "Crossref REST API".into(), identifier: doi.into(), entry_type: message["type"].as_str().unwrap_or("article").into(), title: message["title"][0].as_str().unwrap_or("").into(), authors, year, journal: message["container-title"][0].as_str().unwrap_or("").into(), publisher: message["publisher"].as_str().unwrap_or("").into(), doi: doi.into(), isbn: String::new(), arxiv_id: String::new(), url: message["URL"].as_str().unwrap_or("").into(), raw_metadata: raw, from_cache: false })
 }
 
+fn crossref_search_candidate(item: &serde_json::Value) -> Option<CitationCandidate> {
+    let doi = item["DOI"].as_str()?.trim();
+    if doi.is_empty() {
+        return None;
+    }
+    let authors = item["author"]
+        .as_array()
+        .map(|values| {
+            values
+                .iter()
+                .map(|author| {
+                    format!(
+                        "{} {}",
+                        author["given"].as_str().unwrap_or(""),
+                        author["family"].as_str().unwrap_or("")
+                    )
+                    .trim()
+                    .to_string()
+                })
+                .filter(|author| !author.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let year = item["issued"]["date-parts"][0][0]
+        .as_i64()
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let entry_type = match item["type"].as_str().unwrap_or("") {
+        "book" | "edited-book" | "monograph" | "reference-book" => "book",
+        "book-chapter" | "reference-entry" => "incollection",
+        "proceedings-article" => "inproceedings",
+        "dissertation" => "phdthesis",
+        _ => "article",
+    };
+    let isbn = item["ISBN"]
+        .as_array()
+        .and_then(|values| values.first())
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_string();
+
+    Some(CitationCandidate {
+        provider: "crossref-search".into(),
+        attribution: "Crossref REST API".into(),
+        identifier: doi.to_string(),
+        entry_type: entry_type.into(),
+        title: item["title"][0].as_str().unwrap_or("").into(),
+        authors,
+        year,
+        journal: item["container-title"][0].as_str().unwrap_or("").into(),
+        publisher: item["publisher"].as_str().unwrap_or("").into(),
+        doi: doi.to_string(),
+        isbn,
+        arxiv_id: String::new(),
+        url: item["URL"].as_str().unwrap_or("").into(),
+        raw_metadata: serde_json::to_string(item).unwrap_or_default(),
+        from_cache: false,
+    })
+}
+
+#[tauri::command]
+pub async fn search_references(
+    query: String,
+    limit: Option<u8>,
+) -> Result<Vec<CitationCandidate>, String> {
+    let query = query.trim();
+    if query.len() < 3 {
+        return Err("Enter at least three characters to search for a reference".to_string());
+    }
+    if query.len() > 500 {
+        return Err("Reference search query is too long".to_string());
+    }
+    let rows = limit.unwrap_or(5).clamp(1, 10).to_string();
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .get("https://api.crossref.org/works")
+        .query(&[
+            ("query.bibliographic", query),
+            ("rows", rows.as_str()),
+            (
+                "select",
+                "DOI,type,title,author,issued,container-title,publisher,ISBN,URL",
+            ),
+        ])
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Crossref search returned HTTP {}",
+            response.status()
+        ));
+    }
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(json["message"]["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(crossref_search_candidate)
+        .collect())
+}
+
 async fn lookup_isbn(client: &reqwest::Client, isbn: &str) -> Result<CitationCandidate, String> {
     let limiter = OPEN_LIBRARY_LAST_REQUEST.get_or_init(|| tokio::sync::Mutex::new(None));
     let mut last = limiter.lock().await;
@@ -166,5 +275,23 @@ mod tests {
         assert_eq!(normalize_identifier("arXiv:2401.12345v2").unwrap(), Identifier::Arxiv("2401.12345".into()));
     }
     #[test] fn parses_bibtex_fields() { assert_eq!(bib_field("@article{x, title = {Hello World}}", "title"), "Hello World"); }
+    #[test]
+    fn maps_crossref_search_results() {
+        let item = serde_json::json!({
+            "DOI": "10.1000/example",
+            "type": "proceedings-article",
+            "title": ["A useful result"],
+            "author": [{ "given": "Jane", "family": "Smith" }],
+            "issued": { "date-parts": [[2024]] },
+            "container-title": ["Proceedings"],
+            "publisher": "Example Press",
+            "URL": "https://doi.org/10.1000/example"
+        });
+        let candidate = crossref_search_candidate(&item).unwrap();
+        assert_eq!(candidate.doi, "10.1000/example");
+        assert_eq!(candidate.entry_type, "inproceedings");
+        assert_eq!(candidate.authors, vec!["Jane Smith"]);
+        assert_eq!(candidate.year, "2024");
+    }
     #[test] fn cache_expiry_is_thirty_days() { assert!(CACHE_SECONDS == 2_592_000); }
 }

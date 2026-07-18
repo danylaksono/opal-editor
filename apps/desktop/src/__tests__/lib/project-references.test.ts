@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMissingCitationSearchPrompt,
   buildProjectReferenceIndex,
   filterProjectReferences,
 } from "@/lib/project-references";
@@ -51,8 +52,27 @@ describe("project reference index", () => {
       index.entries.find((entry) => entry.key === "smith2024")?.citationCount,
     ).toBe(2);
     expect(index.missing).toEqual([
-      expect.objectContaining({ key: "missing2025", citationCount: 1 }),
+      expect.objectContaining({
+        key: "missing2025",
+        citationCount: 1,
+        uses: [expect.objectContaining({ fileId: "main.tex" })],
+      }),
     ]);
+  });
+
+  it("builds a review-first AI prompt with citation context", () => {
+    const index = buildProjectReferenceIndex(files);
+    const prompt = buildMissingCitationSearchPrompt(index.missing[0], files);
+
+    expect(prompt).toContain('missing citation key "missing2025"');
+    expect(prompt).toContain(
+      String.raw`\cite{smith2024,missing2025}\parencite{smith2024}`,
+    );
+    expect(prompt).toContain("Never invent");
+    expect(prompt).toContain("search_references");
+    expect(prompt).toContain("lookup_reference");
+    expect(prompt).toContain("Do not edit project files yet");
+    expect(prompt).toContain("after I confirm");
   });
 
   it("filters cited, unused, and issue references", () => {
@@ -77,5 +97,11 @@ describe("project reference index", () => {
         .every((entry) => entry.isDuplicate),
     ).toBe(true);
     expect(filterProjectReferences(index, "issues", "")).toHaveLength(3);
+    expect(
+      filterProjectReferences(index, "issues", "", "duplicates"),
+    ).toHaveLength(2);
+    expect(filterProjectReferences(index, "issues", "", "missing")).toEqual([
+      expect.objectContaining({ key: "missing2025" }),
+    ]);
   });
 });

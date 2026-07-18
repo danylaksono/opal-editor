@@ -4,7 +4,7 @@ pub mod openai;
 /// Shared default system prompt for API providers. The frontend supplies the
 /// matching tool definitions (list_files / read_file / search_project /
 /// propose_edit / compile_document / read_build_log / check_citations /
-/// lookup_reference / add_citation) with every request.
+/// search_references / lookup_reference / add_citation) with every request.
 pub fn default_latex_system_prompt() -> String {
     concat!(
         "You are an AI assistant built into Tectonic Editor, a LaTeX writing ",
@@ -45,7 +45,9 @@ pub fn default_latex_system_prompt() -> String {
         "- To add a NEW reference, call add_citation with its DOI, arXiv ID, ",
         "or ISBN — the entry is built from the resolver's metadata, never ",
         "from your memory. Do not write .bib entries with propose_edit. If ",
-        "you do not know the identifier, ask the user for it.\n",
+        "you do not know the identifier, use search_references with title, ",
+        "author, year, and project-context clues. Treat search results as ",
+        "candidates, then verify the selected DOI with lookup_reference.\n",
         "- Use lookup_reference to verify an existing .bib entry against the ",
         "real publication record, and check_citations to find missing or ",
         "unused keys.\n",

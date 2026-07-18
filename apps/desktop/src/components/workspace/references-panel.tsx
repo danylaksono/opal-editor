@@ -23,11 +23,14 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  buildMissingCitationSearchPrompt,
   buildProjectReferenceIndex,
   filterProjectReferences,
   isMissingProjectReference,
+  type MissingProjectReference,
   type ProjectReference,
   type ReferenceFilter,
+  type ReferenceIssueFilter,
 } from "@/lib/project-references";
 import type { ZoteroCollection } from "@/lib/zotero-api";
 import { useZoteroStore, type CollectionSyncInfo } from "@/stores/zotero-store";
@@ -130,6 +133,7 @@ function ProjectReferencesView() {
   const aiStreaming = useAiChatStore((state) => state.isStreaming);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ReferenceFilter>("all");
+  const [issueFilter, setIssueFilter] = useState<ReferenceIssueFilter>("all");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateDialogTarget, setDuplicateDialogTarget] = useState<{
     key: string;
@@ -146,12 +150,13 @@ function ProjectReferencesView() {
     [duplicateGroups],
   );
   const references = useMemo(
-    () => filterProjectReferences(index, filter, query),
-    [filter, index, query],
+    () => filterProjectReferences(index, filter, query, issueFilter),
+    [filter, index, issueFilter, query],
   );
-  const issueCount =
-    index.missing.length +
-    index.entries.filter((entry) => entry.isDuplicate).length;
+  const duplicateEntryCount = index.entries.filter(
+    (entry) => entry.isDuplicate,
+  ).length;
+  const issueCount = index.missing.length + duplicateGroups.length;
 
   const jumpTo = (fileId: string, from: number) => {
     setActiveFile(fileId);
@@ -204,6 +209,37 @@ function ProjectReferencesView() {
       });
   };
 
+  const findMissingCitationWithAi = (
+    reference: MissingProjectReference,
+  ): void => {
+    if (aiProvider === "none") {
+      toast.info("Connect an AI provider to investigate missing citations");
+      return;
+    }
+    if (aiStreaming) return;
+
+    const relevantFileIds = new Set(reference.uses.map((use) => use.fileId));
+    const relevantFiles = files
+      .filter(
+        (file) =>
+          relevantFileIds.has(file.id) ||
+          file.name.toLowerCase().endsWith(".bib"),
+      )
+      .map((file) => file.relativePath);
+
+    void useAiChatStore
+      .getState()
+      .sendPrompt(
+        buildMissingCitationSearchPrompt(reference, files),
+        undefined,
+        {
+          scope: "bibliography",
+          files: relevantFiles,
+          action: "explain",
+        },
+      );
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-2 border-sidebar-border border-b px-2 py-2">
@@ -240,6 +276,38 @@ function ProjectReferencesView() {
             hasIssue={issueCount > 0}
           />
         </div>
+        {filter === "issues" && issueCount > 0 && (
+          <div className="space-y-1">
+            <div
+              className="flex items-center gap-1 overflow-x-auto"
+              role="group"
+              aria-label="Filter reference issues"
+            >
+              <IssueFilterTag
+                active={issueFilter === "all"}
+                label={`All ${issueCount}`}
+                onClick={() => setIssueFilter("all")}
+              />
+              <IssueFilterTag
+                active={issueFilter === "duplicates"}
+                label={`Duplicate keys ${duplicateGroups.length}`}
+                onClick={() => setIssueFilter("duplicates")}
+              />
+              <IssueFilterTag
+                active={issueFilter === "missing"}
+                label={`Missing ${index.missing.length}`}
+                onClick={() => setIssueFilter("missing")}
+              />
+            </div>
+            {duplicateGroups.length > 0 && issueFilter !== "missing" && (
+              <p className="px-0.5 text-[9px] text-muted-foreground">
+                {duplicateEntryCount} bibliography copies across{" "}
+                {duplicateGroups.length} duplicate{" "}
+                {duplicateGroups.length === 1 ? "key" : "keys"}
+              </p>
+            )}
+          </div>
+        )}
         {duplicateGroups.length > 0 && (
           <Button
             size="sm"
@@ -265,23 +333,43 @@ function ProjectReferencesView() {
           references.map((reference) => {
             if (isMissingProjectReference(reference)) {
               return (
-                <button
+                <div
                   key={`missing:${reference.key}`}
-                  type="button"
-                  className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                  onClick={() => jumpTo(reference.fileId, reference.from)}
+                  className="group flex w-full items-start hover:bg-sidebar-accent/60"
                 >
-                  <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-xs">
-                      Missing: {reference.key}
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    onClick={() => jumpTo(reference.fileId, reference.from)}
+                  >
+                    <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-xs">
+                        Missing: {reference.key}
+                      </span>
+                      <span className="block text-[10px] text-destructive">
+                        Cited {formatUseCount(reference.citationCount)}, no
+                        bibliography entry
+                      </span>
                     </span>
-                    <span className="block text-[10px] text-destructive">
-                      Cited {formatUseCount(reference.citationCount)}, no
-                      bibliography entry
-                    </span>
-                  </span>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    className="m-1 shrink-0 rounded p-1 text-muted-foreground opacity-70 transition-colors hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-30 group-hover:opacity-100"
+                    aria-label={`Find missing citation ${reference.key} with AI`}
+                    title={
+                      aiProvider === "none"
+                        ? "Connect an AI provider to find this citation"
+                        : aiStreaming
+                          ? "AI is currently busy"
+                          : "Find with AI"
+                    }
+                    disabled={aiProvider === "none" || aiStreaming}
+                    onClick={() => findMissingCitationWithAi(reference)}
+                  >
+                    <SparklesIcon className="size-3.5" />
+                  </button>
+                </div>
               );
             }
 
@@ -307,10 +395,20 @@ function ProjectReferencesView() {
       </div>
 
       <div className="border-sidebar-border border-t px-2 py-1.5 text-[10px] text-muted-foreground">
-        {index.entries.length}{" "}
-        {index.entries.length === 1 ? "reference" : "references"} ·{" "}
-        {index.citationCount}{" "}
-        {index.citationCount === 1 ? "citation" : "citations"}
+        {filter === "issues" ? (
+          <>
+            {issueCount} distinct {issueCount === 1 ? "issue" : "issues"} ·{" "}
+            {references.length} matching{" "}
+            {references.length === 1 ? "item" : "items"}
+          </>
+        ) : (
+          <>
+            {index.entries.length}{" "}
+            {index.entries.length === 1 ? "reference" : "references"} ·{" "}
+            {index.citationCount}{" "}
+            {index.citationCount === 1 ? "citation" : "citations"}
+          </>
+        )}
       </div>
 
       <DuplicateBibliographyDialog
@@ -355,6 +453,32 @@ function ReferenceFilterButton({
           ? "bg-sidebar-accent font-medium text-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
         hasIssue && !active && "text-destructive",
+      )}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function IssueFilterTag({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "shrink-0 rounded-full border px-2 py-0.5 text-[9px] transition-colors",
+        active
+          ? "border-primary/40 bg-primary/10 font-medium text-foreground"
+          : "border-sidebar-border bg-background text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
       )}
       aria-pressed={active}
       onClick={onClick}

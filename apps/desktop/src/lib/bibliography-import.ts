@@ -28,6 +28,10 @@ export function lookupReference(identifier: string, refresh = false) {
   return invoke<CitationCandidate>("lookup_reference", { identifier, refresh });
 }
 
+export function searchReferences(query: string, limit = 5) {
+  return invoke<CitationCandidate[]>("search_references", { query, limit });
+}
+
 export function clearMetadataCache() {
   return invoke<void>("clear_metadata_cache");
 }
