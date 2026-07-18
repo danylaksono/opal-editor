@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BibtexPasteForm } from "@/components/workspace/bibtex-paste-form";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 
 interface CitationPickerProps {
   open: boolean;
@@ -85,6 +86,9 @@ export function CitationPicker({
   onInsert,
 }: CitationPickerProps) {
   const [query, setQuery] = useState("");
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-citation-picker-width",
+  });
   const citationPackage = useMemo(
     () =>
       detectCitationPackage(
@@ -148,7 +152,8 @@ export function CitationPicker({
         }
       }}
     >
-      <DialogContent className="gap-3 p-0 sm:max-w-2xl">
+      <DialogContent className="gap-3 p-0 sm:max-w-2xl" style={widthStyle}>
+        {resizeHandle}
         <DialogHeader className="flex-row items-center justify-between border-border border-b px-4 pt-4 pb-3">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <BookMarkedIcon className="size-4 text-muted-foreground" />

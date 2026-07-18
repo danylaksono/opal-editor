@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 
 interface CrossReferencePickerProps {
   open: boolean;
@@ -57,6 +58,9 @@ export function CrossReferencePicker({
   files,
   onInsert,
 }: CrossReferencePickerProps) {
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-cross-reference-picker-width",
+  });
   const texFiles = useMemo(
     () =>
       files
@@ -109,7 +113,8 @@ export function CrossReferencePicker({
         }
       }}
     >
-      <DialogContent className="gap-3 p-0 sm:max-w-2xl">
+      <DialogContent className="gap-3 p-0 sm:max-w-2xl" style={widthStyle}>
+        {resizeHandle}
         <DialogHeader className="border-border border-b px-4 pt-4 pb-3">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <BookOpenIcon className="size-4 text-muted-foreground" />

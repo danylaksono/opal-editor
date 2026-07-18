@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +41,11 @@ export function TableEditor({
   useEffect(() => {
     if (open) setModel(initialModel ?? createTableModel());
   }, [initialModel, open]);
+
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-table-editor-width",
+    minWidth: 520,
+  });
   const source = useMemo(
     () => (model.unsupported ? model.originalSource : serializeTable(model)),
     [model],
@@ -121,9 +127,11 @@ export function TableEditor({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[90vh] max-w-4xl overflow-y-auto"
+        className="max-h-[90vh] overflow-y-auto sm:max-w-4xl"
+        style={widthStyle}
         aria-describedby="table-editor-description"
       >
+        {resizeHandle}
         <DialogHeader>
           <DialogTitle>Table editor</DialogTitle>
           <DialogDescription id="table-editor-description">

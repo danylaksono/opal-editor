@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import katex from "katex";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,12 +88,17 @@ export function MathEditor({
     onInsert(serializeMath(kind, body));
     onOpenChange(false);
   };
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-math-editor-width",
+  });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl"
+        className="sm:max-w-2xl"
+        style={widthStyle}
         aria-describedby="math-editor-description"
       >
+        {resizeHandle}
         <DialogHeader>
           <DialogTitle>Math editor</DialogTitle>
           <DialogDescription id="math-editor-description">

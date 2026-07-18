@@ -52,7 +52,6 @@ import {
   type Diagnostic,
 } from "@codemirror/lint";
 import {
-  resolveTexRoot,
   useDocumentStore,
   type ProjectFile,
 } from "@/stores/document-store";
@@ -585,6 +584,75 @@ export function LatexEditor() {
     [activeFile?.type],
   );
 
+  const openTableEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const table = findTables(view.state.doc.toString()).find(
+        (item) => position >= item.from && position <= item.to,
+      );
+      if (!table) return false;
+      window.dispatchEvent(
+        new CustomEvent("edit-structured-table", {
+          detail: {
+            model: table,
+            apply: (replacement: string) => {
+              if (
+                view.state.sliceDoc(table.from, table.to) !==
+                table.originalSource
+              ) {
+                toast.error(
+                  "The table changed while the editor was open. Reopen it to avoid overwriting source.",
+                );
+                return;
+              }
+              view.dispatch({
+                changes: {
+                  from: table.from,
+                  to: table.to,
+                  insert: replacement,
+                },
+              });
+              view.focus();
+            },
+          },
+        }),
+      );
+      return true;
+    },
+    [activeFile?.type],
+  );
+
+  const openMathEditorAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
+      const math = findMathNodes(view.state.doc.toString()).find(
+        (item) => position >= item.from && position <= item.to,
+      );
+      if (!math) return false;
+      window.dispatchEvent(
+        new CustomEvent("edit-structured-math", {
+          detail: {
+            node: math,
+            apply: (replacement: string) => {
+              if (view.state.sliceDoc(math.from, math.to) !== math.source) {
+                toast.error(
+                  "The equation changed while the editor was open. Reopen it to avoid overwriting source.",
+                );
+                return;
+              }
+              view.dispatch({
+                changes: { from: math.from, to: math.to, insert: replacement },
+              });
+              view.focus();
+            },
+          },
+        }),
+      );
+      return true;
+    },
+    [activeFile?.type],
+  );
+
   useEffect(() => {
     isSearchOpenRef.current = isSearchOpen;
   }, [isSearchOpen]);
@@ -986,6 +1054,8 @@ export function LatexEditor() {
               openCitationEditorAt(view, position) ||
               openReferenceEditorAt(view, position) ||
               openFigureEditorAt(view, position) ||
+              openTableEditorAt(view, position) ||
+              openMathEditorAt(view, position) ||
               openEnvironmentEditorAt(view, position) ||
               openBibEntryEditorAt(view, position)
             );
@@ -1176,6 +1246,10 @@ export function LatexEditor() {
               semanticBlockDecorationPlugin,
               EditorView.domEventHandlers({
                 click: (event, view) => {
+                  // Source-editing mode: clicks only place the cursor; the
+                  // structured editors stay reachable via Alt+Enter.
+                  if (!useSettingsStore.getState().inlineEditorsOnClick)
+                    return false;
                   const position = view.posAtCoords({
                     x: event.clientX,
                     y: event.clientY,
@@ -1184,71 +1258,8 @@ export function LatexEditor() {
                   if (openCitationEditorAt(view, position)) return false;
                   if (openReferenceEditorAt(view, position)) return false;
                   if (openFigureEditorAt(view, position)) return false;
-                  const source = view.state.doc.toString();
-                  const table = findTables(source).find(
-                    (item) => position >= item.from && position <= item.to,
-                  );
-                  if (table) {
-                    window.dispatchEvent(
-                      new CustomEvent("edit-structured-table", {
-                        detail: {
-                          model: table,
-                          apply: (replacement: string) => {
-                            if (
-                              view.state.sliceDoc(table.from, table.to) !==
-                              table.originalSource
-                            ) {
-                              toast.error(
-                                "The table changed while the editor was open. Reopen it to avoid overwriting source.",
-                              );
-                              return;
-                            }
-                            view.dispatch({
-                              changes: {
-                                from: table.from,
-                                to: table.to,
-                                insert: replacement,
-                              },
-                            });
-                            view.focus();
-                          },
-                        },
-                      }),
-                    );
-                    return false;
-                  }
-                  const math = findMathNodes(source).find(
-                    (item) => position >= item.from && position <= item.to,
-                  );
-                  if (math) {
-                    window.dispatchEvent(
-                      new CustomEvent("edit-structured-math", {
-                        detail: {
-                          node: math,
-                          apply: (replacement: string) => {
-                            if (
-                              view.state.sliceDoc(math.from, math.to) !==
-                              math.source
-                            ) {
-                              toast.error(
-                                "The equation changed while the editor was open. Reopen it to avoid overwriting source.",
-                              );
-                              return;
-                            }
-                            view.dispatch({
-                              changes: {
-                                from: math.from,
-                                to: math.to,
-                                insert: replacement,
-                              },
-                            });
-                            view.focus();
-                          },
-                        },
-                      }),
-                    );
-                    return false;
-                  }
+                  if (openTableEditorAt(view, position)) return false;
+                  if (openMathEditorAt(view, position)) return false;
                   openEnvironmentEditorAt(view, position);
                   return false;
                 },
@@ -1260,6 +1271,8 @@ export function LatexEditor() {
               bibEntryDecorationPlugin,
               EditorView.domEventHandlers({
                 click: (event, view) => {
+                  if (!useSettingsStore.getState().inlineEditorsOnClick)
+                    return false;
                   const position = view.posAtCoords({
                     x: event.clientX,
                     y: event.clientY,
@@ -1584,7 +1597,9 @@ export function LatexEditor() {
     openCitationEditorAt,
     openEnvironmentEditorAt,
     openFigureEditorAt,
+    openMathEditorAt,
     openReferenceEditorAt,
+    openTableEditorAt,
     setContent,
     setCursorPosition,
     setProblemDiagnostics,

@@ -23,9 +23,13 @@ import {
 } from "@/lib/bibliography-import";
 import { useDocumentStore } from "@/stores/document-store";
 import { useSemanticIndexStore } from "@/stores/semantic-index-store";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 
 export function BibliographyImportDialog() {
   const [open, setOpen] = useState(false);
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-bibliography-import-width",
+  });
   const [identifier, setIdentifier] = useState("");
   const [candidate, setCandidate] = useState<CitationCandidate | null>(null);
   const [key, setKey] = useState("");
@@ -84,9 +88,11 @@ export function BibliographyImportDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="max-h-[90vh] max-w-2xl overflow-y-auto"
+        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        style={widthStyle}
         aria-describedby="bibliography-import-description"
       >
+        {resizeHandle}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookPlusIcon className="size-5" />

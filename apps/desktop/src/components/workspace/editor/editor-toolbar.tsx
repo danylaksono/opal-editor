@@ -21,6 +21,7 @@ import {
   BoxesIcon,
   ChevronDownIcon,
   MoreHorizontalIcon,
+  MousePointerClickIcon,
   SigmaIcon,
   Table2Icon,
 } from "lucide-react";
@@ -110,6 +111,10 @@ export function EditorToolbar({
   const files = useDocumentStore((s) => s.files);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
+  const inlineEditorsOnClick = useSettingsStore((s) => s.inlineEditorsOnClick);
+  const setInlineEditorsOnClick = useSettingsStore(
+    (s) => s.setInlineEditorsOnClick,
+  );
   const workspaceModes = useLensStore((s) => s.workspaceModes);
   const setWorkspaceMode = useLensStore((s) => s.setWorkspaceMode);
   const editorMode = projectRoot
@@ -508,6 +513,29 @@ export function EditorToolbar({
         >
           <Table2Icon className="size-3.5" />
           <span className="@[34rem]:inline hidden">Table</span>
+        </Button>
+
+        <div className="mx-0.5 h-5 w-px bg-border/80" />
+        <Button
+          variant={inlineEditorsOnClick ? "secondary" : "ghost"}
+          size="sm"
+          className="calm-toolbar-action"
+          onClick={() => setInlineEditorsOnClick(!inlineEditorsOnClick)}
+          aria-pressed={inlineEditorsOnClick}
+          title={
+            inlineEditorsOnClick
+              ? "Interactive editing is on: clicking a table, citation, figure, or equation opens its editor. Click to switch to source-only editing (Alt+Enter still opens editors)."
+              : "Source-only editing: clicks just place the cursor. Press Alt+Enter to open the editor for the element at the cursor. Click to re-enable interactive editing."
+          }
+        >
+          <MousePointerClickIcon
+            className={
+              inlineEditorsOnClick ? "size-3.5" : "size-3.5 opacity-45"
+            }
+          />
+          <span className="@[42rem]:inline hidden">
+            {inlineEditorsOnClick ? "Interactive" : "Source only"}
+          </span>
         </Button>
 
         <Button

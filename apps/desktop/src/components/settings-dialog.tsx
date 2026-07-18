@@ -80,6 +80,10 @@ function EditorSection() {
   const setVimMode = useSettingsStore((s) => s.setVimMode);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const setLensExperimental = useSettingsStore((s) => s.setLensExperimental);
+  const inlineEditorsOnClick = useSettingsStore((s) => s.inlineEditorsOnClick);
+  const setInlineEditorsOnClick = useSettingsStore(
+    (s) => s.setInlineEditorsOnClick,
+  );
 
   return (
     <div className="space-y-3">
@@ -126,6 +130,21 @@ function EditorSection() {
           type="checkbox"
           checked={vimMode}
           onChange={(e) => setVimMode(e.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Open editors on click</div>
+          <div className="text-muted-foreground text-xs">
+            Clicking a table, citation, or figure opens its structured editor.
+            When off, clicks just place the cursor — Alt+Enter opens editors.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={inlineEditorsOnClick}
+          onChange={(event) => setInlineEditorsOnClick(event.target.checked)}
           className="size-4 accent-primary"
         />
       </label>
