@@ -1127,17 +1127,23 @@ export function PdfPreview() {
             <span className="truncate">{rootFileName}</span>
           </div>
           {isSaving && (
-            <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
+            <div
+              className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
+              title="Saving..."
+            >
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
-              <span className="font-medium text-muted-foreground text-xs">
+              <span className="@[34rem]/pv:inline hidden font-medium text-muted-foreground text-xs">
                 Saving...
               </span>
             </div>
           )}
           {!isSaving && isCompiling && (
-            <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
+            <div
+              className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
+              title="Compiling..."
+            >
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
-              <span className="font-medium text-muted-foreground text-xs">
+              <span className="@[34rem]/pv:inline hidden font-medium text-muted-foreground text-xs">
                 Compiling...
               </span>
             </div>
@@ -1167,9 +1173,12 @@ export function PdfPreview() {
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
               onClick={() => handleCompile(true)}
+              title={pdfData ? "Recompile" : "Compile"}
             >
               <RefreshCwIcon className="size-3.5" />
-              {pdfData ? "Recompile" : "Compile"}
+              <span className="@[34rem]/pv:inline hidden">
+                {pdfData ? "Recompile" : "Compile"}
+              </span>
             </Button>
           )}
           {!isSaving && !isCompiling && compileError && (
@@ -1179,9 +1188,10 @@ export function PdfPreview() {
               className="h-7 gap-1.5 px-2.5 text-destructive text-xs hover:text-destructive"
               onClick={() => handleCompile(true)}
               disabled={!isTexActive}
+              title="Retry compile"
             >
               <RefreshCwIcon className="size-3.5" />
-              Retry
+              <span className="@[34rem]/pv:inline hidden">Retry</span>
             </Button>
           )}
         </div>
@@ -1303,7 +1313,7 @@ export function PdfPreview() {
                 ) : (
                   <MessageSquareTextIcon className="size-3.5" />
                 )}
-                <span className="@[42rem]/pv:inline hidden">
+                <span className="@[34rem]/pv:inline hidden">
                   {reviewMode ? "Exit review" : "Review"}
                 </span>
               </Button>
