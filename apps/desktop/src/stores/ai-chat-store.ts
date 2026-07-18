@@ -72,7 +72,58 @@ export function toAiMessages(msgs: AiStreamMessage[]): AiMessage[] {
       });
     }
   }
-  return result;
+
+  // OpenAI-compatible APIs (including DeepSeek) require every assistant
+  // tool_use block to be followed immediately by a matching tool_result.
+  // Interrupted/cancelled streams can leave either side orphaned in persisted
+  // chat history. Drop only the orphaned blocks and retain any text that was
+  // part of the same turn.
+  const pairedToolIds = new Set<string>();
+  for (let index = 0; index < result.length - 1; index += 1) {
+    const assistant = result[index];
+    const user = result[index + 1];
+    if (assistant.role !== "assistant" || user.role !== "user") continue;
+
+    const resultIds = new Set(
+      (user.content ?? [])
+        .filter((block) => block.type === "tool_result")
+        .map((block) => block.tool_use_id),
+    );
+    for (const block of assistant.content ?? []) {
+      if (block.type === "tool_use" && resultIds.has(block.id)) {
+        pairedToolIds.add(block.id);
+      }
+    }
+  }
+
+  const repaired = result
+    .map((message) => ({
+      ...message,
+      content: message.content?.filter((block) => {
+        if (block.type === "tool_use") return pairedToolIds.has(block.id);
+        if (block.type === "tool_result") {
+          return pairedToolIds.has(block.tool_use_id);
+        }
+        return true;
+      }),
+    }))
+    .filter((message) => (message.content?.length ?? 0) > 0);
+
+  // Removing an orphan-only turn can expose consecutive messages with the
+  // same role, so compact once more to preserve Anthropic role alternation.
+  const compacted: AiMessage[] = [];
+  for (const message of repaired) {
+    const previous = compacted[compacted.length - 1];
+    if (previous?.role === message.role) {
+      previous.content = [
+        ...(previous.content ?? []),
+        ...(message.content ?? []),
+      ];
+    } else {
+      compacted.push(message);
+    }
+  }
+  return compacted;
 }
 
 export interface ModelInfo {

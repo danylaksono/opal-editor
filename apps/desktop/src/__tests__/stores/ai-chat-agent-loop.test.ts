@@ -301,3 +301,82 @@ describe("toAiMessages duplicate hardening", () => {
     expect(last.message?.content).toHaveLength(1);
   });
 });
+
+describe("toAiMessages interrupted tool-call recovery", () => {
+  it("drops an unanswered tool call before the next user prompt", () => {
+    const result = toAiMessages([
+      userMsg("inspect the project"),
+      assistantToolUse("interrupted", "list_files"),
+      userMsg("continue without that"),
+    ]);
+
+    expect(result).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "inspect the project" },
+          { type: "text", text: "continue without that" },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps assistant text while removing its unanswered tool call", () => {
+    const result = toAiMessages([
+      userMsg("inspect the project"),
+      assistantText("I will inspect the files."),
+      assistantToolUse("interrupted", "list_files"),
+      userMsg("skip that step"),
+    ]);
+
+    expect(result.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+    ]);
+    expect(result[1].content).toEqual([
+      { type: "text", text: "I will inspect the files." },
+    ]);
+  });
+
+  it("drops orphaned results and retains only fully paired parallel calls", () => {
+    const result = toAiMessages([
+      userMsg("inspect"),
+      assistantToolUse("paired", "list_files"),
+      assistantToolUse("missing", "read_file", { path: "main.tex" }),
+      {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "paired",
+              content: "main.tex",
+            },
+            {
+              type: "tool_result",
+              tool_use_id: "unknown",
+              content: "stale",
+            },
+          ],
+        },
+      },
+    ]);
+
+    expect(result[1].content).toEqual([
+      {
+        type: "tool_use",
+        id: "paired",
+        name: "list_files",
+        input: {},
+      },
+    ]);
+    expect(result[2].content).toEqual([
+      {
+        type: "tool_result",
+        tool_use_id: "paired",
+        content: "main.tex",
+      },
+    ]);
+  });
+});

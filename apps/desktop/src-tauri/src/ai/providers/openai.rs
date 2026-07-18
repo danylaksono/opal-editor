@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures_util::StreamExt;
+use std::collections::HashSet;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
@@ -72,6 +73,7 @@ impl AiProvider for OpenAiProvider {
                 "content": request.prompt
             }));
         }
+        let messages = sanitize_openai_tool_messages(messages);
 
         // Note: no max_tokens — newer OpenAI models reject it (they use
         // max_completion_tokens), and omitting it works across all
@@ -111,7 +113,7 @@ impl AiProvider for OpenAiProvider {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(format!("OpenAI API error {}: {}", status, text));
+            return Err(format!("OpenAI-compatible API error {}: {}", status, text));
         }
 
         let provider_clone = provider_id.clone();
@@ -324,5 +326,153 @@ fn openai_messages_to_json(msg: &AiMessage) -> Vec<serde_json::Value> {
             out
         }
         _ => Vec::new(),
+    }
+}
+
+/// Repair interrupted tool turns before sending them to an OpenAI-compatible
+/// endpoint. Providers such as DeepSeek reject an assistant `tool_calls`
+/// message unless every call is answered by an immediately following `tool`
+/// message. Preserve completed pairs and ordinary assistant text while
+/// dropping orphaned calls/results left by cancellation or a broken stream.
+fn sanitize_openai_tool_messages(messages: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let mut matched_by_assistant: Vec<HashSet<String>> = vec![HashSet::new(); messages.len()];
+
+    for (index, message) in messages.iter().enumerate() {
+        if message["role"] != "assistant" {
+            continue;
+        }
+        let Some(tool_calls) = message["tool_calls"].as_array() else {
+            continue;
+        };
+
+        let mut result_ids = HashSet::new();
+        for result in messages.iter().skip(index + 1) {
+            if result["role"] != "tool" {
+                break;
+            }
+            if let Some(id) = result["tool_call_id"].as_str() {
+                result_ids.insert(id.to_string());
+            }
+        }
+
+        for call in tool_calls {
+            if let Some(id) = call["id"].as_str() {
+                if result_ids.contains(id) {
+                    matched_by_assistant[index].insert(id.to_string());
+                }
+            }
+        }
+    }
+
+    let mut repaired = Vec::with_capacity(messages.len());
+    let mut allowed_results = HashSet::new();
+    for (index, mut message) in messages.into_iter().enumerate() {
+        match message["role"].as_str() {
+            Some("assistant") => {
+                allowed_results = matched_by_assistant[index].clone();
+                if let Some(tool_calls) = message["tool_calls"].as_array_mut() {
+                    tool_calls.retain(|call| {
+                        call["id"]
+                            .as_str()
+                            .is_some_and(|id| allowed_results.contains(id))
+                    });
+                    if tool_calls.is_empty() {
+                        if let Some(object) = message.as_object_mut() {
+                            object.remove("tool_calls");
+                        }
+                    }
+                }
+
+                let has_tool_calls = message["tool_calls"]
+                    .as_array()
+                    .is_some_and(|calls| !calls.is_empty());
+                let has_text = message["content"]
+                    .as_str()
+                    .is_some_and(|content| !content.is_empty());
+                if has_tool_calls || has_text {
+                    repaired.push(message);
+                }
+            }
+            Some("tool") => {
+                let Some(id) = message["tool_call_id"].as_str() else {
+                    continue;
+                };
+                if allowed_results.remove(id) {
+                    repaired.push(message);
+                }
+            }
+            _ => {
+                allowed_results.clear();
+                repaired.push(message);
+            }
+        }
+    }
+    repaired
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_openai_tool_messages;
+    use serde_json::json;
+
+    #[test]
+    fn removes_orphaned_tool_calls_before_a_user_message() {
+        let messages = vec![
+            json!({"role": "system", "content": "system"}),
+            json!({"role": "user", "content": "inspect"}),
+            json!({
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": "interrupted",
+                    "type": "function",
+                    "function": {"name": "list_files", "arguments": "{}"}
+                }]
+            }),
+            json!({"role": "user", "content": "continue"}),
+        ];
+
+        let repaired = sanitize_openai_tool_messages(messages);
+        assert_eq!(repaired.len(), 3);
+        assert_eq!(repaired[2], json!({"role": "user", "content": "continue"}));
+    }
+
+    #[test]
+    fn keeps_only_calls_with_immediately_following_results() {
+        let messages = vec![
+            json!({
+                "role": "assistant",
+                "content": "Checking",
+                "tool_calls": [
+                    {
+                        "id": "paired",
+                        "type": "function",
+                        "function": {"name": "list_files", "arguments": "{}"}
+                    },
+                    {
+                        "id": "missing",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": "{}"}
+                    }
+                ]
+            }),
+            json!({
+                "role": "tool",
+                "tool_call_id": "paired",
+                "content": "main.tex"
+            }),
+            json!({
+                "role": "tool",
+                "tool_call_id": "unknown",
+                "content": "stale"
+            }),
+            json!({"role": "user", "content": "continue"}),
+        ];
+
+        let repaired = sanitize_openai_tool_messages(messages);
+        assert_eq!(repaired.len(), 3);
+        assert_eq!(repaired[0]["tool_calls"].as_array().map(Vec::len), Some(1));
+        assert_eq!(repaired[0]["tool_calls"][0]["id"], "paired");
+        assert_eq!(repaired[1]["tool_call_id"], "paired");
     }
 }

@@ -16,6 +16,10 @@
 - Migrated the project build cache from `.prism/build` to `.tectonic-editor/build` (one-time automatic migration on first compile).
 - The Python (`uv`) environment is now opt-in and no longer auto-runs on project open.
 
+### Fixed
+
+- Repaired interrupted tool-call history before sending it to OpenAI-compatible APIs such as DeepSeek, preventing 400 errors about missing `tool_call_id` results.
+
 ### Removed
 
 - Removed the bundled Claude Code CLI integration (install/login/session management); AI now uses the Anthropic and OpenAI API providers only.
