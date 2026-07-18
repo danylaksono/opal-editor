@@ -13,6 +13,12 @@ interface MupdfPageProps {
   pageWidth: number;
   pageHeight: number;
   isVisible: boolean;
+  highlight?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
 }
 
 /** Check if a canvas appears blank (GPU context was silently invalidated).
@@ -39,6 +45,7 @@ export const MupdfPage = memo(function MupdfPage({
   pageWidth,
   pageHeight,
   isVisible,
+  highlight,
 }: MupdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [textData, setTextData] = useState<StructuredTextData | null>(null);
@@ -185,6 +192,19 @@ export const MupdfPage = memo(function MupdfPage({
             </a>
           ))}
         </div>
+      )}
+
+      {highlight && (
+        <div
+          className="synctex-highlight pointer-events-none absolute z-[3] rounded-sm border-2 border-blue-500 bg-blue-400/20 shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
+          style={{
+            left: highlight.x * scale,
+            top: highlight.y * scale,
+            width: Math.max(12, highlight.width * scale),
+            height: Math.max(12, highlight.height * scale),
+          }}
+          aria-hidden="true"
+        />
       )}
     </div>
   );

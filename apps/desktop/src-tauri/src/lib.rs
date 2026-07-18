@@ -639,6 +639,7 @@ pub fn run() {
             read_clipboard_file_paths,
             latex::compile_latex,
             latex::synctex_edit,
+            latex::synctex_view,
             latex::detect_texlive,
             metadata::lookup_reference,
             metadata::clear_metadata_cache,

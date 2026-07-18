@@ -22,6 +22,11 @@ import {
   indentMore,
   indentLess,
   toggleComment,
+  undo,
+  redo,
+  undoDepth,
+  redoDepth,
+  selectAll,
 } from "@codemirror/commands";
 import { syntaxTreeAvailable } from "@codemirror/language";
 import { useTheme } from "next-themes";
@@ -51,7 +56,11 @@ import {
   forEachDiagnostic,
   type Diagnostic,
 } from "@codemirror/lint";
-import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
+import {
+  useDocumentStore,
+  hasPdfData,
+  type ProjectFile,
+} from "@/stores/document-store";
 import {
   useProposedChangesStore,
   type ProposedChange,
@@ -63,6 +72,7 @@ import {
   compileLatex,
   resolveCompileTarget,
   formatCompileError,
+  synctexView,
 } from "@/lib/latex-compiler";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getEditorThemeExtensions } from "@/lib/editor-themes";
@@ -78,10 +88,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  ClipboardPasteIcon,
+  FileSearchIcon,
+  PencilIcon,
+  Redo2Icon,
+  ScissorsIcon,
   SpellCheckIcon,
+  TextSelectIcon,
   RotateCcwIcon,
   TagIcon,
   CopyIcon,
+  Undo2Icon,
   XIcon,
 } from "lucide-react";
 import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
@@ -103,6 +120,15 @@ import { semanticCompletionSource } from "@/lib/semantic/completion-source";
 import { latexTabCompletion } from "@/lib/latex-inline-completion";
 import { sourceLensExtension } from "@/lib/source-lens";
 import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
+import { usePreviewStore } from "@/stores/preview-store";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { findTables } from "@/lib/latex-tables";
 import { findMathNodes } from "@/lib/latex-math";
 import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
@@ -310,6 +336,8 @@ export function LatexEditor() {
   const setSelectionRange = useDocumentStore((s) => s.setSelectionRange);
   const jumpToPosition = useDocumentStore((s) => s.jumpToPosition);
   const clearJumpRequest = useDocumentStore((s) => s.clearJumpRequest);
+  const pdfRevision = useDocumentStore((s) => s.pdfRevision);
+  const requestPdfLocation = usePreviewStore((s) => s.requestLocation);
 
   const setIsCompiling = useDocumentStore((s) => s.setIsCompiling);
   const setPdfData = useDocumentStore((s) => s.setPdfData);
@@ -344,6 +372,7 @@ export function LatexEditor() {
   }, [activeFileId]);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [contextPosition, setContextPosition] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [matchCount, setMatchCount] = useState(0);
   const [currentMatch, setCurrentMatch] = useState(0);
@@ -416,6 +445,7 @@ export function LatexEditor() {
   const bibliographyEntriesRef = useRef<BibCitation[]>([]);
   const labelDefinitionsRef = useRef<LabelDefinition[]>([]);
   const declaredPackagesRef = useRef<Set<string>>(new Set());
+  const pdfAvailable = useMemo(() => hasPdfData(), [pdfRevision]);
 
   const citationPackage = useMemo(
     () =>
@@ -649,6 +679,133 @@ export function LatexEditor() {
     },
     [activeFile?.type],
   );
+
+  const handleEditorContextMenu = useCallback((event: React.MouseEvent) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const position =
+      view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+      view.state.selection.main.head;
+    const selection = view.state.selection.main;
+    if (position < selection.from || position > selection.to) {
+      view.dispatch({ selection: { anchor: position } });
+    }
+    setContextPosition(position);
+  }, []);
+
+  const handleGoToPdf = useCallback(async () => {
+    const view = viewRef.current;
+    if (!view || !projectRoot || !activeFile || activeFile.type !== "tex") {
+      return;
+    }
+    const position = Math.min(
+      contextPosition ?? view.state.selection.main.head,
+      view.state.doc.length,
+    );
+    const sourceLine = view.state.doc.lineAt(position);
+    const location = await synctexView(
+      projectRoot,
+      activeFile.relativePath,
+      sourceLine.number,
+    );
+    if (!location) {
+      toast.error("Could not find the corresponding PDF location", {
+        description: "Recompile the document to refresh its SyncTeX data.",
+      });
+      return;
+    }
+    requestPdfLocation(location);
+  }, [activeFile, contextPosition, projectRoot, requestPdfLocation]);
+
+  const copyEditorSelection = useCallback(async () => {
+    const view = viewRef.current;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    if (from === to) return;
+    await navigator.clipboard.writeText(view.state.sliceDoc(from, to));
+    view.focus();
+  }, []);
+
+  const cutEditorSelection = useCallback(async () => {
+    const view = viewRef.current;
+    if (!view) return;
+    const { from, to } = view.state.selection.main;
+    if (from === to) return;
+    await navigator.clipboard.writeText(view.state.sliceDoc(from, to));
+    view.dispatch({
+      changes: { from, to, insert: "" },
+      selection: { anchor: from },
+    });
+    view.focus();
+  }, []);
+
+  const pasteIntoEditor = useCallback(async () => {
+    const view = viewRef.current;
+    if (!view) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const { from, to } = view.state.selection.main;
+      view.dispatch({
+        changes: { from, to, insert: text },
+        selection: { anchor: from + text.length },
+      });
+      view.focus();
+    } catch {
+      toast.error("Clipboard access was denied");
+    }
+  }, []);
+
+  const structuredContextLabel = (() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null) return null;
+    const source = view.state.doc.toString();
+    if (activeFile?.type === "bib" && findBibEntryAt(source, contextPosition)) {
+      return "Edit bibliography entry";
+    }
+    if (activeFile?.type !== "tex") return null;
+    if (findCitationAt(source, contextPosition)) return "Edit citation";
+    if (findReferenceAt(source, contextPosition)) return "Edit reference";
+    if (findFigureAt(source, contextPosition)) return "Edit figure";
+    if (
+      findTables(source).some(
+        (item) => contextPosition >= item.from && contextPosition <= item.to,
+      )
+    ) {
+      return "Edit table";
+    }
+    if (
+      findMathNodes(source).some(
+        (item) => contextPosition >= item.from && contextPosition <= item.to,
+      )
+    ) {
+      return "Edit equation";
+    }
+    if (findEditableEnvironmentAt(source, contextPosition)) {
+      return "Edit environment";
+    }
+    return null;
+  })();
+
+  const editStructuredContext = useCallback(() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null) return;
+    openCitationEditorAt(view, contextPosition) ||
+      openReferenceEditorAt(view, contextPosition) ||
+      openFigureEditorAt(view, contextPosition) ||
+      openTableEditorAt(view, contextPosition) ||
+      openMathEditorAt(view, contextPosition) ||
+      openEnvironmentEditorAt(view, contextPosition) ||
+      openBibEntryEditorAt(view, contextPosition);
+  }, [
+    contextPosition,
+    openBibEntryEditorAt,
+    openCitationEditorAt,
+    openEnvironmentEditorAt,
+    openFigureEditorAt,
+    openMathEditorAt,
+    openReferenceEditorAt,
+    openTableEditorAt,
+  ]);
 
   useEffect(() => {
     isSearchOpenRef.current = isSearchOpen;
@@ -2147,6 +2304,12 @@ export function LatexEditor() {
 
   const isPdf = activeFile?.type === "pdf";
   const isImage = !isTextFile && !isPdf && !!activeFile;
+  const contextView = viewRef.current;
+  const contextSelection = contextView?.state.selection.main;
+  const hasEditorSelection =
+    !!contextSelection && contextSelection.from !== contextSelection.to;
+  const canUndoEditor = contextView ? undoDepth(contextView.state) > 0 : false;
+  const canRedoEditor = contextView ? redoDepth(contextView.state) > 0 : false;
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -2286,10 +2449,103 @@ export function LatexEditor() {
         {/* Text editor content */}
         {!isPdf && !isImage && !isLargeFileNotLoaded && (
           <>
-            <div
-              ref={containerRef}
-              className={reviewingSnapshot ? "hidden" : "absolute inset-0"}
-            />
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div
+                  ref={containerRef}
+                  className={reviewingSnapshot ? "hidden" : "absolute inset-0"}
+                  onContextMenu={handleEditorContextMenu}
+                />
+              </ContextMenuTrigger>
+              <ContextMenuContent className="min-w-60">
+                {activeFile?.type === "tex" && (
+                  <ContextMenuItem
+                    disabled={!projectRoot || !pdfAvailable}
+                    onSelect={() => void handleGoToPdf()}
+                  >
+                    <FileSearchIcon />
+                    Go to PDF location
+                    {!pdfAvailable && (
+                      <ContextMenuShortcut>
+                        Compile to enable
+                      </ContextMenuShortcut>
+                    )}
+                  </ContextMenuItem>
+                )}
+                {structuredContextLabel && (
+                  <ContextMenuItem onSelect={editStructuredContext}>
+                    <PencilIcon />
+                    {structuredContextLabel}
+                  </ContextMenuItem>
+                )}
+                {(activeFile?.type === "tex" || structuredContextLabel) && (
+                  <ContextMenuSeparator />
+                )}
+                <ContextMenuItem
+                  disabled={!canUndoEditor}
+                  onSelect={() => {
+                    const view = viewRef.current;
+                    if (view) {
+                      undo(view);
+                      view.focus();
+                    }
+                  }}
+                >
+                  <Undo2Icon />
+                  Undo
+                  <ContextMenuShortcut>Mod+Z</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  disabled={!canRedoEditor}
+                  onSelect={() => {
+                    const view = viewRef.current;
+                    if (view) {
+                      redo(view);
+                      view.focus();
+                    }
+                  }}
+                >
+                  <Redo2Icon />
+                  Redo
+                  <ContextMenuShortcut>Mod+Shift+Z</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  disabled={!hasEditorSelection}
+                  onSelect={() => void cutEditorSelection()}
+                >
+                  <ScissorsIcon />
+                  Cut
+                  <ContextMenuShortcut>Mod+X</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  disabled={!hasEditorSelection}
+                  onSelect={() => void copyEditorSelection()}
+                >
+                  <CopyIcon />
+                  Copy
+                  <ContextMenuShortcut>Mod+C</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => void pasteIntoEditor()}>
+                  <ClipboardPasteIcon />
+                  Paste
+                  <ContextMenuShortcut>Mod+V</ContextMenuShortcut>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => {
+                    const view = viewRef.current;
+                    if (view) {
+                      selectAll(view);
+                      view.focus();
+                    }
+                  }}
+                >
+                  <TextSelectIcon />
+                  Select all
+                  <ContextMenuShortcut>Mod+A</ContextMenuShortcut>
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
             {citationEditor &&
               citationEditorPosition &&
               !reviewingSnapshot &&

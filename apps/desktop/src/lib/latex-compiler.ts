@@ -144,3 +144,34 @@ export async function synctexEdit(
     return null;
   }
 }
+
+export interface SynctexViewResult {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export async function synctexView(
+  projectDir: string,
+  file: string,
+  line: number,
+): Promise<SynctexViewResult | null> {
+  try {
+    const result = await invoke<SynctexViewResult>("synctex_view", {
+      projectDir,
+      file,
+      line,
+    });
+    log.debug(`SyncTeX: ${file}:${line} → page ${result.page}`);
+    return result;
+  } catch (err) {
+    log.debug("SyncTeX forward lookup failed", {
+      file,
+      line,
+      error: String(err),
+    });
+    return null;
+  }
+}

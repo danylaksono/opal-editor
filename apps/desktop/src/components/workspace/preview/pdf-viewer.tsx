@@ -1,5 +1,12 @@
 import { useCallback, useRef, useEffect, useState } from "react";
-import { LoaderIcon } from "lucide-react";
+import {
+  CopyIcon,
+  CrosshairIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  LinkIcon,
+  LoaderIcon,
+} from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -11,6 +18,13 @@ import { MupdfPage } from "./mupdf-page";
 import { createLogger } from "@/lib/debug/logger";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { PageSize } from "@/lib/mupdf/types";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 const log = createLogger("pdf-viewer");
 
@@ -37,6 +51,22 @@ export interface CaptureResult {
   pdfY: number;
 }
 
+export interface PdfHighlightLocation {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface PdfContextTarget {
+  page: number;
+  x: number;
+  y: number;
+  selectedText: string;
+  href: string | null;
+}
+
 interface PdfViewerProps {
   data: Uint8Array;
   scale: number;
@@ -57,6 +87,8 @@ interface PdfViewerProps {
   captureMode?: boolean;
   onCapture?: (result: CaptureResult) => void;
   onCancelCapture?: () => void;
+  onStartCapture?: () => void;
+  highlightLocation?: PdfHighlightLocation | null;
 }
 
 export function PdfViewer({
@@ -77,6 +109,8 @@ export function PdfViewer({
   captureMode = false,
   onCapture,
   onCancelCapture,
+  onStartCapture,
+  highlightLocation,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -84,6 +118,9 @@ export function PdfViewer({
   const [pageSizes, setPageSizes] = useState<PageSize[]>([]);
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [contextTarget, setContextTarget] = useState<PdfContextTarget | null>(
+    null,
+  );
   const docIdRef = useRef(0);
   const loadGenRef = useRef(0);
 
@@ -139,6 +176,35 @@ export function PdfViewer({
   const [dragPageNum, setDragPageNum] = useState(0);
 
   const numPages = pageSizes.length;
+
+  const openPdfHref = useCallback((href: string) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (href.includes("#page=")) {
+      const match = href.match(/#page=(\d+)/);
+      if (match) {
+        const pageNum = parseInt(match[1], 10);
+        scrollToPage(container, pageNum);
+      }
+      return;
+    }
+
+    if (
+      href.startsWith("http://") ||
+      href.startsWith("https://") ||
+      href.startsWith("mailto:")
+    ) {
+      void ask(`Open in browser?\n${href}`, {
+        title: "External Link",
+        kind: "info",
+        okLabel: "Open",
+        cancelLabel: "Cancel",
+      }).then((confirmed) => {
+        if (confirmed) void shellOpen(href);
+      });
+    }
+  }, []);
 
   function getVisiblePage(): number {
     const container = containerRef.current;
@@ -502,6 +568,30 @@ export function PdfViewer({
     };
   }, [scrollToPageRef, pageSizes]);
 
+  // Forward SyncTeX: center the resolved point, not merely the page, so a
+  // location near the bottom of a long page is immediately visible.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !highlightLocation || !isActive) return;
+
+    scrollToPage(container, highlightLocation.page);
+    const frame = requestAnimationFrame(() => {
+      const pageEl = container.querySelector(
+        `[data-page-number="${highlightLocation.page}"]`,
+      ) as HTMLElement | null;
+      if (!pageEl) return;
+      const targetTop =
+        pageEl.offsetTop +
+        highlightLocation.y * scaleRef.current -
+        container.clientHeight / 2;
+      container.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [highlightLocation, isActive, pageSizes]);
+
   // Dismiss selection toolbar on scroll
   useEffect(() => {
     const container = containerRef.current;
@@ -575,39 +665,12 @@ export function PdfViewer({
       const href = anchor.getAttribute("href");
       if (!href) return;
 
-      if (href.includes("#page=")) {
-        const match = href.match(/#page=(\d+)/);
-        if (match) {
-          const pageNum = parseInt(match[1], 10);
-          const pageEl = container.querySelector(
-            `[data-page-number="${pageNum}"]`,
-          ) as HTMLElement | null;
-          if (pageEl) {
-            pageEl.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        }
-        return;
-      }
-
-      if (
-        href.startsWith("http://") ||
-        href.startsWith("https://") ||
-        href.startsWith("mailto:")
-      ) {
-        ask(`Open in browser?\n${href}`, {
-          title: "External Link",
-          kind: "info",
-          okLabel: "Open",
-          cancelLabel: "Cancel",
-        }).then((confirmed) => {
-          if (confirmed) shellOpen(href);
-        });
-      }
+      openPdfHref(href);
     };
 
     container.addEventListener("click", handleClick, true);
     return () => container.removeEventListener("click", handleClick, true);
-  }, []);
+  }, [openPdfHref]);
 
   // ESC during capture: cancel drag or cancel capture mode
   useEffect(() => {
@@ -748,47 +811,133 @@ export function PdfViewer({
         }
       : null;
 
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const pageEl = target.closest(".mupdf-page") as HTMLElement | null;
+    const page = pageEl
+      ? parseInt(pageEl.getAttribute("data-page-number") || "0", 10)
+      : 0;
+    const pageRect = pageEl?.getBoundingClientRect();
+    const currentScale = scaleRef.current;
+    const selection = window.getSelection();
+    const selectionAnchor = selection?.anchorNode?.parentElement;
+    const selectedText =
+      selectionAnchor && containerRef.current?.contains(selectionAnchor)
+        ? (selection?.toString().trim() ?? "")
+        : "";
+    const anchor = target.closest("a") as HTMLAnchorElement | null;
+
+    setContextTarget({
+      page,
+      x: pageRect ? (event.clientX - pageRect.left) / currentScale : 0,
+      y: pageRect ? (event.clientY - pageRect.top) / currentScale : 0,
+      selectedText,
+      href: anchor?.getAttribute("href") ?? null,
+    });
+  }, []);
+
   return (
-    <div
-      ref={containerRef}
-      tabIndex={-1}
-      {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
-      className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
-      style={{ cursor: captureMode ? "crosshair" : undefined }}
-      onMouseDownCapture={() => containerRef.current?.focus()}
-      onMouseDown={handleCaptureMouseDown}
-      onMouseMove={handleCaptureMouseMove}
-      onMouseUp={handleCaptureMouseUp}
-    >
-      <div
-        ref={contentRef}
-        className="pdf-paper-stack flex min-w-fit flex-col items-center gap-7 p-7"
-        onClick={handleTextLayerClick}
-      >
-        {loading && numPages === 0 && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <LoaderIcon className="size-4 animate-spin" />
-            Loading PDF...
-          </div>
-        )}
-        {pageSizes.map((size, i) => (
-          <MupdfPage
-            key={i}
-            docId={docIdRef.current}
-            pageIndex={i}
-            scale={scale}
-            pageWidth={size.width}
-            pageHeight={size.height}
-            isVisible={visiblePages.has(i + 1)}
-          />
-        ))}
-      </div>
-      {selRect && (
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={captureMode}>
         <div
-          className="pointer-events-none fixed border-2 border-primary bg-primary/10"
-          style={selRect}
-        />
-      )}
-    </div>
+          ref={containerRef}
+          tabIndex={-1}
+          {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
+          className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
+          style={{ cursor: captureMode ? "crosshair" : undefined }}
+          onContextMenu={handleContextMenu}
+          onMouseDownCapture={() => containerRef.current?.focus()}
+          onMouseDown={handleCaptureMouseDown}
+          onMouseMove={handleCaptureMouseMove}
+          onMouseUp={handleCaptureMouseUp}
+        >
+          <div
+            ref={contentRef}
+            className="pdf-paper-stack flex min-w-fit flex-col items-center gap-7 p-7"
+            onClick={handleTextLayerClick}
+          >
+            {loading && numPages === 0 && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <LoaderIcon className="size-4 animate-spin" />
+                Loading PDF...
+              </div>
+            )}
+            {pageSizes.map((size, i) => (
+              <MupdfPage
+                key={i}
+                docId={docIdRef.current}
+                pageIndex={i}
+                scale={scale}
+                pageWidth={size.width}
+                pageHeight={size.height}
+                isVisible={visiblePages.has(i + 1)}
+                highlight={
+                  highlightLocation?.page === i + 1 ? highlightLocation : null
+                }
+              />
+            ))}
+          </div>
+          {selRect && (
+            <div
+              className="pointer-events-none fixed border-2 border-primary bg-primary/10"
+              style={selRect}
+            />
+          )}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-56">
+        <ContextMenuItem
+          disabled={!onSynctexClick || !contextTarget?.page}
+          onSelect={() => {
+            if (!contextTarget?.page) return;
+            onSynctexClick?.(
+              contextTarget.page,
+              contextTarget.x,
+              contextTarget.y,
+            );
+          }}
+        >
+          <FileTextIcon />
+          Go to source location
+        </ContextMenuItem>
+        {contextTarget?.href && (
+          <>
+            <ContextMenuItem onSelect={() => openPdfHref(contextTarget.href!)}>
+              <ExternalLinkIcon />
+              Open link
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() =>
+                void navigator.clipboard.writeText(contextTarget.href!)
+              }
+            >
+              <LinkIcon />
+              Copy link
+            </ContextMenuItem>
+          </>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          disabled={!contextTarget?.selectedText}
+          onSelect={() => {
+            if (contextTarget?.selectedText) {
+              void navigator.clipboard.writeText(contextTarget.selectedText);
+            }
+          }}
+        >
+          <CopyIcon />
+          Copy selected text
+        </ContextMenuItem>
+        {onStartCapture && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={onStartCapture}>
+              <CrosshairIcon />
+              Capture area
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

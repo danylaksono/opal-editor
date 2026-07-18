@@ -56,6 +56,7 @@ import {
 import { save } from "@tauri-apps/plugin-dialog";
 import {
   PdfViewer,
+  type PdfHighlightLocation,
   type PdfTextSelection,
   type CaptureResult,
 } from "./pdf-viewer";
@@ -119,11 +120,17 @@ export function PdfPreview() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const setStatusPageCount = usePreviewStore((state) => state.setPageCount);
   const setStatusCurrentPage = usePreviewStore((state) => state.setCurrentPage);
+  const locationRequest = usePreviewStore((state) => state.locationRequest);
+  const clearLocationRequest = usePreviewStore(
+    (state) => state.clearLocationRequest,
+  );
   const [pageInputValue, setPageInputValue] = useState<string>("1");
   const [isEditingPage, setIsEditingPage] = useState(false);
   const scrollToPageRef = useRef<((page: number) => void) | null>(null);
   const [scale, setScale] = useState<number>(1.0);
   const [captureMode, setCaptureMode] = useState(false);
+  const [synctexHighlight, setSynctexHighlight] =
+    useState<PdfHighlightLocation | null>(null);
   const [fitMode, setFitMode] = useState<FitMode>(null);
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -536,6 +543,20 @@ export function PdfPreview() {
     [numPages],
   );
 
+  useEffect(() => {
+    if (!locationRequest || numPages === 0 || locationRequest.page > numPages) {
+      return;
+    }
+
+    setSynctexHighlight(locationRequest);
+    requestAnimationFrame(() => goToPage(locationRequest.page));
+    const timer = window.setTimeout(() => {
+      setSynctexHighlight(null);
+      clearLocationRequest();
+    }, 2400);
+    return () => window.clearTimeout(timer);
+  }, [locationRequest, numPages, goToPage, clearLocationRequest]);
+
   const handlePageInputCommit = useCallback(() => {
     setIsEditingPage(false);
     const parsed = parseInt(pageInputValue, 10);
@@ -888,6 +909,10 @@ export function PdfPreview() {
                   onCancelCapture={
                     isActive ? () => setCaptureMode(false) : undefined
                   }
+                  onStartCapture={
+                    isActive ? () => setCaptureMode(true) : undefined
+                  }
+                  highlightLocation={isActive ? synctexHighlight : null}
                 />
               </div>
             </ErrorBoundary>

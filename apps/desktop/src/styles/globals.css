@@ -376,3 +376,20 @@
   pointer-events: auto;
   cursor: pointer;
 }
+
+@keyframes synctex-highlight-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.98);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.synctex-highlight {
+  animation: synctex-highlight-pulse 700ms ease-in-out 3;
+  transform-origin: center;
+}

@@ -37,6 +37,29 @@ function AppearanceSync() {
   return null;
 }
 
+function NativeContextMenuGuard() {
+  useEffect(() => {
+    const handleContextMenu = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest('[data-slot="context-menu-trigger"]')) return;
+      if (
+        target.closest(
+          'input, textarea, [contenteditable="true"], [role="textbox"]',
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+    };
+
+    window.addEventListener("contextmenu", handleContextMenu, true);
+    return () =>
+      window.removeEventListener("contextmenu", handleContextMenu, true);
+  }, []);
+  return null;
+}
+
 /**
  * Push the persisted AI provider choice to the Rust provider registry.
  * The registry's active provider lives in backend memory and resets on every
@@ -105,6 +128,7 @@ export function App({ onReady }: { onReady?: () => void }) {
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <AppearanceSync />
+        <NativeContextMenuGuard />
         <AiProviderSync />
         <EditorActionRegistrar />
         <TooltipProvider>
