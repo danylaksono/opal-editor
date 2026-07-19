@@ -20,7 +20,8 @@ const files = [
   {
     id: "1",
     relativePath: "main.tex",
-    content: "\\documentclass{article}\n\\begin{document}\n\\includegraphicx{fig}\n\\end{document}\n",
+    content:
+      "\\documentclass{article}\n\\begin{document}\n\\includegraphicx{fig}\n\\end{document}\n",
   },
 ] as ProjectFile[];
 
