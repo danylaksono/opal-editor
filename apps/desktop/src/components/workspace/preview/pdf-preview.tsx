@@ -17,6 +17,7 @@ import {
   MessageSquarePlusIcon,
   MessageSquareTextIcon,
   Minimize2Icon,
+  SparklesIcon,
 } from "lucide-react";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -78,6 +79,12 @@ import {
   ReviewCommentsPanel,
   type ReviewCommentDraft,
 } from "./review-comments-panel";
+import { runOneShotPrompt } from "@/lib/ai/one-shot";
+import {
+  buildExplainCompileErrorPrompt,
+  EXPLAIN_ERROR_SYSTEM_PROMPT,
+} from "@/lib/ai/explain-compile-error";
+import { MarkdownRenderer } from "@/components/ai-chat/markdown-renderer";
 
 const log = createLogger("pdf-preview");
 
@@ -127,6 +134,19 @@ export function PdfPreview() {
   });
   const activeFileType = activeFile?.type ?? "tex";
   const isTexActive = activeFileType === "tex";
+
+  // AI explanation of the current compile error (one-shot, outside chat)
+  const [errorExplanation, setErrorExplanation] = useState<string | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const explainCancelRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    // A new compile result invalidates any in-flight or shown explanation
+    explainCancelRef.current?.();
+    explainCancelRef.current = null;
+    setErrorExplanation(null);
+    setIsExplaining(false);
+  }, [compileError]);
+  useEffect(() => () => explainCancelRef.current?.(), []);
   const requestJumpToPosition = useDocumentStore(
     (s) => s.requestJumpToPosition,
   );
@@ -868,6 +888,27 @@ export function PdfPreview() {
           );
       };
 
+      const handleExplainError = () => {
+        setIsExplaining(true);
+        setErrorExplanation("");
+        const handle = runOneShotPrompt({
+          prompt: buildExplainCompileErrorPrompt(failure, files, rootFileName),
+          systemPrompt: EXPLAIN_ERROR_SYSTEM_PROMPT,
+          onDelta: (text) => setErrorExplanation(text),
+        });
+        explainCancelRef.current = handle.cancel;
+        handle.result
+          .then((text) => setErrorExplanation(text))
+          .catch((err: Error) => {
+            if (err.message === "Cancelled") return;
+            setErrorExplanation(
+              (prev) =>
+                prev || `_Could not get an explanation: ${err.message}_`,
+            );
+          })
+          .finally(() => setIsExplaining(false));
+      };
+
       return (
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-6">
           <div className="w-full max-w-lg">
@@ -919,6 +960,23 @@ export function PdfPreview() {
                   </div>
                 ))}
               </div>
+              {errorExplanation !== null && (
+                <div className="border-t p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
+                    <SparklesIcon className="size-3.5" />
+                    AI explanation
+                    {isExplaining && (
+                      <LoaderIcon className="size-3 animate-spin" />
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <MarkdownRenderer
+                      content={errorExplanation}
+                      className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                    />
+                  </div>
+                </div>
+              )}
               <details className="border-t p-3">
                 <summary className="cursor-pointer text-muted-foreground text-xs">
                   Technical details
@@ -939,14 +997,26 @@ export function PdfPreview() {
                 Retry
               </Button>
               {aiProvider !== "none" && (
-                <Button
-                  size="sm"
-                  onClick={handleFixWithChat}
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                >
-                  <MousePointerClickIcon className="size-3.5" />
-                  Fix with Chat
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExplainError}
+                    disabled={isExplaining}
+                    className="h-7 gap-1.5 px-2.5 text-xs"
+                  >
+                    <SparklesIcon className="size-3.5" />
+                    {isExplaining ? "Explaining…" : "Explain error"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleFixWithChat}
+                    className="h-7 gap-1.5 px-2.5 text-xs"
+                  >
+                    <MousePointerClickIcon className="size-3.5" />
+                    Fix with Chat
+                  </Button>
+                </>
               )}
             </div>
           </div>
