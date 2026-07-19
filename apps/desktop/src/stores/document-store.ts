@@ -19,7 +19,7 @@ import {
 import { useHistoryStore } from "@/stores/history-store";
 import { clearDocCache } from "@/lib/mupdf/pdf-doc-cache";
 import { clearScrollPositionCache } from "@/components/workspace/preview/pdf-viewer";
-import { clearZoomCache } from "@/components/workspace/preview/pdf-preview";
+import { clearZoomCache } from "@/components/workspace/preview/zoom-cache";
 import { clearEditorStateCache } from "@/components/workspace/editor/latex-editor";
 import { createLogger } from "@/lib/debug/logger";
 import type { CompileFailure } from "@/lib/latex-compiler";

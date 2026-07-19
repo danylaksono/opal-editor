@@ -85,21 +85,12 @@ import {
   EXPLAIN_ERROR_SYSTEM_PROMPT,
 } from "@/lib/ai/explain-compile-error";
 import { MarkdownRenderer } from "@/components/ai-chat/markdown-renderer";
+import { zoomCache, type FitMode } from "./zoom-cache";
 
 const log = createLogger("pdf-preview");
 
-type FitMode = "fit-width" | "fit-height" | null;
-
-/** Per-root zoom state cache: rootFileId → { scale, fitMode } */
-const zoomCache = new Map<string, { scale: number; fitMode: FitMode }>();
-
 /** Max number of PdfViewer instances kept alive simultaneously. */
 const MAX_ALIVE_VIEWERS = 5;
-
-/** Clear zoom cache (e.g., on project close). */
-export function clearZoomCache(): void {
-  zoomCache.clear();
-}
 
 const ZOOM_OPTIONS = [
   { value: "0.5", label: "50%" },
