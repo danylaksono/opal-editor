@@ -78,7 +78,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createLogger } from "@/lib/debug/logger";
 import { HealthPanel } from "@/components/workspace/health-panel";
-import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
+import { TutorialGuide } from "@/components/workspace/tutorial-guide";
 import { ProjectSearchPanel } from "@/components/workspace/project-search-panel";
 
 const log = createLogger("sidebar");
@@ -795,7 +795,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
       </div>
 
       <div className="min-h-0 flex-1">
-        {activePanel === "learn" && <TutorialChecklist />}
+        {activePanel === "learn" && <TutorialGuide />}
         {activePanel === "files" && (
           <div
             ref={sidebarFilesRef}

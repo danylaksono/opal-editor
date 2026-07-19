@@ -59,12 +59,10 @@ function ActivityRail() {
   const toggleSidePanel = useWorkspaceLayoutStore((s) => s.toggleSidePanel);
   const setSidePanelOpen = useWorkspaceLayoutStore((s) => s.setSidePanelOpen);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
-  const activeTutorialProject = useOnboardingStore(
-    (s) => s.activeTutorialProject,
-  );
+  const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
   const [showSettings, setShowSettings] = useState(false);
   const visiblePanelItems =
-    projectRoot && projectRoot === activeTutorialProject
+    projectRoot && projectRoot === tutorialProject
       ? [
           {
             id: "learn" as const,
@@ -250,22 +248,22 @@ export function WorkspaceLayout() {
   const toggleFocusMode = useWorkspaceLayoutStore((s) => s.toggleFocusMode);
   const reviewMode = useWorkspaceLayoutStore((s) => s.reviewMode);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
-  const activeTutorialProject = useOnboardingStore(
-    (s) => s.activeTutorialProject,
-  );
+  const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
   const openedTutorialProject = useRef<string | null>(null);
 
+  // When the Learn LaTeX project is (re)opened, surface the guide panel so the
+  // learner can pick up where they left off.
   useEffect(() => {
     if (
       projectRoot &&
-      projectRoot === activeTutorialProject &&
+      projectRoot === tutorialProject &&
       openedTutorialProject.current !== projectRoot
     ) {
       openedTutorialProject.current = projectRoot;
       setActiveSidePanel("learn");
     }
-    if (!activeTutorialProject) openedTutorialProject.current = null;
-  }, [activeTutorialProject, projectRoot, setActiveSidePanel]);
+    if (projectRoot !== tutorialProject) openedTutorialProject.current = null;
+  }, [tutorialProject, projectRoot, setActiveSidePanel]);
 
   // Cmd+\ / Ctrl+\ toggles the PDF preview pane.
   useEffect(() => {

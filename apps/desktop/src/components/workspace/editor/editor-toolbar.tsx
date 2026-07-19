@@ -262,7 +262,10 @@ export function EditorToolbar({
 
   useEffect(() => {
     const handleAction = (event: Event) => {
-      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      const detail = (event as CustomEvent<{ id: string; text?: string }>)
+        .detail;
+      const id = detail?.id;
+      if (id === "insert.snippet" && detail?.text) insertText(detail.text);
       if (id === "insert.section") insertText("\\section{", "}");
       if (id === "insert.citation") setCitationPickerOpen(true);
       if (id === "insert.cross-reference") setCrossReferencePickerOpen(true);
