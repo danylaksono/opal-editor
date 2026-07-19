@@ -455,6 +455,30 @@
   transform-origin: center;
 }
 
+/* Learn LaTeX guide: soft pulsing ring that spotlights the pane the current
+   tutorial step is talking about. Reduced-motion (below) collapses the pulse,
+   leaving a steady ring. */
+@keyframes tutorial-highlight-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tutorial-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 45;
+  pointer-events: none;
+  border: 2px solid var(--ring);
+  border-radius: var(--radius-md);
+  animation: tutorial-highlight-pulse 2.2s ease-in-out infinite;
+}
+
 /* Respect the OS "reduce motion" preference: collapse animations and
    transitions to imperceptible durations and disable smooth scrolling.
    JS-driven smooth scrolls check prefersReducedMotion() in lib/utils. */

@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { PackageChangeDialog } from "./package-change-dialog";
 import { BibliographyImportDialog } from "./bibliography-import-dialog";
 import { useOnboardingStore } from "@/stores/onboarding-store";
+import { TUTORIAL_STEPS } from "@/lib/tutorial-steps";
 
 const sidePanelItems: Array<{
   id: WorkspaceSidePanel;
@@ -249,7 +250,26 @@ export function WorkspaceLayout() {
   const reviewMode = useWorkspaceLayoutStore((s) => s.reviewMode);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
+  const tutorialStep = useOnboardingStore((s) => s.currentStep);
   const openedTutorialProject = useRef<string | null>(null);
+
+  // While the Learn LaTeX guide is visible, softly spotlight the pane the
+  // current step talks about ("the editor on the left", "the PDF preview").
+  const guideVisible =
+    !focusMode &&
+    !reviewMode &&
+    sidePanelOpen &&
+    activeSidePanel === "learn" &&
+    projectRoot !== null &&
+    projectRoot === tutorialProject;
+  const paneHighlight = guideVisible
+    ? TUTORIAL_STEPS[Math.min(tutorialStep, TUTORIAL_STEPS.length - 1)]
+        ?.highlight
+    : undefined;
+  const highlightEditor =
+    paneHighlight === "editor" || paneHighlight === "both";
+  const highlightPreview =
+    paneHighlight === "preview" || paneHighlight === "both";
 
   // When the Learn LaTeX project is (re)opened, surface the guide panel so the
   // learner can pick up where they left off.
@@ -325,7 +345,12 @@ export function WorkspaceLayout() {
               defaultSize={previewVisible ? 42.5 : 85}
               minSize={25}
             >
-              <div className="relative h-full">
+              <div
+                className={cn(
+                  "relative h-full",
+                  highlightEditor && "tutorial-highlight",
+                )}
+              >
                 <LatexEditor />
                 <button
                   type="button"
@@ -375,7 +400,14 @@ export function WorkspaceLayout() {
                 defaultSize={reviewMode ? 100 : 42.5}
                 minSize={25}
               >
-                <PdfPreview />
+                <div
+                  className={cn(
+                    "relative h-full",
+                    highlightPreview && "tutorial-highlight",
+                  )}
+                >
+                  <PdfPreview />
+                </div>
               </Panel>
             </Fragment>
           )}

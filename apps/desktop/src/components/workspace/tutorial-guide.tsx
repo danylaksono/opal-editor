@@ -5,6 +5,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   GraduationCapIcon,
+  PackageIcon,
   PlayIcon,
   SparklesIcon,
   WandSparklesIcon,
@@ -40,6 +41,13 @@ function runAction(action: TutorialAction) {
         }),
       );
       return;
+    case "package":
+      window.dispatchEvent(
+        new CustomEvent("editor-action", {
+          detail: { id: "insert.package", pkg: action.pkg, text: action.text },
+        }),
+      );
+      return;
     case "read":
       return;
   }
@@ -47,6 +55,7 @@ function runAction(action: TutorialAction) {
 
 function actionIcon(action: TutorialAction) {
   if (action.kind === "compile") return PlayIcon;
+  if (action.kind === "package") return PackageIcon;
   return WandSparklesIcon;
 }
 
@@ -238,6 +247,39 @@ export function TutorialGuide() {
   );
 }
 
+/** A tiny schematic of the workspace so "left" and "right" have a picture. */
+function WorkspaceMap() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-20 gap-1 rounded-md border bg-muted/40 p-1"
+    >
+      <div className="w-4 rounded-sm border border-border/70 bg-sidebar" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-sm border border-primary/40 bg-background">
+        <span className="font-medium text-[9px] text-primary">Editor</span>
+        <span className="text-[8px] text-muted-foreground">you write here</span>
+        <div className="w-3/4 space-y-0.5">
+          <div className="h-0.5 rounded bg-muted-foreground/30" />
+          <div className="h-0.5 w-2/3 rounded bg-muted-foreground/30" />
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-sm border border-primary/40 bg-background">
+        <span className="font-medium text-[9px] text-primary">PDF</span>
+        <span className="text-[8px] text-muted-foreground">
+          the result appears
+        </span>
+        <div className="flex h-6 w-5 items-center justify-center rounded-[2px] border border-muted-foreground/40 bg-card">
+          <div className="w-2/3 space-y-0.5">
+            <div className="h-px rounded bg-muted-foreground/40" />
+            <div className="h-px rounded bg-muted-foreground/40" />
+            <div className="h-px w-2/3 rounded bg-muted-foreground/40" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StepDetail({
   step,
   detected,
@@ -253,6 +295,8 @@ function StepDetail({
       <p className="text-muted-foreground text-xs leading-relaxed">
         {step.concept}
       </p>
+
+      {step.showWorkspaceMap && <WorkspaceMap />}
 
       {step.syntax && (
         <pre className="overflow-x-auto rounded-md border bg-muted/60 px-2.5 py-2 font-mono text-[11px] text-foreground leading-relaxed">

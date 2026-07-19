@@ -262,10 +262,50 @@ export function EditorToolbar({
 
   useEffect(() => {
     const handleAction = (event: Event) => {
-      const detail = (event as CustomEvent<{ id: string; text?: string }>)
-        .detail;
+      const detail = (
+        event as CustomEvent<{ id: string; text?: string; pkg?: string }>
+      ).detail;
       const id = detail?.id;
       if (id === "insert.snippet" && detail?.text) insertText(detail.text);
+      if (id === "insert.package" && detail?.pkg) {
+        const view = editorView.current;
+        if (view) {
+          const doc = view.state.doc.toString();
+          const escaped = detail.pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const alreadyLoaded = new RegExp(
+            `\\\\usepackage(?:\\[[^\\]]*\\])?\\{[^}]*\\b${escaped}\\b[^}]*\\}`,
+          ).test(doc);
+          if (!alreadyLoaded) {
+            // Insert after the last \usepackage, or after \documentclass.
+            let insertPos = -1;
+            for (const match of doc.matchAll(
+              /\\usepackage(?:\[[^\]]*\])?\{[^}]*\}/g,
+            )) {
+              insertPos = match.index + match[0].length;
+            }
+            if (insertPos < 0) {
+              const documentclass = doc.match(
+                /\\documentclass(?:\[[^\]]*\])?\{[^}]*\}/,
+              );
+              if (documentclass)
+                insertPos =
+                  (documentclass.index ?? 0) + documentclass[0].length;
+            }
+            if (insertPos >= 0) {
+              view.dispatch({
+                changes: {
+                  from: insertPos,
+                  insert: `\n\\usepackage{${detail.pkg}}`,
+                },
+              });
+            }
+          }
+          // The cursor selection is remapped through the preamble change, so
+          // the follow-up snippet still lands where the learner was typing.
+          if (detail.text) insertText(detail.text);
+          else view.focus();
+        }
+      }
       if (id === "insert.section") insertText("\\section{", "}");
       if (id === "insert.citation") setCitationPickerOpen(true);
       if (id === "insert.cross-reference") setCrossReferencePickerOpen(true);

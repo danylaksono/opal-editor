@@ -21,7 +21,12 @@ export type TutorialAction =
   /** Dispatch an existing editor-action id (opens the matching visual tool). */
   | { kind: "action"; id: string }
   /** Insert raw LaTeX at the cursor. */
-  | { kind: "snippet"; text: string };
+  | { kind: "snippet"; text: string }
+  /**
+   * Add \usepackage{pkg} to the preamble (if missing), then insert the
+   * optional text at the cursor — so the learner sees the preamble change.
+   */
+  | { kind: "package"; pkg: string; text?: string };
 
 export type TutorialGroup = "Orient" | "Structure" | "Content" | "Finish";
 
@@ -40,6 +45,10 @@ export interface TutorialStep {
   detect?: (ctx: TutorialDetectContext) => boolean;
   /** Short reassurance shown under the action ("or type it yourself"). */
   hint?: string;
+  /** While this step is active, softly spotlight a workspace pane. */
+  highlight?: "editor" | "preview" | "both";
+  /** Render the little workspace-map diagram in the step card. */
+  showWorkspaceMap?: boolean;
 }
 
 export const TUTORIAL_STEPS: readonly TutorialStep[] = [
@@ -51,6 +60,8 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     concept:
       "You write LaTeX in the editor on the left. The PDF preview on the right shows the finished, typeset result. You edit the source; LaTeX handles the layout.",
     action: { kind: "read" },
+    highlight: "both",
+    showWorkspaceMap: true,
   },
   {
     id: "compile",
@@ -62,6 +73,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     actionLabel: "Compile now",
     detect: (ctx) => ctx.pdfRevision > 0,
     hint: "You can recompile any time to see your latest changes.",
+    highlight: "preview",
   },
   {
     id: "skeleton",
@@ -72,6 +84,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     syntax:
       "\\documentclass{article}\n\\begin{document}\n  % your writing here\n\\end{document}",
     action: { kind: "read" },
+    highlight: "editor",
   },
 
   // ── Structure ───────────────────────────────────────────────────────────
@@ -132,6 +145,25 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     },
     actionLabel: "Insert an example",
     detect: (ctx) => /\\textbf\{|\\textit\{|\\emph\{/.test(ctx.content),
+  },
+  {
+    id: "package",
+    group: "Content",
+    title: "Load a package",
+    concept:
+      "Packages give LaTeX new abilities, and you load them in the preamble with \\usepackage. Your document already loads a few — let's add xcolor, which can colour text.",
+    syntax:
+      "% in the preamble, before \\begin{document}:\n\\usepackage{xcolor}\n\n% then anywhere in the body:\n\\textcolor{teal}{Coloured} words!",
+    action: {
+      kind: "package",
+      pkg: "xcolor",
+      text: "\\textcolor{teal}{Coloured} words!\n",
+    },
+    actionLabel: "Add xcolor and try it",
+    detect: (ctx) =>
+      /\\usepackage(?:\[[^\]]*\])?\{[^}]*xcolor[^}]*\}/.test(ctx.content) &&
+      /\\textcolor\{/.test(ctx.content),
+    hint: "Look at the top of your file — \\usepackage{xcolor} joined the preamble.",
   },
   {
     id: "list",
