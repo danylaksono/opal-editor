@@ -1,0 +1,2043 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Opal is a beautiful, offline-first LaTeX editor with local compilation and optional AI assistance."
+    />
+    <meta name="theme-color" content="#0b0f1a" />
+    <meta property="og:title" content="Opal — A calmer way to write LaTeX" />
+    <meta
+      property="og:description"
+      content="Compile locally. Add AI when you want it. No accounts required."
+    />
+    <meta property="og:type" content="website" />
+    <title>Opal — A calmer way to write LaTeX</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b0f1a'/%3E%3Cpath d='M20 18h24l9 11-21 24L11 29z' fill='%2367e8f9'/%3E%3Cpath d='M11 29h42L32 53z' fill='%238b5cf6'/%3E%3Cpath d='M20 18h24l-7 11H27z' fill='white'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #101827;
+        --muted: #5e6878;
+        --paper: #f7f5ef;
+        --paper-deep: #eeebe2;
+        --white: #fffefb;
+        --line: rgba(16, 24, 39, 0.12);
+        --navy: #0b0f1a;
+        --navy-soft: #141b2d;
+        --teal: #0f9f91;
+        --teal-bright: #2dd4bf;
+        --violet: #6d5bd0;
+        --gold: #d49a27;
+        --radius: 22px;
+        --shadow: 0 28px 80px rgba(28, 35, 49, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 12% 4%, rgba(45, 212, 191, 0.12), transparent 25rem),
+          radial-gradient(circle at 90% 13%, rgba(109, 91, 208, 0.13), transparent 24rem),
+          var(--paper);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.55;
+        text-rendering: optimizeLegibility;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      :focus-visible {
+        outline: 3px solid rgba(15, 159, 145, 0.42);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 100;
+        top: 12px;
+        left: 12px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: var(--navy);
+        color: white;
+        transform: translateY(-160%);
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      .shell {
+        width: min(1160px, calc(100% - 40px));
+        margin-inline: auto;
+      }
+
+      .site-header {
+        position: relative;
+        z-index: 10;
+        padding-top: 22px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+        color: var(--ink);
+        font-weight: 760;
+        letter-spacing: -0.02em;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--navy);
+        box-shadow: 0 7px 18px rgba(11, 15, 26, 0.18);
+      }
+
+      .brand-mark svg {
+        width: 25px;
+        height: 25px;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        color: var(--muted);
+        font-size: 0.91rem;
+        font-weight: 620;
+      }
+
+      .nav-links a {
+        text-decoration: none;
+      }
+
+      .nav-links a:hover {
+        color: var(--ink);
+      }
+
+      .nav-download {
+        padding: 10px 16px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 254, 251, 0.7);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.88fr) minmax(520px, 1.12fr);
+        align-items: center;
+        gap: 58px;
+        min-height: 760px;
+        padding-block: 86px 90px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0 0 22px;
+        color: #3e4b5e;
+        font-size: 0.78rem;
+        font-weight: 760;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        width: 26px;
+        height: 1px;
+        background: var(--teal);
+        content: "";
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 700px;
+        margin-bottom: 24px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(3.7rem, 7vw, 6.8rem);
+        font-weight: 500;
+        letter-spacing: -0.062em;
+        line-height: 0.93;
+      }
+
+      h1 em {
+        background: linear-gradient(105deg, var(--teal), var(--violet) 60%, #a66b2c);
+        background-clip: text;
+        color: transparent;
+        font-weight: 500;
+      }
+
+      .hero-copy {
+        max-width: 590px;
+        margin-bottom: 30px;
+        color: var(--muted);
+        font-size: clamp(1.08rem, 1.7vw, 1.28rem);
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px 19px;
+        border: 1px solid transparent;
+        border-radius: 13px;
+        font-size: 0.94rem;
+        font-weight: 720;
+        line-height: 1;
+        text-decoration: none;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          background-color 160ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+      }
+
+      .button-primary {
+        background: var(--navy);
+        color: white;
+        box-shadow: 0 12px 28px rgba(11, 15, 26, 0.2);
+      }
+
+      .button-primary:hover {
+        box-shadow: 0 16px 32px rgba(11, 15, 26, 0.26);
+      }
+
+      .button-secondary {
+        border-color: var(--line);
+        background: rgba(255, 254, 251, 0.68);
+        color: var(--ink);
+      }
+
+      .button svg {
+        width: 17px;
+        height: 17px;
+      }
+
+      .hero-note {
+        margin-top: 16px;
+        color: #768090;
+        font-size: 0.81rem;
+      }
+
+      .app-stage {
+        position: relative;
+        isolation: isolate;
+      }
+
+      .app-stage::before {
+        position: absolute;
+        z-index: -1;
+        inset: 8% 4% -5% 10%;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(45, 212, 191, 0.34), rgba(109, 91, 208, 0.28));
+        filter: blur(52px);
+        content: "";
+      }
+
+      .app-window {
+        overflow: hidden;
+        min-height: 510px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 24px;
+        background: var(--navy);
+        box-shadow: 0 38px 90px rgba(23, 31, 48, 0.25);
+        transform: rotate(1.3deg);
+      }
+
+      .window-bar {
+        display: flex;
+        height: 43px;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: #111728;
+      }
+
+      .traffic-lights {
+        display: flex;
+        gap: 7px;
+        padding-inline: 15px 22px;
+      }
+
+      .traffic-lights i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #384155;
+      }
+
+      .window-title {
+        color: #aeb7c7;
+        font-size: 0.68rem;
+      }
+
+      .app-body {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1.05fr) minmax(0, 0.95fr);
+        min-height: 467px;
+      }
+
+      .activity-rail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 17px;
+        padding-top: 18px;
+        border-right: 1px solid rgba(255, 255, 255, 0.07);
+        background: #0e1422;
+      }
+
+      .rail-icon {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #657086;
+        border-radius: 4px;
+        opacity: 0.72;
+      }
+
+      .rail-icon.active {
+        border-color: var(--teal-bright);
+        box-shadow: 0 0 14px rgba(45, 212, 191, 0.3);
+        opacity: 1;
+      }
+
+      .editor-pane {
+        min-width: 0;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background: #121827;
+      }
+
+      .tabs {
+        display: flex;
+        height: 35px;
+        align-items: stretch;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      .tab {
+        display: flex;
+        align-items: center;
+        padding-inline: 15px;
+        color: #7f899b;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.62rem;
+      }
+
+      .tab.active {
+        border-top: 2px solid var(--teal-bright);
+        background: #151d2e;
+        color: #d6dbe4;
+      }
+
+      .code {
+        padding: 25px 18px;
+        color: #b9c2d1;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: clamp(0.53rem, 0.8vw, 0.68rem);
+        line-height: 1.82;
+        white-space: nowrap;
+      }
+
+      .code-line {
+        display: flex;
+      }
+
+      .line-number {
+        width: 26px;
+        flex: 0 0 26px;
+        color: #515c70;
+        user-select: none;
+      }
+
+      .token-command {
+        color: #71d6c8;
+      }
+
+      .token-brace {
+        color: #95a3ba;
+      }
+
+      .token-value {
+        color: #c8b5fa;
+      }
+
+      .token-comment {
+        color: #647087;
+      }
+
+      .pdf-pane {
+        padding: 31px 29px;
+        background: #202736;
+      }
+
+      .paper {
+        min-height: 390px;
+        padding: 40px 38px;
+        background: #fffefb;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+        color: #22242a;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .paper h3 {
+        margin-bottom: 6px;
+        font-size: 1.05rem;
+        text-align: center;
+      }
+
+      .paper-byline {
+        margin-bottom: 27px;
+        color: #777;
+        font-size: 0.52rem;
+        text-align: center;
+      }
+
+      .paper-heading {
+        margin-bottom: 8px;
+        font-size: 0.65rem;
+        font-weight: 700;
+      }
+
+      .paper-lines {
+        display: grid;
+        gap: 6px;
+      }
+
+      .paper-lines i {
+        display: block;
+        height: 3px;
+        border-radius: 2px;
+        background: #c6c3bb;
+      }
+
+      .paper-lines i:nth-child(3n) {
+        width: 87%;
+      }
+
+      .paper-equation {
+        margin-block: 23px;
+        font-size: 0.78rem;
+        font-style: italic;
+        text-align: center;
+      }
+
+      .floating-card {
+        position: absolute;
+        right: -22px;
+        bottom: -32px;
+        width: 230px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 17px;
+        background: rgba(16, 23, 39, 0.94);
+        box-shadow: 0 20px 50px rgba(11, 15, 26, 0.25);
+        color: #dce2ec;
+        transform: rotate(-2deg);
+        backdrop-filter: blur(16px);
+      }
+
+      .floating-label {
+        margin-bottom: 9px;
+        color: #758095;
+        font-size: 0.59rem;
+        font-weight: 740;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .reference-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .reference-status {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        border-radius: 50%;
+        background: rgba(45, 212, 191, 0.14);
+        color: var(--teal-bright);
+        font-size: 0.67rem;
+        line-height: 18px;
+        text-align: center;
+      }
+
+      .reference-title {
+        margin-bottom: 3px;
+        font-size: 0.69rem;
+        font-weight: 680;
+      }
+
+      .reference-meta {
+        color: #8590a4;
+        font-size: 0.57rem;
+      }
+
+      .principles {
+        border-block: 1px solid var(--line);
+        background: rgba(255, 254, 251, 0.42);
+      }
+
+      .principle-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .principle {
+        padding: 42px 46px;
+      }
+
+      .principle + .principle {
+        border-left: 1px solid var(--line);
+      }
+
+      .principle-number {
+        margin-bottom: 23px;
+        color: var(--teal);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.87rem;
+        font-style: italic;
+      }
+
+      .principle h2 {
+        margin-bottom: 10px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.45rem;
+        font-weight: 500;
+        letter-spacing: -0.025em;
+      }
+
+      .principle p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 0.91rem;
+      }
+
+      .section {
+        padding-block: 118px;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 60px;
+        align-items: end;
+        margin-bottom: 60px;
+      }
+
+      .section-heading h2 {
+        max-width: 580px;
+        margin-bottom: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2.7rem, 5vw, 4.8rem);
+        font-weight: 500;
+        letter-spacing: -0.052em;
+        line-height: 1;
+      }
+
+      .section-heading p {
+        max-width: 500px;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 1.03rem;
+      }
+
+      .feature-carousel {
+        position: relative;
+      }
+
+      .carousel-controls {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin: -42px 0 20px;
+      }
+
+      .carousel-count {
+        min-width: 58px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.76rem;
+        text-align: center;
+      }
+
+      .carousel-button {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: rgba(255, 254, 251, 0.78);
+        color: var(--ink);
+        cursor: pointer;
+        transition:
+          border-color 160ms ease,
+          background-color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .carousel-button:hover:not(:disabled) {
+        border-color: rgba(15, 159, 145, 0.4);
+        background: var(--white);
+        transform: translateY(-2px);
+      }
+
+      .carousel-button:disabled {
+        cursor: default;
+        opacity: 0.35;
+      }
+
+      .carousel-button svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .feature-track {
+        display: flex;
+        gap: 18px;
+        overflow-x: auto;
+        padding: 2px 2px 26px;
+        scroll-behavior: smooth;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+      }
+
+      .feature-track::-webkit-scrollbar {
+        display: none;
+      }
+
+      .feature-slide {
+        display: grid;
+        min-height: 430px;
+        flex: 0 0 min(900px, calc(100% - 110px));
+        grid-template-columns: minmax(280px, 0.82fr) minmax(380px, 1.18fr);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 25px;
+        background: rgba(255, 254, 251, 0.76);
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+      }
+
+      .feature-copy-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 48px;
+      }
+
+      .feature-kicker {
+        margin-bottom: 26px;
+        color: var(--teal);
+        font-size: 0.69rem;
+        font-weight: 760;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+
+      .feature-slide h3 {
+        margin-bottom: 16px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2rem, 3.5vw, 3.15rem);
+        font-weight: 500;
+        letter-spacing: -0.043em;
+        line-height: 1.02;
+      }
+
+      .feature-slide p {
+        max-width: 390px;
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .feature-visual {
+        position: relative;
+        display: grid;
+        min-height: 430px;
+        place-items: center;
+        overflow: hidden;
+        border-left: 1px solid var(--line);
+        background:
+          radial-gradient(circle at 82% 14%, rgba(45, 212, 191, 0.2), transparent 34%),
+          linear-gradient(145deg, #12192a, #0b0f1a);
+      }
+
+      .visual-window {
+        width: min(82%, 470px);
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 15px;
+        background: #161d2d;
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.3);
+        color: #cbd3df;
+      }
+
+      .visual-window-bar {
+        display: flex;
+        height: 31px;
+        align-items: center;
+        gap: 5px;
+        padding-inline: 11px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .visual-window-bar i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #465167;
+      }
+
+      .sync-scene {
+        display: grid;
+        grid-template-columns: 1fr 0.88fr;
+      }
+
+      .mini-source {
+        display: grid;
+        gap: 9px;
+        align-content: start;
+        padding: 30px 23px;
+      }
+
+      .mini-source i {
+        height: 5px;
+        border-radius: 2px;
+        background: #68758b;
+      }
+
+      .mini-source i:nth-child(2n) {
+        width: 76%;
+        background: #477f83;
+      }
+
+      .mini-source i:nth-child(3n) {
+        width: 88%;
+        background: #6d5b91;
+      }
+
+      .mini-paper-wrap {
+        padding: 24px 20px;
+        background: #252d3c;
+      }
+
+      .mini-paper {
+        height: 250px;
+        padding: 31px 24px;
+        background: #fffefb;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+      }
+
+      .mini-paper strong {
+        display: block;
+        margin-bottom: 22px;
+        color: #262a32;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.7rem;
+        text-align: center;
+      }
+
+      .mini-paper i {
+        display: block;
+        height: 3px;
+        margin-bottom: 6px;
+        background: #c9c5bb;
+      }
+
+      .reference-scene {
+        display: grid;
+        gap: 11px;
+        padding: 22px;
+      }
+
+      .reference-item {
+        display: grid;
+        grid-template-columns: 29px 1fr auto;
+        gap: 11px;
+        align-items: center;
+        padding: 13px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .reference-item-icon {
+        display: grid;
+        width: 29px;
+        height: 29px;
+        place-items: center;
+        border-radius: 8px;
+        background: rgba(45, 212, 191, 0.11);
+        color: var(--teal-bright);
+        font-size: 0.64rem;
+        font-weight: 760;
+      }
+
+      .reference-item strong,
+      .reference-item small {
+        display: block;
+      }
+
+      .reference-item strong {
+        overflow: hidden;
+        color: #e5eaf1;
+        font-size: 0.67rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .reference-item small,
+      .reference-item em {
+        color: #77849a;
+        font-size: 0.55rem;
+        font-style: normal;
+      }
+
+      .tool-scene {
+        padding: 20px;
+      }
+
+      .tool-tabs {
+        display: flex;
+        gap: 7px;
+        margin-bottom: 17px;
+      }
+
+      .tool-tabs span {
+        padding: 6px 9px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #8290a4;
+        font-size: 0.55rem;
+      }
+
+      .tool-tabs span:first-child {
+        background: rgba(45, 212, 191, 0.12);
+        color: var(--teal-bright);
+      }
+
+      .mini-table {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        overflow: hidden;
+        border: 1px solid #465167;
+        border-radius: 7px;
+      }
+
+      .mini-table span {
+        height: 38px;
+        padding: 10px;
+        border-right: 1px solid #465167;
+        border-bottom: 1px solid #465167;
+        color: #9da8b9;
+        font-size: 0.55rem;
+      }
+
+      .mini-table span:nth-child(3n) {
+        border-right: 0;
+      }
+
+      .mini-table span:nth-last-child(-n + 3) {
+        border-bottom: 0;
+      }
+
+      .guide-scene {
+        display: grid;
+        grid-template-columns: 0.64fr 1fr;
+      }
+
+      .guide-steps {
+        padding: 19px 14px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .guide-progress {
+        margin-bottom: 16px;
+        color: var(--teal-bright);
+        font-size: 0.55rem;
+        font-weight: 720;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .guide-step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 7px;
+        border-radius: 7px;
+        color: #6f7c90;
+        font-size: 0.56rem;
+      }
+
+      .guide-step::before {
+        width: 13px;
+        height: 13px;
+        flex: 0 0 13px;
+        border: 1px solid #465167;
+        border-radius: 50%;
+        content: "";
+      }
+
+      .guide-step.done::before {
+        border-color: var(--teal);
+        background: var(--teal);
+      }
+
+      .guide-step.active {
+        background: rgba(45, 212, 191, 0.08);
+        color: #dbe2ec;
+      }
+
+      .guide-step.active::before {
+        border: 4px solid var(--teal-bright);
+      }
+
+      .guide-lesson {
+        padding: 28px 25px;
+      }
+
+      .guide-lesson small {
+        color: var(--teal-bright);
+        font-size: 0.55rem;
+      }
+
+      .guide-lesson strong {
+        display: block;
+        margin: 9px 0 12px;
+        color: #eff2f7;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+
+      .guide-lesson p {
+        color: #8692a5;
+        font-size: 0.59rem;
+      }
+
+      .guide-action {
+        display: inline-flex;
+        margin-top: 14px;
+        padding: 8px 11px;
+        border-radius: 7px;
+        background: var(--teal);
+        color: white;
+        font-size: 0.56rem;
+        font-weight: 700;
+      }
+
+      .ai-scene {
+        display: grid;
+        gap: 12px;
+        padding: 23px;
+      }
+
+      .ai-message {
+        max-width: 82%;
+        padding: 12px 14px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.055);
+        color: #cbd3df;
+        font-size: 0.61rem;
+      }
+
+      .ai-message.user {
+        margin-left: auto;
+        background: rgba(45, 212, 191, 0.1);
+      }
+
+      .ai-change {
+        padding: 13px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 9px;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.55rem;
+      }
+
+      .removed {
+        color: #ef9999;
+      }
+
+      .added {
+        color: #78d7b5;
+      }
+
+      .ai-actions {
+        display: flex;
+        gap: 7px;
+      }
+
+      .ai-actions span {
+        padding: 7px 11px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.07);
+        color: #aeb8c8;
+        font-size: 0.54rem;
+      }
+
+      .ai-actions span:first-child {
+        background: var(--teal);
+        color: white;
+      }
+
+      .history-scene {
+        padding: 28px 30px;
+      }
+
+      .history-row {
+        position: relative;
+        display: grid;
+        grid-template-columns: 18px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        min-height: 64px;
+      }
+
+      .history-row:not(:last-child)::before {
+        position: absolute;
+        top: 40px;
+        bottom: -17px;
+        left: 8px;
+        width: 1px;
+        background: #3c4659;
+        content: "";
+      }
+
+      .history-dot {
+        width: 17px;
+        height: 17px;
+        border: 4px solid #20283a;
+        border-radius: 50%;
+        background: var(--teal-bright);
+        box-shadow: 0 0 0 1px #4d5a70;
+      }
+
+      .history-row strong,
+      .history-row small {
+        display: block;
+      }
+
+      .history-row strong {
+        color: #e3e8ef;
+        font-size: 0.64rem;
+      }
+
+      .history-row small,
+      .history-row time {
+        color: #758196;
+        font-size: 0.54rem;
+      }
+
+      .carousel-dots {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .carousel-dot {
+        width: 7px;
+        height: 7px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #c4c5c0;
+        cursor: pointer;
+        transition:
+          width 160ms ease,
+          background-color 160ms ease;
+      }
+
+      .carousel-dot[aria-current="true"] {
+        width: 24px;
+        background: var(--teal);
+      }
+
+      .download-section {
+        position: relative;
+        overflow: hidden;
+        background: var(--navy);
+        color: white;
+      }
+
+      .download-section::before {
+        position: absolute;
+        top: -280px;
+        left: 50%;
+        width: 780px;
+        height: 620px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(45, 212, 191, 0.18), transparent 66%);
+        content: "";
+        transform: translateX(-50%);
+      }
+
+      .download-content {
+        position: relative;
+        padding-block: 112px;
+      }
+
+      .download-header {
+        max-width: 700px;
+        margin: 0 auto 52px;
+        text-align: center;
+      }
+
+      .download-header .eyebrow {
+        color: #aeb7c7;
+      }
+
+      .download-header h2 {
+        margin-bottom: 18px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(3rem, 6vw, 5rem);
+        font-weight: 500;
+        letter-spacing: -0.052em;
+        line-height: 1;
+      }
+
+      .download-header p {
+        color: #aeb7c7;
+      }
+
+      .release-status {
+        min-height: 24px;
+        margin-top: 18px;
+        color: #7f8da2;
+        font-size: 0.83rem;
+      }
+
+      .download-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .download-card {
+        display: flex;
+        min-height: 315px;
+        flex-direction: column;
+        padding: 27px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .download-card.recommended {
+        border-color: rgba(45, 212, 191, 0.45);
+        background: linear-gradient(145deg, rgba(45, 212, 191, 0.1), rgba(255, 255, 255, 0.045));
+      }
+
+      .platform-topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .platform-icon {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .platform-icon svg {
+        width: 21px;
+        height: 21px;
+      }
+
+      .recommended-badge {
+        display: none;
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: rgba(45, 212, 191, 0.12);
+        color: var(--teal-bright);
+        font-size: 0.62rem;
+        font-weight: 760;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .recommended .recommended-badge {
+        display: inline-flex;
+      }
+
+      .download-card h3 {
+        margin: 30px 0 7px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.65rem;
+        font-weight: 500;
+      }
+
+      .platform-copy {
+        margin-bottom: 24px;
+        color: #8e99ab;
+        font-size: 0.84rem;
+      }
+
+      .asset-links {
+        display: grid;
+        gap: 8px;
+        margin-top: auto;
+      }
+
+      .asset-link {
+        display: flex;
+        min-height: 43px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 13px;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.055);
+        color: #e9edf3;
+        font-size: 0.78rem;
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      .asset-link:hover {
+        border-color: rgba(45, 212, 191, 0.45);
+        background: rgba(45, 212, 191, 0.08);
+      }
+
+      .asset-size {
+        color: #79869a;
+        font-size: 0.68rem;
+        font-weight: 500;
+      }
+
+      .download-footer {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 30px;
+        color: #8e99ab;
+        font-size: 0.83rem;
+      }
+
+      .download-footer a:hover {
+        color: white;
+      }
+
+      .site-footer {
+        padding-block: 36px;
+        border-top: 1px solid var(--line);
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .footer-links {
+        display: flex;
+        gap: 20px;
+      }
+
+      .footer-links a:hover {
+        color: var(--ink);
+      }
+
+      @media (max-width: 980px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 64px;
+          padding-top: 100px;
+        }
+
+        .hero-intro {
+          max-width: 720px;
+        }
+
+        .app-stage {
+          width: min(760px, 100%);
+          margin-inline: auto;
+        }
+
+        .principle {
+          padding: 36px 26px;
+        }
+
+        .section-heading {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+
+        .feature-slide {
+          flex-basis: calc(100% - 54px);
+          grid-template-columns: minmax(250px, 0.8fr) minmax(350px, 1.2fr);
+        }
+
+        .feature-copy-panel {
+          padding: 36px;
+        }
+
+        .download-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .download-card {
+          min-height: 280px;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .shell {
+          width: min(100% - 28px, 1160px);
+        }
+
+        .nav-links a:not(.nav-download) {
+          display: none;
+        }
+
+        .hero {
+          min-height: auto;
+          padding-block: 76px 84px;
+        }
+
+        h1 {
+          font-size: clamp(3.35rem, 18vw, 5rem);
+        }
+
+        .app-window {
+          min-height: 380px;
+          border-radius: 17px;
+          transform: none;
+        }
+
+        .app-body {
+          grid-template-columns: 34px 1fr;
+          min-height: 337px;
+        }
+
+        .pdf-pane {
+          display: none;
+        }
+
+        .floating-card {
+          right: -5px;
+          bottom: -26px;
+          transform: none;
+        }
+
+        .principle-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .principle + .principle {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .section {
+          padding-block: 88px;
+        }
+
+        .carousel-controls {
+          justify-content: flex-start;
+          margin: 0 0 16px;
+        }
+
+        .feature-slide {
+          min-height: 570px;
+          flex-basis: calc(100% - 24px);
+          grid-template-columns: 1fr;
+          grid-template-rows: auto 300px;
+        }
+
+        .feature-copy-panel {
+          padding: 30px 27px;
+        }
+
+        .feature-kicker {
+          margin-bottom: 17px;
+        }
+
+        .feature-slide h3 {
+          font-size: 2.25rem;
+        }
+
+        .feature-visual {
+          min-height: 300px;
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .visual-window {
+          width: 88%;
+        }
+
+        .mini-paper {
+          height: 180px;
+        }
+
+        .guide-lesson {
+          padding: 22px 18px;
+        }
+
+        .download-content {
+          padding-block: 88px;
+        }
+
+        .download-footer,
+        .footer-inner {
+          flex-direction: column;
+          text-align: center;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto;
+          transition-duration: 0.01ms;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header shell">
+      <nav class="nav" aria-label="Primary navigation">
+        <a class="brand" href="#top" aria-label="Opal home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+              <path d="M20 17h24l10 12-22 25L10 29z" fill="#67e8f9" />
+              <path d="M10 29h44L32 54z" fill="#8b5cf6" />
+              <path d="M20 17h24l-7 12H27z" fill="#fff" />
+            </svg>
+          </span>
+          <span>Opal</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="https://github.com/danylaksono/tectonic-editor">GitHub</a>
+          <a class="nav-download" href="#download">Download</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero shell" id="top">
+        <div class="hero-intro">
+          <p class="eyebrow">A writing space for LaTeX</p>
+          <h1>Write deeply.<br /><em>Compile locally.</em></h1>
+          <p class="hero-copy">
+            Opal is a calm, offline-first LaTeX editor for researchers,
+            scientists, and anyone who cares about the words as much as the
+            typesetting.
+          </p>
+          <div class="hero-actions">
+            <a
+              class="button button-primary"
+              id="primary-download"
+              href="https://github.com/danylaksono/tectonic-editor/releases/latest"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+              </svg>
+              <span id="primary-download-label">Download latest release</span>
+            </a>
+            <a
+              class="button button-secondary"
+              href="https://github.com/danylaksono/tectonic-editor"
+            >
+              View source on GitHub
+            </a>
+          </div>
+          <p class="hero-note">Free forever · Open source under MIT · macOS, Windows, and Linux</p>
+        </div>
+
+        <div class="app-stage" aria-label="Preview of the Opal editor">
+          <div class="app-window" aria-hidden="true">
+            <div class="window-bar">
+              <div class="traffic-lights"><i></i><i></i><i></i></div>
+              <div class="window-title">research-paper — Opal</div>
+            </div>
+            <div class="app-body">
+              <div class="activity-rail">
+                <span class="rail-icon active"></span>
+                <span class="rail-icon"></span>
+                <span class="rail-icon"></span>
+                <span class="rail-icon"></span>
+              </div>
+              <div class="editor-pane">
+                <div class="tabs">
+                  <span class="tab active">main.tex</span>
+                  <span class="tab">references.bib</span>
+                </div>
+                <div class="code">
+                  <div class="code-line"><span class="line-number">1</span><span class="token-command">\documentclass</span><span class="token-brace">{</span><span class="token-value">article</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">2</span><span class="token-command">\usepackage</span><span class="token-brace">{</span><span class="token-value">amsmath</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">3</span></div>
+                  <div class="code-line"><span class="line-number">4</span><span class="token-command">\title</span><span class="token-brace">{</span><span class="token-value">A Better Way to Write</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">5</span><span class="token-command">\author</span><span class="token-brace">{</span><span class="token-value">Ada Researcher</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">6</span></div>
+                  <div class="code-line"><span class="line-number">7</span><span class="token-command">\begin</span><span class="token-brace">{</span><span class="token-value">document</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">8</span><span class="token-command">\maketitle</span></div>
+                  <div class="code-line"><span class="line-number">9</span></div>
+                  <div class="code-line"><span class="line-number">10</span><span class="token-command">\section</span><span class="token-brace">{</span><span class="token-value">Introduction</span><span class="token-brace">}</span></div>
+                  <div class="code-line"><span class="line-number">11</span><span>Good tools should help us think</span></div>
+                  <div class="code-line"><span class="line-number">12</span><span>without getting in the way.</span></div>
+                  <div class="code-line"><span class="line-number">13</span></div>
+                  <div class="code-line"><span class="line-number">14</span><span class="token-comment">% Every change remains yours.</span></div>
+                </div>
+              </div>
+              <div class="pdf-pane">
+                <div class="paper">
+                  <h3>A Better Way to Write</h3>
+                  <p class="paper-byline">Ada Researcher · July 2026</p>
+                  <p class="paper-heading">1 &nbsp; Introduction</p>
+                  <div class="paper-lines">
+                    <i></i><i></i><i></i><i></i><i></i>
+                  </div>
+                  <div class="paper-equation">E = mc<sup>2</sup></div>
+                  <div class="paper-lines">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="floating-card" aria-hidden="true">
+            <p class="floating-label">References</p>
+            <div class="reference-row">
+              <span class="reference-status">✓</span>
+              <div>
+                <div class="reference-title">Bibliography is healthy</div>
+                <div class="reference-meta">24 citations · 0 missing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="principles" aria-label="Opal principles">
+        <div class="principle-grid shell">
+          <article class="principle">
+            <div class="principle-number">01</div>
+            <h2>Local by default</h2>
+            <p>Your documents compile on your computer with the embedded Tectonic engine.</p>
+          </article>
+          <article class="principle">
+            <div class="principle-number">02</div>
+            <h2>You stay the author</h2>
+            <p>AI is optional, bring-your-own-key, and every suggested edit waits for your approval.</p>
+          </article>
+          <article class="principle">
+            <div class="principle-number">03</div>
+            <h2>No account required</h2>
+            <p>Open a project and start writing. The complete editor works without signing in.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section shell" id="features">
+        <div class="section-heading">
+          <h2>Powerful when you need it. Quiet when you don’t.</h2>
+          <p>
+            Learn the basics, manage a serious research project, or ask for a
+            little help—all without leaving the page you are writing.
+          </p>
+        </div>
+        <div class="feature-carousel" aria-roledescription="carousel" aria-label="Opal features">
+          <div class="carousel-controls">
+            <button class="carousel-button" id="feature-prev" type="button" aria-label="Previous feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+            <span class="carousel-count" id="carousel-count" aria-live="polite">01 / 06</span>
+            <button class="carousel-button" id="feature-next" type="button" aria-label="Next feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+            </button>
+          </div>
+
+          <div class="feature-track" id="feature-track" tabindex="0">
+            <article class="feature-slide" role="group" aria-label="1 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">For beginners</div>
+                <h3>New to LaTeX? Start gently.</h3>
+                <p>A built-in guide teaches one idea at a time, from your first compile to figures, tables, equations, and citations. Insert an example or type it yourself—the guide never blocks your progress.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="guide-scene">
+                    <div class="guide-steps">
+                      <div class="guide-progress">Step 4 of 15</div>
+                      <div class="guide-step done">Meet Opal</div>
+                      <div class="guide-step done">First compile</div>
+                      <div class="guide-step done">Document skeleton</div>
+                      <div class="guide-step active">Add a title</div>
+                      <div class="guide-step">Write a section</div>
+                    </div>
+                    <div class="guide-lesson">
+                      <small>Learn LaTeX</small>
+                      <strong>Give your document a title</strong>
+                      <p>The title, author, and date live in the preamble. Add them now, then compile to see the result.</p>
+                      <span class="guide-action">Insert an example</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-slide" role="group" aria-label="2 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">Live preview</div>
+                <h3>Source and PDF, always in sync.</h3>
+                <p>Native MuPDF preview and bidirectional SyncTeX keep your source and finished document connected. Move between them with a click.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="sync-scene">
+                    <div class="mini-source"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    <div class="mini-paper-wrap">
+                      <div class="mini-paper"><strong>A Better Way to Write</strong><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-slide" role="group" aria-label="3 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">Bibliography</div>
+                <h3>References, resolved.</h3>
+                <p>Manage BibTeX across your project, find duplicates, connect Zotero, and look up records by DOI, ISBN, or arXiv identifier.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="reference-scene">
+                    <div class="reference-item"><span class="reference-item-icon">DOI</span><span><strong>Attention Is All You Need</strong><small>Vaswani et al. · 2017</small></span><em>cited</em></div>
+                    <div class="reference-item"><span class="reference-item-icon">Z</span><span><strong>Designing Data-Intensive Applications</strong><small>Kleppmann · 2017</small></span><em>saved</em></div>
+                    <div class="reference-item"><span class="reference-item-icon">arXiv</span><span><strong>Research methods for reproducible work</strong><small>Preprint · 2026</small></span><em>new</em></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-slide" role="group" aria-label="4 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">Visual tools</div>
+                <h3>Structure without the syntax hunt.</h3>
+                <p>Edit tables, equations, figures, citations, and cross-references with focused visual tools—then keep working in clean LaTeX source.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="tool-scene">
+                    <div class="tool-tabs"><span>Table</span><span>Equation</span><span>Figure</span><span>Citation</span></div>
+                    <div class="mini-table"><span>Method</span><span>Score</span><span>Time</span><span>Baseline</span><span>84.2</span><span>12 ms</span><span>Opal</span><span>92.8</span><span>8 ms</span></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-slide" role="group" aria-label="5 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">Optional AI</div>
+                <h3>Assistance only when you ask.</h3>
+                <p>Proofread a selection, explain a compile error, or reason across a project. You choose the provider, what to send, and whether any suggested change is accepted.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="ai-scene">
+                    <div class="ai-message user">Can you make this sentence more concise?</div>
+                    <div class="ai-message">Here is one focused revision. Your meaning and citation remain unchanged.</div>
+                    <div class="ai-change"><div class="removed">− The results clearly demonstrate that…</div><div class="added">+ The results show that…</div></div>
+                    <div class="ai-actions"><span>Accept change</span><span>Reject</span></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-slide" role="group" aria-label="6 of 6">
+              <div class="feature-copy-panel">
+                <div class="feature-kicker">Version history</div>
+                <h3>Experiment without losing your way.</h3>
+                <p>Automatic Git snapshots make it easy to compare drafts, label important checkpoints, and restore an earlier version of your work.</p>
+              </div>
+              <div class="feature-visual" aria-hidden="true">
+                <div class="visual-window">
+                  <div class="visual-window-bar"><i></i><i></i><i></i></div>
+                  <div class="history-scene">
+                    <div class="history-row"><span class="history-dot"></span><span><strong>Methods revised</strong><small>Labelled checkpoint</small></span><time>Now</time></div>
+                    <div class="history-row"><span class="history-dot"></span><span><strong>Figures updated</strong><small>Automatic snapshot</small></span><time>14:32</time></div>
+                    <div class="history-row"><span class="history-dot"></span><span><strong>Morning draft</strong><small>Automatic snapshot</small></span><time>09:18</time></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="carousel-dots" id="carousel-dots" aria-label="Choose a feature"></div>
+        </div>
+      </section>
+
+      <section class="download-section" id="download">
+        <div class="download-content shell">
+          <div class="download-header">
+            <p class="eyebrow">Download Opal</p>
+            <h2>Your next draft starts here.</h2>
+            <p>Choose your platform. Opal is free, open source under the MIT License, and does not require an account.</p>
+            <div class="release-status" id="release-status" role="status" aria-live="polite">
+              Checking the latest release…
+            </div>
+          </div>
+
+          <div class="download-grid">
+            <article class="download-card" data-platform-card="windows">
+              <div class="platform-topline">
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 4.2 10.6 3v8.1H3V4.2Zm8.7-1.4L21 1.5v9.6h-9.3V2.8ZM3 12.2h7.6v8.1L3 19.2v-7Zm8.7 0H21v9.6l-9.3-1.3v-8.3Z" /></svg>
+                </span>
+                <span class="recommended-badge">Recommended</span>
+              </div>
+              <h3>Windows</h3>
+              <p class="platform-copy">64-bit installer</p>
+              <div class="asset-links">
+                <a class="asset-link" id="windows-exe" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Download installer (.exe)</span><span class="asset-size"></span>
+                </a>
+                <a class="asset-link" id="windows-msi" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Download MSI</span><span class="asset-size"></span>
+                </a>
+              </div>
+            </article>
+
+            <article class="download-card" data-platform-card="macos">
+              <div class="platform-topline">
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.1 12.5c0-2.9 2.4-4.3 2.5-4.4a5.2 5.2 0 0 0-4.1-2.2c-1.7-.2-3.4 1-4.3 1s-2.2-1-3.7-.9a5.5 5.5 0 0 0-4.7 2.8c-2 3.5-.5 8.7 1.4 11.5 1 1.4 2.1 2.9 3.6 2.8 1.4-.1 2-1 3.7-1s2.2 1 3.7 1 2.5-1.4 3.4-2.8a12.5 12.5 0 0 0 1.6-3.3 5 5 0 0 1-3.1-4.5ZM14.3 4.1A5 5 0 0 0 15.5.5a5.1 5.1 0 0 0-3.3 1.7A4.7 4.7 0 0 0 11 5.7a4.2 4.2 0 0 0 3.3-1.6Z" /></svg>
+                </span>
+                <span class="recommended-badge">Recommended</span>
+              </div>
+              <h3>macOS</h3>
+              <p class="platform-copy">macOS 11 or later</p>
+              <div class="asset-links">
+                <a class="asset-link" id="macos-arm" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Apple silicon (.dmg)</span><span class="asset-size"></span>
+                </a>
+                <a class="asset-link" id="macos-intel" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Intel Mac (.dmg)</span><span class="asset-size"></span>
+                </a>
+              </div>
+            </article>
+
+            <article class="download-card" data-platform-card="linux">
+              <div class="platform-topline">
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-3 0-4.6 2.4-4.6 5.6 0 1.5.3 2.6-.5 4.2-.7 1.4-2.1 2.5-2.4 4.3-.2 1.2.2 2.2 1.2 2.6.8.3 1.6 0 2.2-.5.8 1.4 2.2 2.2 4.1 2.2s3.3-.8 4.1-2.2c.6.5 1.4.8 2.2.5 1-.4 1.4-1.4 1.2-2.6-.3-1.8-1.7-2.9-2.4-4.3-.8-1.6-.5-2.7-.5-4.2C16.6 4.4 15 2 12 2Zm-1.7 5.2c-.5 0-.8-.5-.8-1s.3-1 .8-1 .8.5.8 1-.3 1-.8 1Zm3.4 0c-.5 0-.8-.5-.8-1s.3-1 .8-1 .8.5.8 1-.3 1-.8 1Z" /></svg>
+                </span>
+                <span class="recommended-badge">Recommended</span>
+              </div>
+              <h3>Linux</h3>
+              <p class="platform-copy">x86_64 distributions</p>
+              <div class="asset-links">
+                <a class="asset-link" id="linux-appimage" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>AppImage</span><span class="asset-size"></span>
+                </a>
+                <a class="asset-link" id="linux-deb" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Debian / Ubuntu (.deb)</span><span class="asset-size"></span>
+                </a>
+                <a class="asset-link" id="linux-rpm" href="https://github.com/danylaksono/tectonic-editor/releases/latest">
+                  <span>Fedora / RPM (.rpm)</span><span class="asset-size"></span>
+                </a>
+              </div>
+            </article>
+          </div>
+
+          <div class="download-footer">
+            <a href="https://github.com/danylaksono/tectonic-editor/releases">All releases</a>
+            <a href="https://github.com/danylaksono/tectonic-editor/blob/main/CHANGELOG.md">Release notes</a>
+            <a href="https://github.com/danylaksono/tectonic-editor/issues">Report an issue</a>
+          </div>
+          <noscript>
+            <p class="release-status" style="text-align: center">
+              JavaScript is disabled. Use <a href="https://github.com/danylaksono/tectonic-editor/releases/latest">GitHub Releases</a> to download Opal.
+            </p>
+          </noscript>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner shell">
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64"><path d="M20 17h24l10 12-22 25L10 29z" fill="#67e8f9" /><path d="M10 29h44L32 54z" fill="#8b5cf6" /><path d="M20 17h24l-7 12H27z" fill="#fff" /></svg>
+          </span>
+          <span>Opal</span>
+        </a>
+        <span>Free and open-source software under the MIT License.</span>
+        <div class="footer-links">
+          <a href="https://github.com/danylaksono/tectonic-editor/blob/main/LICENSE">MIT License</a>
+          <a href="https://github.com/danylaksono/tectonic-editor">GitHub</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const repository = "danylaksono/tectonic-editor";
+        const latestReleaseUrl = `https://github.com/${repository}/releases/latest`;
+        const apiUrl = `https://api.github.com/repos/${repository}/releases/latest`;
+
+        const platformFromNavigator = () => {
+          const value = `${navigator.userAgentData?.platform || navigator.platform || ""} ${navigator.userAgent || ""}`.toLowerCase();
+          if (value.includes("win")) return "windows";
+          if (value.includes("mac")) return "macos";
+          if (value.includes("linux") || value.includes("x11")) return "linux";
+          return "other";
+        };
+
+        const platform = platformFromNavigator();
+        const primaryDownload = document.querySelector("#primary-download");
+        const primaryDownloadLabel = document.querySelector("#primary-download-label");
+        const releaseStatus = document.querySelector("#release-status");
+
+        const platformLabels = {
+          windows: "Download for Windows",
+          macos: "Download for macOS",
+          linux: "Download for Linux",
+          other: "Download latest release",
+        };
+
+        primaryDownloadLabel.textContent = platformLabels[platform];
+        document.querySelector(`[data-platform-card="${platform}"]`)?.classList.add("recommended");
+
+        const featureTrack = document.querySelector("#feature-track");
+        const featureSlides = [...featureTrack.querySelectorAll(".feature-slide")];
+        const previousFeature = document.querySelector("#feature-prev");
+        const nextFeature = document.querySelector("#feature-next");
+        const carouselCount = document.querySelector("#carousel-count");
+        const carouselDots = document.querySelector("#carousel-dots");
+        let activeFeature = 0;
+        let scrollFrame = 0;
+
+        const featureOffset = (index) =>
+          featureSlides[index].offsetLeft - featureTrack.offsetLeft;
+
+        const updateCarousel = (index) => {
+          activeFeature = Math.max(0, Math.min(featureSlides.length - 1, index));
+          carouselCount.textContent = `${String(activeFeature + 1).padStart(2, "0")} / ${String(featureSlides.length).padStart(2, "0")}`;
+          previousFeature.disabled = activeFeature === 0;
+          nextFeature.disabled = activeFeature === featureSlides.length - 1;
+          [...carouselDots.children].forEach((dot, dotIndex) => {
+            dot.setAttribute("aria-current", dotIndex === activeFeature ? "true" : "false");
+          });
+        };
+
+        const goToFeature = (index) => {
+          const target = Math.max(0, Math.min(featureSlides.length - 1, index));
+          featureTrack.scrollTo({ left: featureOffset(target), behavior: "smooth" });
+          updateCarousel(target);
+        };
+
+        featureSlides.forEach((_, index) => {
+          const dot = document.createElement("button");
+          dot.className = "carousel-dot";
+          dot.type = "button";
+          dot.setAttribute("aria-label", `Show feature ${index + 1}`);
+          dot.addEventListener("click", () => goToFeature(index));
+          carouselDots.append(dot);
+        });
+
+        previousFeature.addEventListener("click", () => goToFeature(activeFeature - 1));
+        nextFeature.addEventListener("click", () => goToFeature(activeFeature + 1));
+        featureTrack.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            goToFeature(activeFeature - 1);
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            goToFeature(activeFeature + 1);
+          }
+        });
+        featureTrack.addEventListener(
+          "scroll",
+          () => {
+            cancelAnimationFrame(scrollFrame);
+            scrollFrame = requestAnimationFrame(() => {
+              const closest = featureSlides.reduce(
+                (best, _, index) =>
+                  Math.abs(featureTrack.scrollLeft - featureOffset(index)) <
+                  Math.abs(featureTrack.scrollLeft - featureOffset(best))
+                    ? index
+                    : best,
+                0,
+              );
+              updateCarousel(closest);
+            });
+          },
+          { passive: true },
+        );
+        window.addEventListener("resize", () => updateCarousel(activeFeature));
+        updateCarousel(0);
+
+        const formatSize = (bytes) => {
+          if (!Number.isFinite(bytes) || bytes <= 0) return "";
+          return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`;
+        };
+
+        const setAssetLink = (selector, asset) => {
+          if (!asset) return;
+          const link = document.querySelector(selector);
+          if (!link) return;
+          link.href = asset.browser_download_url;
+          link.querySelector(".asset-size").textContent = formatSize(asset.size);
+        };
+
+        const findAsset = (assets, patterns) =>
+          patterns
+            .map((pattern) => assets.find((asset) => pattern.test(asset.name)))
+            .find(Boolean);
+
+        const choosePrimaryAsset = (assets) => {
+          if (platform === "windows") {
+            return findAsset(assets, [/windows.*setup\.exe$/i, /setup\.exe$/i, /windows.*\.msi$/i]);
+          }
+          if (platform === "linux") {
+            return findAsset(assets, [/linux.*\.AppImage$/i, /\.AppImage$/i, /linux.*\.deb$/i]);
+          }
+          return null;
+        };
+
+        fetch(apiUrl, {
+          headers: { Accept: "application/vnd.github+json" },
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+            return response.json();
+          })
+          .then((release) => {
+            if (!release || !Array.isArray(release.assets)) {
+              throw new Error("The release response was incomplete");
+            }
+
+            const assets = release.assets.filter(
+              (asset) =>
+                asset &&
+                typeof asset.name === "string" &&
+                typeof asset.browser_download_url === "string" &&
+                !asset.name.endsWith(".sig") &&
+                asset.name !== "latest.json" &&
+                !asset.name.endsWith(".app.tar.gz"),
+            );
+
+            const windowsExe = findAsset(assets, [/windows.*setup\.exe$/i, /setup\.exe$/i]);
+            const windowsMsi = findAsset(assets, [/windows.*\.msi$/i, /\.msi$/i]);
+            const macosArm = findAsset(assets, [/darwin.*(?:aarch64|arm64).*\.dmg$/i, /(?:aarch64|arm64).*\.dmg$/i]);
+            const macosIntel = findAsset(assets, [/darwin.*(?:x64|x86_64).*\.dmg$/i, /(?:x64|x86_64).*\.dmg$/i]);
+            const linuxAppImage = findAsset(assets, [/linux.*\.AppImage$/i, /\.AppImage$/i]);
+            const linuxDeb = findAsset(assets, [/linux.*\.deb$/i, /\.deb$/i]);
+            const linuxRpm = findAsset(assets, [/linux.*\.rpm$/i, /\.rpm$/i]);
+
+            setAssetLink("#windows-exe", windowsExe);
+            setAssetLink("#windows-msi", windowsMsi);
+            setAssetLink("#macos-arm", macosArm);
+            setAssetLink("#macos-intel", macosIntel);
+            setAssetLink("#linux-appimage", linuxAppImage);
+            setAssetLink("#linux-deb", linuxDeb);
+            setAssetLink("#linux-rpm", linuxRpm);
+
+            const primaryAsset = choosePrimaryAsset(assets);
+            if (primaryAsset) {
+              primaryDownload.href = primaryAsset.browser_download_url;
+            } else if (platform === "macos") {
+              primaryDownload.href = "#download";
+              primaryDownloadLabel.textContent = "Choose a Mac download";
+            }
+
+            const version = release.tag_name || "latest";
+            const published = release.published_at
+              ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(release.published_at))
+              : "";
+            releaseStatus.textContent = `Latest release: ${version}${published ? ` · Published ${published}` : ""}`;
+          })
+          .catch(() => {
+            primaryDownload.href = latestReleaseUrl;
+            releaseStatus.textContent = "Latest downloads are available on GitHub Releases.";
+          });
+      })();
+    </script>
+  </body>
+</html>
