@@ -3,8 +3,7 @@ use futures_util::StreamExt;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
-    AiCompleteEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo, AiRequest,
-    AiSessionInfo,
+    AiCompleteEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo, AiRequest, AiSessionInfo,
 };
 
 pub struct AnthropicProvider;
@@ -35,11 +34,7 @@ impl AiProvider for AnthropicProvider {
         }
     }
 
-    async fn execute(
-        &self,
-        window: WebviewWindow,
-        request: AiRequest,
-    ) -> Result<(), String> {
+    async fn execute(&self, window: WebviewWindow, request: AiRequest) -> Result<(), String> {
         let provider_id = self.id().to_string();
         let tab_id = request.tab_id.clone();
         let api_key = std::env::var("ANTHROPIC_API_KEY")

@@ -86,10 +86,7 @@ pub async fn fetch_citedrive_bibliography(url: String) -> Result<ExternalBibliog
     for _ in 0..5 {
         let response = client
             .get(current_url.clone())
-            .header(
-                USER_AGENT,
-                concat!("Opal/", env!("CARGO_PKG_VERSION")),
-            )
+            .header(USER_AGENT, concat!("Opal/", env!("CARGO_PKG_VERSION")))
             .header(ACCEPT, "application/x-bibtex, text/plain;q=0.9")
             .send()
             .await

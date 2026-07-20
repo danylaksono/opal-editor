@@ -76,7 +76,7 @@ else
       const data = JSON.parse(fs.readFileSync('$LATEST_JSON', 'utf8'));
       data.platforms['darwin-aarch64'] = {
         signature: \`$SIGNATURE\`,
-        url: 'https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/Opal-macOS.app.tar.gz'
+        url: 'https://github.com/danylaksono/tectonic-editor/releases/download/$TAG/Opal-macOS.app.tar.gz'
       };
       fs.writeFileSync('$LATEST_JSON', JSON.stringify(data, null, 2));
     "
@@ -89,7 +89,7 @@ else
   "platforms": {
     "darwin-aarch64": {
       "signature": "$SIGNATURE",
-      "url": "https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/Opal-macOS.app.tar.gz"
+      "url": "https://github.com/danylaksono/tectonic-editor/releases/download/$TAG/Opal-macOS.app.tar.gz"
     }
   }
 }
@@ -100,8 +100,8 @@ fi
 
 # Upload to GitHub Release
 echo "==> Uploading to GitHub Release $TAG"
-gh release view "$TAG" --repo anomalyco/tectonic-editor >/dev/null 2>&1 || \
-  gh release create "$TAG" --repo anomalyco/tectonic-editor --title "Opal $TAG" --generate-notes
+gh release view "$TAG" --repo danylaksono/tectonic-editor >/dev/null 2>&1 || \
+  gh release create "$TAG" --repo danylaksono/tectonic-editor --title "Opal $TAG" --generate-notes
 
 # Rename to version-free names
 RENAMED_DMG="apps/desktop/src-tauri/target/Opal-macOS.dmg"
@@ -116,7 +116,7 @@ fi
 [ -f "${LATEST_JSON:-}" ] && UPLOAD_ASSETS+=("$LATEST_JSON")
 
 gh release upload "$TAG" \
-  --repo anomalyco/tectonic-editor \
+  --repo danylaksono/tectonic-editor \
   --clobber \
   "${UPLOAD_ASSETS[@]}"
 

@@ -1566,7 +1566,11 @@ mod tests {
     fn test_collect_includes_handles_cycles() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.tex"), "\\input{b}\n").unwrap();
-        std::fs::write(dir.path().join("b.tex"), "\\input{a}\n\\bibliography{refs}\n").unwrap();
+        std::fs::write(
+            dir.path().join("b.tex"),
+            "\\input{a}\n\\bibliography{refs}\n",
+        )
+        .unwrap();
 
         let content = collect_tex_content_with_includes(dir.path(), "a.tex");
         assert_eq!(detect_bib_tool(&content), BibTool::BibTeX);
@@ -1995,10 +1999,8 @@ Postamble:
 
     #[test]
     fn test_migrate_legacy_build_dir_moves_cache() {
-        let tmp = std::env::temp_dir().join(format!(
-            "tectonic-migrate-test-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("tectonic-migrate-test-{}", std::process::id()));
         let project = tmp.to_string_lossy().to_string();
         let legacy = legacy_build_dir(&project);
         let current = persistent_build_dir(&project);
@@ -2019,10 +2021,8 @@ Postamble:
 
     #[test]
     fn test_migrate_legacy_build_dir_noop_when_current_exists() {
-        let tmp = std::env::temp_dir().join(format!(
-            "tectonic-migrate-noop-{}",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("tectonic-migrate-noop-{}", std::process::id()));
         let project = tmp.to_string_lossy().to_string();
         let legacy = legacy_build_dir(&project);
         let current = persistent_build_dir(&project);

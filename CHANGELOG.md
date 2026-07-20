@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-20
+
+### Added
+
+- Rebranded TectonicEditor as Opal with a new application icon, package
+  namespace, window chrome, documentation, and release naming.
+- Multi-file editor tabs, project-tree keyboard navigation, and richer
+  context menus for editing LaTeX and bibliography files.
+- A unified references workspace that scans project bibliographies, connects
+  to Zotero, imports external `.bib` files, looks up records through Crossref,
+  arXiv, and Open Library, and resolves DOI, ISBN, and arXiv identifiers.
+- Bibliography duplicate detection and cleanup, missing-citation discovery,
+  and AI-assisted reference lookup.
+- Optional LanguageTool grammar and style checking with a dedicated review
+  panel.
+- A step-by-step LaTeX tutorial that builds a sample document while teaching
+  document structure, figures, tables, mathematics, and citations.
+- AI tools for inspecting project structure and compile output, applying
+  targeted document changes, and explaining compilation errors on request.
+
+### Changed
+
+- Redesigned the visual table editor with improved row and column controls,
+  cell editing, alignment options, and preview behaviour.
+- Refined the editor, sidebar, PDF preview controls, appearance settings, and
+  beginner workflow for a more contextual writing experience.
+
+### Fixed
+
+- Corrected split-view layout behaviour and PDF preview control states.
+- Improved BibTeX parsing and cleanup for escaped values and malformed or
+  untidy entries.
+- Corrected release asset and in-app repository links to use the canonical
+  project repository.
+
 ## [1.3.0] - 2026-07-18
 
 ### Added

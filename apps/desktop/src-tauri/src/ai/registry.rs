@@ -35,10 +35,7 @@ impl ProviderRegistry {
     }
 
     pub fn list_providers(&self) -> Vec<AiProviderInfo> {
-        self.providers
-            .iter()
-            .map(|p| p.info.clone())
-            .collect()
+        self.providers.iter().map(|p| p.info.clone()).collect()
     }
 
     #[allow(dead_code)]

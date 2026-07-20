@@ -171,7 +171,6 @@ pub async fn check_uv_status() -> Result<UvStatus, String> {
     version_cmd.arg("--version");
     #[cfg(target_os = "windows")]
     {
-
         version_cmd.creation_flags(CREATE_NO_WINDOW);
     }
     let version_output = version_cmd.output();
@@ -242,7 +241,6 @@ pub async fn install_uv(window: WebviewWindow) -> Result<(), String> {
     };
     #[cfg(target_os = "windows")]
     let mut cmd = {
-
         let mut c = tokio::process::Command::new("powershell");
         c.creation_flags(CREATE_NO_WINDOW);
         c.args([
@@ -333,7 +331,6 @@ pub async fn setup_project_venv(project_path: String) -> Result<VenvInfo, String
     venv_cmd.current_dir(project);
     #[cfg(target_os = "windows")]
     {
-
         venv_cmd.creation_flags(CREATE_NO_WINDOW);
     }
     let output = venv_cmd
@@ -377,7 +374,6 @@ pub async fn uv_add_packages(
     pip_cmd.env("PATH", path_with_venv(&venv_dir));
     #[cfg(target_os = "windows")]
     {
-
         pip_cmd.creation_flags(CREATE_NO_WINDOW);
     }
     let output = pip_cmd
@@ -421,7 +417,6 @@ pub async fn uv_run_command(
     run_cmd.env("PATH", path_with_venv(&venv_dir));
     #[cfg(target_os = "windows")]
     {
-
         run_cmd.creation_flags(CREATE_NO_WINDOW);
     }
     let output = run_cmd

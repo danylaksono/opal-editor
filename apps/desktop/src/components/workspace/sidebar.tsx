@@ -1062,7 +1062,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="icon" className="size-6" asChild>
             <a
-              href="https://github.com/anomalyco/tectonic-editor"
+              href="https://github.com/danylaksono/tectonic-editor"
               target="_blank"
               rel="noopener noreferrer"
               title="GitHub"
