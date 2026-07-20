@@ -4,38 +4,73 @@
 
 ## [1.4.0] - 2026-07-20
 
-### Added
+Opal 1.4 is the first release under the **Opal** name—formerly
+TectonicEditor. It brings a calmer identity, a much stronger references
+workflow, a gentler path for LaTeX beginners, and more capable editing tools
+without changing the core promise: local compilation, no required account,
+and optional AI that stays under your control.
 
-- Rebranded TectonicEditor as Opal with a new application icon, package
-  namespace, window chrome, documentation, and release naming.
-- Multi-file editor tabs, project-tree keyboard navigation, and richer
-  context menus for editing LaTeX and bibliography files.
-- A unified references workspace that scans project bibliographies, connects
-  to Zotero, imports external `.bib` files, looks up records through Crossref,
-  arXiv, and Open Library, and resolves DOI, ISBN, and arXiv identifiers.
-- Bibliography duplicate detection and cleanup, missing-citation discovery,
-  and AI-assisted reference lookup.
-- Optional LanguageTool grammar and style checking with a dedicated review
+Opal remains free and open-source software under the MIT License.
+
+### Highlights
+
+#### Meet Opal
+
+The application now has a new name, icon, package namespace, window identity,
+documentation site, and release presentation. Existing project structure and
+Opal-managed `.tectonic-editor` data remain compatible.
+
+#### A gentler way to learn LaTeX
+
+A new 15-step **Learn LaTeX** guide starts with the workspace and your first
+compile, then introduces document structure, formatting, packages, lists,
+figures, tables, equations, citations, and cross-references. Each lesson can
+insert an example, but learners can always type it themselves or move ahead at
+their own pace.
+
+#### One home for references
+
+The redesigned references workspace can scan bibliographies across a project,
+connect to Zotero, link JabRef or other external BibTeX libraries, and refresh
+CiteDrive bibliographies. It can also:
+
+- Resolve DOI, ISBN, and arXiv identifiers through Crossref, Open Library, and
+  arXiv.
+- Find and clean up duplicate bibliography entries.
+- Discover missing citations and assist with reference lookup.
+- Preserve project copies when working with externally managed `.bib` files.
+
+#### A more fluid writing workspace
+
+- Work across multiple files with editor tabs.
+- Use richer context menus for LaTeX and bibliography editing.
+- Navigate the project tree by keyboard.
+- Build and revise tables with improved row, column, cell, alignment, and
+  preview controls.
+- Move through a more consistent sidebar, editor toolbar, and PDF preview.
+- Review optional LanguageTool grammar and style suggestions in a dedicated
   panel.
-- A step-by-step LaTeX tutorial that builds a sample document while teaching
-  document structure, figures, tables, mathematics, and citations.
-- AI tools for inspecting project structure and compile output, applying
-  targeted document changes, and explaining compilation errors on request.
 
-### Changed
+#### AI remains optional—and more useful when invited
 
-- Redesigned the visual table editor with improved row and column controls,
-  cell editing, alignment options, and preview behaviour.
-- Refined the editor, sidebar, PDF preview controls, appearance settings, and
-  beginner workflow for a more contextual writing experience.
+Opal can now inspect project structure and compile output, apply focused
+document changes, help locate missing references, and explain compilation
+errors. You still choose the provider, what context to send, and whether to
+accept every proposed edit.
 
-### Fixed
+### Also included
 
-- Corrected split-view layout behaviour and PDF preview control states.
-- Improved BibTeX parsing and cleanup for escaped values and malformed or
-  untidy entries.
-- Corrected release asset and in-app repository links to use the canonical
-  project repository.
+- A new responsive project landing page with platform-aware downloads.
+- Improved onboarding, appearance controls, and beginner-friendly guidance.
+- More reliable BibTeX parsing and cleanup for escaped, malformed, or untidy
+  entries.
+- Corrected split-view behaviour, PDF preview control states, and release
+  asset links.
+
+### Download
+
+Choose the installer for your platform from the release assets below. Opal is
+available for macOS, Windows, and Linux.
 
 ## [1.3.0] - 2026-07-18
 
