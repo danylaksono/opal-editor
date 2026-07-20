@@ -241,7 +241,7 @@ async fn accept_callback(listener: TcpListener) -> Result<(String, String), Stri
     let params = parse_form_urlencoded(query);
 
     // Respond with success page
-    let html = r#"<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:60px"><h2>Connected to Zotero!</h2><p style="color:#666">You can close this tab and return to TectonicEditor.</p><script>setTimeout(()=>window.close(),1500)</script></body></html>"#;
+    let html = r#"<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:60px"><h2>Connected to Zotero!</h2><p style="color:#666">You can close this tab and return to Opal.</p><script>setTimeout(()=>window.close(),1500)</script></body></html>"#;
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         html.len(),
@@ -344,7 +344,7 @@ pub async fn zotero_start_oauth(
 
     // Build authorize URL
     let authorize_url = format!(
-        "{}?oauth_token={}&name=TectonicEditor&library_access=1&notes_access=0&write_access=0&all_groups=read",
+        "{}?oauth_token={}&name=Opal&library_access=1&notes_access=0&write_access=0&all_groups=read",
         AUTHORIZE_URL, token
     );
 
@@ -412,7 +412,7 @@ pub async fn zotero_local_request(path: String) -> Result<ZoteroLocalResponse, S
         .header("Zotero-API-Version", "3")
         .header(
             reqwest::header::USER_AGENT,
-            concat!("TectonicEditor/", env!("CARGO_PKG_VERSION")),
+            concat!("Opal/", env!("CARGO_PKG_VERSION")),
         )
         .send()
         .await

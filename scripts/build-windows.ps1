@@ -1,4 +1,4 @@
-# TectonicEditor Windows Build Setup & Build Script
+# Opal Windows Build Setup & Build Script
 # Run from PowerShell (not as admin unless for system-wide installs)
 # Usage: .\scripts\build-windows.ps1
 
@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
-Write-Host "=== TectonicEditor Windows Build ===" -ForegroundColor Cyan
+Write-Host "=== Opal Windows Build ===" -ForegroundColor Cyan
 
 # ─── 1. Check / Install Rust ───
 if (-not $BuildOnly) {
@@ -101,7 +101,7 @@ if ($SetupOnly) {
   exit 0
 }
 
-Write-Host "`nBuilding TectonicEditor for Windows..." -ForegroundColor Cyan
+Write-Host "`nBuilding Opal for Windows..." -ForegroundColor Cyan
 Push-Location $RepoRoot
 pnpm build:desktop
 if ($LASTEXITCODE -ne 0) {

@@ -88,7 +88,7 @@ pub async fn fetch_citedrive_bibliography(url: String) -> Result<ExternalBibliog
             .get(current_url.clone())
             .header(
                 USER_AGENT,
-                concat!("TectonicEditor/", env!("CARGO_PKG_VERSION")),
+                concat!("Opal/", env!("CARGO_PKG_VERSION")),
             )
             .header(ACCEPT, "application/x-bibtex, text/plain;q=0.9")
             .send()

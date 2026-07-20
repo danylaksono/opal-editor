@@ -1,7 +1,7 @@
 /**
  * Generate example projects for all LaTeX templates.
  *
- * Usage:  pnpm --filter @tectonic-editor/desktop generate-previews
+ * Usage:  pnpm --filter @opal/desktop generate-previews
  *
  * Requires pdflatex to be installed (part of TeX Live / MacTeX).
  * Output: public/examples/{template-id}/main.tex, main.pdf, references.bib (if applicable)

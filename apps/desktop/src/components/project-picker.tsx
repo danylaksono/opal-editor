@@ -133,7 +133,7 @@ export function ProjectPicker() {
       if (!baseFolder) {
         const home = await homeDir();
         if (!home) throw new Error("Could not find your home directory");
-        baseFolder = await join(home, "Documents", "TectonicEditor");
+        baseFolder = await join(home, "Documents", "Opal");
       }
       await mkdir(baseFolder, { recursive: true });
 
@@ -169,7 +169,7 @@ export function ProjectPicker() {
       let baseFolder = lastProjectFolder;
       if (!baseFolder) {
         const home = await homeDir();
-        baseFolder = await join(home, "Documents", "TectonicEditor");
+        baseFolder = await join(home, "Documents", "Opal");
       }
       await mkdir(baseFolder, { recursive: true });
       const projectPath = await join(baseFolder, "Learn-LaTeX");
@@ -245,7 +245,7 @@ export function ProjectPicker() {
             />
             <div>
               <div className="font-semibold text-sm tracking-tight">
-                TectonicEditor
+                Opal
               </div>
               <VersionBadge
                 version={appVersion}

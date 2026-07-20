@@ -1,4 +1,4 @@
-# Launch TectonicEditor in Windows development mode with the native
+# Launch Opal in Windows development mode with the native
 # Tectonic dependencies configured for this process only.
 
 $ErrorActionPreference = "Stop"
@@ -41,7 +41,7 @@ $env:VCPKG_DEFAULT_TRIPLET = $VcpkgTriplet
 $env:CXXFLAGS = "/std:c++17"
 $env:CFLAGS = ""
 
-Write-Host "Starting TectonicEditor..." -ForegroundColor Cyan
+Write-Host "Starting Opal..." -ForegroundColor Cyan
 Write-Host "  Repository: $RepoRoot"
 Write-Host "  vcpkg:     $VcpkgRoot"
 Write-Host "  Triplet:   $VcpkgTriplet"
@@ -52,7 +52,7 @@ Push-Location $RepoRoot
 try {
   & $Pnpm.Source dev:desktop
   if ($LASTEXITCODE -ne 0) {
-    throw "TectonicEditor exited with code $LASTEXITCODE."
+    throw "Opal exited with code $LASTEXITCODE."
   }
 }
 finally {

@@ -21,14 +21,14 @@ TARGET="x86_64-unknown-linux-gnu"
 VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 
-echo "==> Building TectonicEditor $TAG for Linux ($TARGET)"
+echo "==> Building Opal $TAG for Linux ($TARGET)"
 
 # Build
 export TECTONIC_DEP_BACKEND=pkg-config
 export CXXFLAGS="-std=c++17"
 export CFLAGS=""
 
-pnpm --filter @tectonic-editor/desktop tauri build --target "$TARGET"
+pnpm --filter @opal/desktop tauri build --target "$TARGET"
 
 BUNDLE_DIR="apps/desktop/src-tauri/target/$TARGET/release/bundle"
 
@@ -39,7 +39,7 @@ APPIMAGE_PATH=$(find "$BUNDLE_DIR/appimage" -name '*.AppImage' 2>/dev/null | hea
 APPIMAGE_SIG=$(find "$BUNDLE_DIR/appimage" -name '*.AppImage.sig' 2>/dev/null | head -1)
 APPIMAGE_UPLOAD_PATH=""
 if [ -n "$APPIMAGE_PATH" ]; then
-  APPIMAGE_UPLOAD_PATH="apps/desktop/src-tauri/target/TectonicEditor-Linux.AppImage"
+  APPIMAGE_UPLOAD_PATH="apps/desktop/src-tauri/target/Opal-Linux.AppImage"
   cp "$APPIMAGE_PATH" "$APPIMAGE_UPLOAD_PATH"
 fi
 
@@ -71,7 +71,7 @@ if [ -n "$APPIMAGE_PATH" ] && [ -n "$APPIMAGE_SIG" ]; then
       const data = JSON.parse(fs.readFileSync('$LATEST_JSON', 'utf8'));
       data.platforms['linux-x86_64'] = {
         signature: \`$SIGNATURE\`,
-        url: 'https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/TectonicEditor-Linux.AppImage'
+        url: 'https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/Opal-Linux.AppImage'
       };
       fs.writeFileSync('$LATEST_JSON', JSON.stringify(data, null, 2));
     "
@@ -79,12 +79,12 @@ if [ -n "$APPIMAGE_PATH" ] && [ -n "$APPIMAGE_SIG" ]; then
     cat > "$LATEST_JSON" <<EOF
 {
   "version": "$VERSION",
-  "notes": "TectonicEditor $TAG",
+  "notes": "Opal $TAG",
   "pub_date": "$PUB_DATE",
   "platforms": {
     "linux-x86_64": {
       "signature": "$SIGNATURE",
-      "url": "https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/TectonicEditor-Linux.AppImage"
+      "url": "https://github.com/anomalyco/tectonic-editor/releases/download/$TAG/Opal-Linux.AppImage"
     }
   }
 }
@@ -99,7 +99,7 @@ fi
 # Upload to GitHub Release
 echo "==> Uploading to GitHub Release $TAG"
 gh release view "$TAG" --repo anomalyco/tectonic-editor >/dev/null 2>&1 || \
-  gh release create "$TAG" --repo anomalyco/tectonic-editor --title "TectonicEditor $TAG" --generate-notes
+  gh release create "$TAG" --repo anomalyco/tectonic-editor --title "Opal $TAG" --generate-notes
 
 gh release upload "$TAG" \
   --repo anomalyco/tectonic-editor \

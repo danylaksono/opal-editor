@@ -75,7 +75,7 @@ async fn download_github_archive(url: &str, target: &Path) -> Result<(), String>
     let response = client
         .get(url)
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
-        .header(reqwest::header::USER_AGENT, "TectonicEditor")
+        .header(reqwest::header::USER_AGENT, "Opal")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await

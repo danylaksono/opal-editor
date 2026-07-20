@@ -1,0 +1,78 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Opal app icon: iridescent faceted gem on a dark tile.
+       Source of truth. Regenerate the icon set from apps/desktop with:
+       pnpm exec tauri icon src-tauri/app-icon.svg -->
+  <defs>
+    <!-- Tile background -->
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141b2d"/>
+      <stop offset="1" stop-color="#0b0f1a"/>
+    </linearGradient>
+    <!-- Aura behind the gem -->
+    <radialGradient id="glow" cx="512" cy="470" r="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.35"/>
+      <stop offset="0.55" stop-color="#6366f1" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Facet fills (opal play-of-color) -->
+    <linearGradient id="fTable" x1="360" y1="320" x2="520" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.97"/>
+      <stop offset="1" stop-color="#bfe9ff"/>
+    </linearGradient>
+    <linearGradient id="fLeftCrown" x1="250" y1="440" x2="400" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="fRightCrown" x1="774" y1="440" x2="630" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="fLeftPav" x1="250" y1="440" x2="512" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#f0abfc"/>
+    </linearGradient>
+    <linearGradient id="fCenterPav" x1="512" y1="440" x2="512" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#2a2464"/>
+    </linearGradient>
+    <linearGradient id="fRightPav" x1="774" y1="440" x2="512" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#e879f9"/>
+    </linearGradient>
+    <!-- Diagonal shimmer overlaid on the whole gem -->
+    <linearGradient id="shimmer" x1="250" y1="320" x2="774" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.10"/>
+    </linearGradient>
+
+    <clipPath id="gemClip">
+      <path d="M360 320 H664 L774 440 L512 760 L250 440 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="0" y="0" width="1024" height="1024" rx="230" fill="url(#tile)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="230" fill="url(#glow)"/>
+
+  <!-- Gem facets -->
+  <g stroke="#ffffff" stroke-opacity="0.16" stroke-width="2" stroke-linejoin="round">
+    <polygon points="360,320 664,320 600,440 424,440" fill="url(#fTable)"/>
+    <polygon points="360,320 424,440 250,440" fill="url(#fLeftCrown)"/>
+    <polygon points="664,320 774,440 600,440" fill="url(#fRightCrown)"/>
+    <polygon points="250,440 424,440 512,760" fill="url(#fLeftPav)"/>
+    <polygon points="424,440 600,440 512,760" fill="url(#fCenterPav)"/>
+    <polygon points="600,440 774,440 512,760" fill="url(#fRightPav)"/>
+  </g>
+
+  <!-- Shimmer + specular highlight, clipped to the gem -->
+  <g clip-path="url(#gemClip)">
+    <path d="M360 320 H664 L774 440 L512 760 L250 440 Z" fill="url(#shimmer)"/>
+    <polygon points="360,320 512,320 424,440" fill="#ffffff" fill-opacity="0.22"/>
+  </g>
+
+  <!-- Gem outline for crisp silhouette -->
+  <path d="M360 320 H664 L774 440 L512 760 L250 440 Z"
+        fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="4" stroke-linejoin="round"/>
+</svg>

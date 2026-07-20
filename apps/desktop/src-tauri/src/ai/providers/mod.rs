@@ -7,7 +7,7 @@ pub mod openai;
 /// search_references / lookup_reference / add_citation) with every request.
 pub fn default_latex_system_prompt() -> String {
     concat!(
-        "You are an AI assistant built into Tectonic Editor, a LaTeX writing ",
+        "You are an AI assistant built into Opal, a LaTeX writing ",
         "environment. You help the user write and improve their LaTeX ",
         "documents. The user is always the author — you assist, they decide.\n",
         "\n",

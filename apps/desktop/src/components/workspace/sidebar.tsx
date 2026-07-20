@@ -777,7 +777,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
       {/* Header — padded top for macOS overlay titlebar */}
       <div className="relative flex h-[calc(48px+var(--titlebar-height))] items-center justify-center border-sidebar-border border-b px-3 pt-[var(--titlebar-height)]">
         <div className="flex flex-col items-center">
-          <span className="font-semibold text-sm">TectonicEditor</span>
+          <span className="font-semibold text-sm">Opal</span>
           <span className="text-muted-foreground text-xs">
             {projectRoot?.split(/[/\\]/).pop() || "Desktop"}
           </span>
@@ -1058,7 +1058,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
 
       {/* Footer */}
       <div className="flex items-center justify-between border-sidebar-border border-t px-3 py-2 text-muted-foreground text-xs">
-        <span className="truncate">TectonicEditor v{appVersion}</span>
+        <span className="truncate">Opal v{appVersion}</span>
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="icon" className="size-6" asChild>
             <a

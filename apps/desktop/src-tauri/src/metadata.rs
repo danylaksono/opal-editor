@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use tokio::time::Instant;
 
 const CACHE_SECONDS: u64 = 30 * 24 * 60 * 60;
-const USER_AGENT: &str = "TectonicEditor/1.2 (bibliography import; https://github.com/danylaksono/tectonic-editor)";
+const USER_AGENT: &str = "Opal/1.2 (bibliography import; https://github.com/danylaksono/tectonic-editor)";
 static OPEN_LIBRARY_LAST_REQUEST: OnceLock<tokio::sync::Mutex<Option<Instant>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

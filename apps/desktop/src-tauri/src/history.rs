@@ -78,7 +78,7 @@ fn open_repo(project_root: &str) -> Result<Repository, String> {
 }
 
 fn default_signature() -> Result<Signature<'static>, String> {
-    Signature::now("TectonicEditor", "history@tectoniceditor.local")
+    Signature::now("Opal", "history@opal.local")
         .map_err(|e| format!("Failed to create signature: {}", e))
 }
 
@@ -129,7 +129,7 @@ Thumbs.db
 # Git
 .git/
 
-# TectonicEditor internal
+# Opal internal
 .tectonic-editor/
 .prism/
 .claudeprism/
@@ -189,7 +189,7 @@ pub fn history_init(project_root: String) -> Result<(), String> {
         }
     }
 
-    // Create the TectonicEditor history directory.
+    // Create the Opal history directory.
     let internal_dir = history_dir(&project_root);
     fs::create_dir_all(&internal_dir)
         .map_err(|e| format!("Failed to create {} dir: {}", HISTORY_DIR, e))?;

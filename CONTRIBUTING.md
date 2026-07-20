@@ -1,4 +1,4 @@
-# Contributing to TectonicEditor
+# Contributing to Opal
 
 Contributions are welcome! This guide covers the development environment, workflow, and testing.
 
