@@ -2679,7 +2679,9 @@ export function LatexEditor() {
                       </ContextMenuSubTrigger>
                       <ContextMenuSubContent className="w-52">
                         <ContextMenuItem
-                          onSelect={() => dispatchEditorAction("insert.section")}
+                          onSelect={() =>
+                            dispatchEditorAction("insert.section")
+                          }
                         >
                           <Heading1Icon />
                           Section
