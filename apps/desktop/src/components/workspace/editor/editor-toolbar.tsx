@@ -1,6 +1,7 @@
 import { RefObject, useCallback, useEffect, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import {
   BoldIcon,
   ItalicIcon,
@@ -25,6 +26,7 @@ import {
   RadicalIcon,
   SigmaIcon,
   Table2Icon,
+  BrushCleaningIcon,
 } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CitationPicker } from "@/components/workspace/citation-picker";
@@ -64,6 +66,7 @@ import { confirmPackageRequirements } from "@/lib/feature-packages";
 import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
 import type { TableModel } from "@/lib/latex-tables";
 import type { MathNode } from "@/lib/latex-math";
+import { tidyBibFileSource } from "@/lib/bibtex-entries";
 
 interface EditorInfo {
   id: string;
@@ -210,6 +213,24 @@ export function EditorToolbar({
   const wrapSelection = (wrapper: string) => {
     insertText(wrapper, wrapper);
   };
+
+  const tidyWholeFile = useCallback(() => {
+    const view = editorView.current;
+    if (!view) return;
+    const source = view.state.doc.toString();
+    const tidied = tidyBibFileSource(source);
+    if (!tidied) {
+      toast.info("Bibliography is already tidy");
+      return;
+    }
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: tidied.result },
+    });
+    view.focus();
+    toast.success(
+      `Tidied ${tidied.count} ${tidied.count === 1 ? "entry" : "entries"}`,
+    );
+  }, [editorView]);
 
   const insertCitation = (citationDraft: CitationDraft) => {
     const view = editorView.current;
@@ -444,6 +465,15 @@ export function EditorToolbar({
           Click a citation key or press Alt+Enter to edit its fields
         </span>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1.5 px-2 text-xs"
+          onClick={tidyWholeFile}
+        >
+          <BrushCleaningIcon className="size-3.5" />
+          Tidy file
+        </Button>
       </div>
     );
   }

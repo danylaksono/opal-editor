@@ -3,6 +3,7 @@ import {
   findBibEntries,
   findBibEntryAt,
   tidyBibEntrySource,
+  tidyBibFileSource,
   updateBibEntrySource,
 } from "@/lib/bibtex-entries";
 
@@ -27,6 +28,15 @@ describe("structured BibTeX entries", () => {
     });
     expect(findBibEntryAt(source, source.indexOf("smith2024") + 2)?.type).toBe(
       "article",
+    );
+  });
+
+  it("finds the entry from anywhere in its body, not just the key", () => {
+    expect(findBibEntryAt(source, source.indexOf("Jane Smith"))?.key).toBe(
+      "smith2024",
+    );
+    expect(findBibEntryAt(source, source.indexOf("preserve me"))?.key).toBe(
+      "smith2024",
     );
   });
 
@@ -65,5 +75,32 @@ describe("tidyBibEntrySource", () => {
   it("returns the original source when the entry has no citation key", () => {
     const noKey = "@article{, year = {2024}}";
     expect(tidyBibEntrySource(noKey)).toBe(noKey);
+  });
+});
+
+describe("tidyBibFileSource", () => {
+  it("reformats every entry in a file without reordering them", () => {
+    const messy = `@ARTICLE{zeta2020,
+  year = "2020",
+  title = "Zeta"
+}
+
+@ARTICLE{alpha2019,
+  year = "2019",
+  title = "Alpha"
+}
+`;
+    const tidied = tidyBibFileSource(messy);
+    expect(tidied).not.toBeNull();
+    const result = tidied?.result ?? "";
+    expect(tidied?.count).toBe(2);
+    expect(result.indexOf("zeta2020")).toBeLessThan(result.indexOf("alpha2019"));
+    expect(result).toContain("@article{zeta2020,");
+    expect(result).toContain("@article{alpha2019,");
+  });
+
+  it("returns null when the file is already tidy", () => {
+    const tidy = `@article{alpha2019,\n  title = {Alpha},\n  year = 2019\n}\n`;
+    expect(tidyBibFileSource(tidy)).toBeNull();
   });
 });
