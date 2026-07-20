@@ -94,7 +94,9 @@ describe("tidyBibFileSource", () => {
     expect(tidied).not.toBeNull();
     const result = tidied?.result ?? "";
     expect(tidied?.count).toBe(2);
-    expect(result.indexOf("zeta2020")).toBeLessThan(result.indexOf("alpha2019"));
+    expect(result.indexOf("zeta2020")).toBeLessThan(
+      result.indexOf("alpha2019"),
+    );
     expect(result).toContain("@article{zeta2020,");
     expect(result).toContain("@article{alpha2019,");
   });
