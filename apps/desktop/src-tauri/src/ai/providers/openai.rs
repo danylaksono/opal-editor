@@ -4,8 +4,7 @@ use std::collections::HashSet;
 use tauri::{Emitter, WebviewWindow};
 
 use super::super::{
-    AiCompleteEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo, AiRequest,
-    AiSessionInfo,
+    AiCompleteEvent, AiMessage, AiOutputEvent, AiProvider, AiProviderInfo, AiRequest, AiSessionInfo,
 };
 
 pub struct OpenAiProvider;
@@ -36,11 +35,7 @@ impl AiProvider for OpenAiProvider {
         }
     }
 
-    async fn execute(
-        &self,
-        window: WebviewWindow,
-        request: AiRequest,
-    ) -> Result<(), String> {
+    async fn execute(&self, window: WebviewWindow, request: AiRequest) -> Result<(), String> {
         let provider_id = self.id().to_string();
         let tab_id = request.tab_id.clone();
         let api_key = std::env::var("OPENAI_API_KEY")
@@ -290,8 +285,7 @@ fn openai_messages_to_json(msg: &AiMessage) -> Vec<serde_json::Value> {
             // Only present when the model produced it, so plain models never
             // see the extra field.
             if !reasoning_parts.is_empty() {
-                json["reasoning_content"] =
-                    serde_json::json!(reasoning_parts.join("\n"));
+                json["reasoning_content"] = serde_json::json!(reasoning_parts.join("\n"));
             }
             vec![json]
         }

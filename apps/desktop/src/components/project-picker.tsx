@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-dialog";
-import { mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
+import { mkdir, writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
 import { homeDir } from "@tauri-apps/api/path";
 import { toast } from "sonner";
 import {
@@ -40,7 +40,12 @@ import { getTemplateById, getTemplateSkeleton } from "@/lib/template-registry";
 import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
 import { OnboardingPrompt } from "@/components/onboarding-prompt";
 import { useOnboardingStore } from "@/stores/onboarding-store";
-import { TUTORIAL_BIB, TUTORIAL_MAIN_TEX } from "@/lib/tutorial-project";
+import {
+  TUTORIAL_BIB,
+  TUTORIAL_MAIN_TEX,
+  TUTORIAL_SAMPLE_IMAGE_NAME,
+  TUTORIAL_SAMPLE_IMAGE_URL,
+} from "@/lib/tutorial-project";
 import { ProjectImportDialog } from "./project-import-dialog";
 
 function randomProjectName(): string {
@@ -128,7 +133,7 @@ export function ProjectPicker() {
       if (!baseFolder) {
         const home = await homeDir();
         if (!home) throw new Error("Could not find your home directory");
-        baseFolder = await join(home, "Documents", "TectonicEditor");
+        baseFolder = await join(home, "Documents", "Opal");
       }
       await mkdir(baseFolder, { recursive: true });
 
@@ -164,7 +169,7 @@ export function ProjectPicker() {
       let baseFolder = lastProjectFolder;
       if (!baseFolder) {
         const home = await homeDir();
-        baseFolder = await join(home, "Documents", "TectonicEditor");
+        baseFolder = await join(home, "Documents", "Opal");
       }
       await mkdir(baseFolder, { recursive: true });
       const projectPath = await join(baseFolder, "Learn-LaTeX");
@@ -174,6 +179,17 @@ export function ProjectPicker() {
       if (!(await exists(mainPath)))
         await writeTextFile(mainPath, TUTORIAL_MAIN_TEX);
       if (!(await exists(bibPath))) await writeTextFile(bibPath, TUTORIAL_BIB);
+      const imagePath = await join(projectPath, TUTORIAL_SAMPLE_IMAGE_NAME);
+      if (!(await exists(imagePath))) {
+        try {
+          const response = await fetch(TUTORIAL_SAMPLE_IMAGE_URL);
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          await writeFile(imagePath, bytes);
+        } catch {
+          // The figure step still teaches the syntax if the sample image can't
+          // be copied; the learner can point it at their own image instead.
+        }
+      }
       setLastProjectFolder(baseFolder);
       addRecentProject(projectPath);
       startTutorial(projectPath);
@@ -228,9 +244,7 @@ export function ProjectPicker() {
               className="size-11 rounded-xl shadow-sm"
             />
             <div>
-              <div className="font-semibold text-sm tracking-tight">
-                TectonicEditor
-              </div>
+              <div className="font-semibold text-sm tracking-tight">Opal</div>
               <VersionBadge
                 version={appVersion}
                 updateStatus={updateStatus}

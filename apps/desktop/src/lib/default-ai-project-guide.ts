@@ -1,6 +1,6 @@
-export const DEFAULT_AI_PROJECT_GUIDE = `# TectonicEditor LaTeX Project
+export const DEFAULT_AI_PROJECT_GUIDE = `# Opal LaTeX Project
 
-Academic writing workspace powered by TectonicEditor. You are assisting with a LaTeX document project.
+Academic writing workspace powered by Opal. You are assisting with a LaTeX document project.
 
 ## Environment
 
@@ -27,12 +27,12 @@ Academic writing workspace powered by TectonicEditor. You are assisting with a L
 uv pip install numpy matplotlib pandas scipy     # Install packages
 uv run python script.py                          # Run a script
 
-# LaTeX is compiled automatically by TectonicEditor — no manual build commands needed.
+# LaTeX is compiled automatically by Opal — no manual build commands needed.
 \`\`\`
 
 ## Writing Guidelines
 
-- Edit \`.tex\` files directly. TectonicEditor auto-compiles and shows a live PDF preview.
+- Edit \`.tex\` files directly. Opal auto-compiles and shows a live PDF preview.
 - Use \`\\input{filename}\` or \`\\include{filename}\` to split large documents into multiple files.
 - Place images in a \`figures/\` directory and reference with \`\\includegraphics{figures/name}\`.
 - For bibliography, add entries to \`references.bib\` and cite with \`\\cite{key}\`.

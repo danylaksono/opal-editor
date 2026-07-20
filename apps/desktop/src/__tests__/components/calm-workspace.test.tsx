@@ -33,13 +33,14 @@ describe("calm workspace", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Cite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Figure" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Equation" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Table" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Equation" })).toBeNull();
 
     await userEvent.click(
       screen.getByRole("button", { name: "More editor actions" }),
     );
     expect(await screen.findByRole("menuitem", { name: /Bold/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Equation…" })).toBeTruthy();
     expect(
       screen.getByRole("menuitem", { name: "Cross-reference" }),
     ).toBeTruthy();

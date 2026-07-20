@@ -83,8 +83,8 @@ function Workspace() {
   // Update window title
   useEffect(() => {
     if (projectRoot) {
-      const name = projectRoot.split(/[/\\]/).pop() || "TectonicEditor";
-      getCurrentWindow().setTitle(`${name} - TectonicEditor`);
+      const name = projectRoot.split(/[/\\]/).pop() || "Opal";
+      getCurrentWindow().setTitle(`${name} - Opal`);
     }
   }, [projectRoot]);
 

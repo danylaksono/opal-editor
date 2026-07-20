@@ -117,7 +117,10 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-:root[data-palette="sage"] {
+/* Light palette overrides are scoped with :not(.dark): the attribute selector
+   outranks .dark in specificity, so without it a palette's light background
+   would leak into dark mode. */
+:root[data-palette="sage"]:not(.dark) {
   --background: oklch(0.985 0.008 135);
   --card: oklch(0.997 0.004 135);
   --popover: oklch(0.997 0.004 135);
@@ -138,7 +141,7 @@
   --sidebar-ring: oklch(0.57 0.1 145);
 }
 
-:root[data-palette="ocean"] {
+:root[data-palette="ocean"]:not(.dark) {
   --background: oklch(0.985 0.008 210);
   --card: oklch(0.997 0.004 210);
   --popover: oklch(0.997 0.004 210);
@@ -159,7 +162,7 @@
   --sidebar-ring: oklch(0.57 0.11 215);
 }
 
-:root[data-palette="plum"] {
+:root[data-palette="plum"]:not(.dark) {
   --background: oklch(0.985 0.007 315);
   --card: oklch(0.997 0.004 315);
   --popover: oklch(0.997 0.004 315);
@@ -178,6 +181,35 @@
   --sidebar-accent-foreground: oklch(0.32 0.075 315);
   --sidebar-border: oklch(0.885 0.02 315);
   --sidebar-ring: oklch(0.58 0.11 315);
+}
+
+:root[data-palette="contrast"]:not(.dark) {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.13 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.13 0 0);
+  --primary: oklch(0.38 0.16 257);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.93 0 0);
+  --secondary-foreground: oklch(0.13 0 0);
+  --muted: oklch(0.93 0 0);
+  --muted-foreground: oklch(0.32 0 0);
+  --accent: oklch(0.88 0.05 257);
+  --accent-foreground: oklch(0.15 0.06 257);
+  --destructive: oklch(0.45 0.22 27);
+  --border: oklch(0.55 0 0);
+  --input: oklch(0.55 0 0);
+  --ring: oklch(0.35 0.18 257);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.13 0 0);
+  --sidebar-primary: oklch(0.38 0.16 257);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.88 0.05 257);
+  --sidebar-accent-foreground: oklch(0.15 0.06 257);
+  --sidebar-border: oklch(0.55 0 0);
+  --sidebar-ring: oklch(0.35 0.18 257);
 }
 
 .dark[data-palette="sage"] {
@@ -211,6 +243,35 @@
   --sidebar-primary: oklch(0.74 0.12 315);
   --sidebar-accent: oklch(0.3 0.06 315);
   --sidebar-accent-foreground: oklch(0.94 0.02 315);
+}
+
+.dark[data-palette="contrast"] {
+  --background: oklch(0.11 0 0);
+  --foreground: oklch(0.99 0 0);
+  --card: oklch(0.15 0 0);
+  --card-foreground: oklch(0.99 0 0);
+  --popover: oklch(0.15 0 0);
+  --popover-foreground: oklch(0.99 0 0);
+  --primary: oklch(0.82 0.12 252);
+  --primary-foreground: oklch(0.1 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.99 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.85 0 0);
+  --accent: oklch(0.32 0.08 257);
+  --accent-foreground: oklch(0.97 0.02 252);
+  --destructive: oklch(0.75 0.19 22);
+  --border: oklch(1 0 0 / 45%);
+  --input: oklch(1 0 0 / 50%);
+  --ring: oklch(0.85 0.12 252);
+  --sidebar: oklch(0.13 0 0);
+  --sidebar-foreground: oklch(0.99 0 0);
+  --sidebar-primary: oklch(0.82 0.12 252);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.32 0.08 257);
+  --sidebar-accent-foreground: oklch(0.97 0.02 252);
+  --sidebar-border: oklch(1 0 0 / 45%);
+  --sidebar-ring: oklch(0.85 0.12 252);
 }
 
 @layer components {
@@ -392,4 +453,44 @@
 .synctex-highlight {
   animation: synctex-highlight-pulse 700ms ease-in-out 3;
   transform-origin: center;
+}
+
+/* Learn LaTeX guide: soft pulsing ring that spotlights the pane the current
+   tutorial step is talking about. Reduced-motion (below) collapses the pulse,
+   leaving a steady ring. */
+@keyframes tutorial-highlight-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tutorial-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: 45;
+  pointer-events: none;
+  border: 2px solid var(--ring);
+  border-radius: var(--radius-md);
+  animation: tutorial-highlight-pulse 2.2s ease-in-out infinite;
+}
+
+/* Respect the OS "reduce motion" preference: collapse animations and
+   transitions to imperceptible durations and disable smooth scrolling.
+   JS-driven smooth scrolls check prefersReducedMotion() in lib/utils. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto !important;
+  }
 }

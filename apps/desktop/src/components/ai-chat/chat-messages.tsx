@@ -7,6 +7,7 @@ import {
 } from "@/stores/ai-chat-store";
 import { MarkdownRenderer } from "./markdown-renderer";
 import { ThinkingWidget, ToolWidget } from "./tool-widgets";
+import { scrollBehavior } from "@/lib/utils";
 
 // ─── Streaming Indicator (isolated to prevent re-render storms) ───
 
@@ -144,7 +145,7 @@ export const ChatMessages: FC = () => {
     if (shouldAutoScrollRef.current && viewportRef.current) {
       viewportRef.current.scrollTo({
         top: viewportRef.current.scrollHeight,
-        behavior: "smooth",
+        behavior: scrollBehavior(),
       });
     }
   }, [displayMessages]);

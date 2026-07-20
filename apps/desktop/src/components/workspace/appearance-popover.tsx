@@ -1,4 +1,11 @@
-import { MonitorIcon, MoonIcon, SunIcon, CheckIcon } from "lucide-react";
+import {
+  CheckIcon,
+  MinusIcon,
+  MonitorIcon,
+  MoonIcon,
+  PlusIcon,
+  SunIcon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +18,12 @@ import {
   editorHighlightOptions,
   workspacePaletteOptions,
 } from "@/lib/appearance";
-import { useSettingsStore } from "@/stores/settings-store";
+import {
+  DEFAULT_EDITOR_FONT_SIZE,
+  MAX_EDITOR_FONT_SIZE,
+  MIN_EDITOR_FONT_SIZE,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 const themeOptions = [
   {
@@ -45,6 +57,10 @@ export function AppearancePopover() {
   );
   const setEditorHighlightTheme = useSettingsStore(
     (state) => state.setEditorHighlightTheme,
+  );
+  const editorFontSize = useSettingsStore((state) => state.editorFontSize);
+  const setEditorFontSize = useSettingsStore(
+    (state) => state.setEditorFontSize,
   );
   const activeOption =
     themeOptions.find((option) => option.id === theme) ?? themeOptions[2];
@@ -136,6 +152,47 @@ export function AppearancePopover() {
                 </button>
               );
             })}
+          </div>
+        </div>
+        <div className="mt-2 border-sidebar-border border-t px-2 pt-2">
+          <div className="mb-1.5 font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
+            Editor text size
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setEditorFontSize(editorFontSize - 1)}
+              disabled={editorFontSize <= MIN_EDITOR_FONT_SIZE}
+              title="Decrease editor text size"
+              aria-label="Decrease editor text size"
+            >
+              <MinusIcon className="size-3.5" />
+            </Button>
+            <button
+              type="button"
+              className="h-7 flex-1 rounded-md text-center text-xs tabular-nums transition-colors hover:bg-sidebar-accent"
+              onClick={() => setEditorFontSize(DEFAULT_EDITOR_FONT_SIZE)}
+              title={`Reset to ${DEFAULT_EDITOR_FONT_SIZE}px`}
+              aria-label={`Editor text size ${editorFontSize}px — click to reset`}
+            >
+              {editorFontSize}px
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={() => setEditorFontSize(editorFontSize + 1)}
+              disabled={editorFontSize >= MAX_EDITOR_FONT_SIZE}
+              title="Increase editor text size"
+              aria-label="Increase editor text size"
+            >
+              <PlusIcon className="size-3.5" />
+            </Button>
+          </div>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            Ctrl+scroll in the editor · Ctrl +/− zooms the whole app
           </div>
         </div>
         <div className="mt-2 border-sidebar-border border-t px-2 pt-2">

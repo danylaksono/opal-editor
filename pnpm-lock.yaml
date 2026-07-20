@@ -90,6 +90,9 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: ~2.10.0
         version: 2.10.0
+      bibtex-tidy:
+        specifier: ^1.14.0
+        version: 1.14.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2224,6 +2227,11 @@ packages:
 
   baseline-browser-mapping@2.9.18:
     resolution: {integrity: sha512-e23vBV1ZLfjb9apvfPk4rHVu2ry6RIr2Wfs+O324okSidrX7pTAnEJPCh/O5BtRlr7QtZI7ktOP3vsqr7Z5XoA==}
+    hasBin: true
+
+  bibtex-tidy@1.14.0:
+    resolution: {integrity: sha512-hTqn2R644Vgy503zRR9PvcFAKRPknvfauNCnQ4xtFgb8eeBHxWuP+gbgq/5/0fu6fOkVVxaELY3yFZmJOQ9HUg==}
+    engines: {node: '>12'}
     hasBin: true
 
   browserslist@4.28.1:
@@ -5290,6 +5298,8 @@ snapshots:
   bail@2.0.2: {}
 
   baseline-browser-mapping@2.9.18: {}
+
+  bibtex-tidy@1.14.0: {}
 
   browserslist@4.28.1:
     dependencies:

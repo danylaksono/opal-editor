@@ -43,6 +43,8 @@ import {
   getChunks,
   acceptChunk,
   rejectChunk,
+  goToNextChunk,
+  goToPreviousChunk,
 } from "@codemirror/merge";
 import {
   latex,
@@ -76,6 +78,7 @@ import {
 } from "@/lib/latex-compiler";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getEditorThemeExtensions } from "@/lib/editor-themes";
+import { EditorTabs } from "./editor-tabs";
 import { EditorToolbar } from "./editor-toolbar";
 import { SelectionToolbar, type ToolbarAction } from "./selection-toolbar";
 import { Button } from "@/components/ui/button";
@@ -88,6 +91,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  BrushCleaningIcon,
   ClipboardPasteIcon,
   FileSearchIcon,
   PencilIcon,
@@ -100,9 +104,26 @@ import {
   CopyIcon,
   Undo2Icon,
   XIcon,
+  PlusIcon,
+  Heading1Icon,
+  Heading2Icon,
+  ListIcon,
+  BookMarkedIcon,
+  ImagePlusIcon,
+  Table2Icon,
+  SigmaIcon,
+  Link2Icon,
+  BoxesIcon,
+  RefreshCwIcon,
+  MinimizeIcon,
+  MaximizeIcon,
+  LightbulbIcon,
+  LanguagesIcon,
+  SearchIcon,
 } from "lucide-react";
 import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
 import { ProposedChangesPanel } from "@/components/ai-chat/proposed-changes-panel";
+import { findUnverifiedBibAdditions } from "@/lib/citation-review";
 import { ImagePreview } from "./image-preview";
 import { SearchPanel } from "./search-panel";
 import { CitationInlineEditor } from "./citation-inline-editor";
@@ -127,8 +148,13 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { dispatchEditorAction } from "@/lib/editor-actions";
+import { open as openExternalUrl } from "@tauri-apps/plugin-shell";
 import { findTables } from "@/lib/latex-tables";
 import { findMathNodes } from "@/lib/latex-math";
 import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
@@ -172,6 +198,7 @@ import {
 import {
   findBibEntries,
   findBibEntryAt,
+  tidyBibEntrySource,
   type BibEntryMatch,
 } from "@/lib/bibtex-entries";
 
@@ -324,6 +351,11 @@ export function clearEditorStateCache(): void {
   editorStateCache.clear();
 }
 
+/** Editor text size, swapped via compartment so changes don't rebuild the editor. */
+function editorFontSizeTheme(size: number) {
+  return EditorView.theme({ "&": { fontSize: `${size}px` } });
+}
+
 export function LatexEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -418,6 +450,7 @@ export function LatexEditor() {
 
   const { resolvedTheme } = useTheme();
   const vimMode = useSettingsStore((s) => s.vimMode);
+  const editorFontSize = useSettingsStore((s) => s.editorFontSize);
   const editorHighlightTheme = useSettingsStore((s) => s.editorHighlightTheme);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const workspaceModes = useLensStore((s) => s.workspaceModes);
@@ -434,6 +467,7 @@ export function LatexEditor() {
   const compileRef = useRef<() => void>(() => {});
   const isSearchOpenRef = useRef(false);
   const themeCompartmentRef = useRef(new Compartment());
+  const fontSizeCompartmentRef = useRef(new Compartment());
   const mergeCompartmentRef = useRef(new Compartment());
   const vimCompartmentRef = useRef(new Compartment());
   const lensCompartmentRef = useRef(new Compartment());
@@ -441,6 +475,8 @@ export function LatexEditor() {
   const pendingChangeRef = useRef<ProposedChange | null>(null);
   const handleKeepAllRef = useRef<() => void>(() => {});
   const handleUndoAllRef = useRef<() => void>(() => {});
+  const acceptCurrentChunkRef = useRef<() => void>(() => {});
+  const rejectCurrentChunkRef = useRef<() => void>(() => {});
   const diagnosticsRef = useRef<DiagnosticItem[]>([]);
   const bibliographyEntriesRef = useRef<BibCitation[]>([]);
   const labelDefinitionsRef = useRef<LabelDefinition[]>([]);
@@ -611,6 +647,24 @@ export function LatexEditor() {
     [activeFile?.type],
   );
 
+  const tidyBibEntryAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "bib" || isMergeActiveRef.current) return false;
+      const target = findBibEntryAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const tidied = tidyBibEntrySource(target.source);
+      if (tidied !== target.source) {
+        view.dispatch({
+          changes: { from: target.from, to: target.to, insert: tidied },
+          selection: { anchor: target.from + tidied.length },
+        });
+      }
+      view.focus();
+      return true;
+    },
+    [activeFile?.type],
+  );
+
   const openTableEditorAt = useCallback(
     (view: EditorView, position: number): boolean => {
       if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
@@ -755,13 +809,20 @@ export function LatexEditor() {
     }
   }, []);
 
+  const contextBibEntry = (() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null || activeFile?.type !== "bib")
+      return null;
+    return findBibEntryAt(view.state.doc.toString(), contextPosition);
+  })();
+
   const structuredContextLabel = (() => {
     const view = viewRef.current;
     if (!view || contextPosition === null) return null;
-    const source = view.state.doc.toString();
-    if (activeFile?.type === "bib" && findBibEntryAt(source, contextPosition)) {
-      return "Edit bibliography entry";
+    if (activeFile?.type === "bib") {
+      return contextBibEntry ? "Edit bibliography entry" : null;
     }
+    const source = view.state.doc.toString();
     if (activeFile?.type !== "tex") return null;
     if (findCitationAt(source, contextPosition)) return "Edit citation";
     if (findReferenceAt(source, contextPosition)) return "Edit reference";
@@ -807,6 +868,12 @@ export function LatexEditor() {
     openTableEditorAt,
   ]);
 
+  const tidyContextBibEntry = useCallback(() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null) return;
+    tidyBibEntryAt(view, contextPosition);
+  }, [contextPosition, tidyBibEntryAt]);
+
   useEffect(() => {
     isSearchOpenRef.current = isSearchOpen;
   }, [isSearchOpen]);
@@ -833,6 +900,13 @@ export function LatexEditor() {
     const view = viewRef.current;
     const change = pendingChangeRef.current;
     if (!view || !change) return;
+    // Unverified bibliography entries must be reviewed chunk by chunk
+    if (findUnverifiedBibAdditions(change).length > 0) {
+      toast.warning(
+        "Keep All is blocked: this change adds bibliography entries that were not built by the reference resolver. Accept them chunk by chunk (Ctrl+Shift+Y).",
+      );
+      return;
+    }
     isMergeActiveRef.current = false;
     setMergeChunkInfo({ total: 0, current: 0 });
     view.dispatch({ effects: mergeCompartmentRef.current.reconfigure([]) });
@@ -953,6 +1027,8 @@ export function LatexEditor() {
     rejectChunk(view, chunks.chunks[idx].fromB);
     afterChunkAction(view, idx);
   };
+  acceptCurrentChunkRef.current = acceptCurrentChunk;
+  rejectCurrentChunkRef.current = rejectCurrentChunk;
 
   useEffect(() => {
     if (!searchQuery || !activeFileContent) {
@@ -1264,6 +1340,32 @@ export function LatexEditor() {
           },
         },
         {
+          key: "F8",
+          run: (view) =>
+            isMergeActiveRef.current ? goToNextChunk(view) : false,
+        },
+        {
+          key: "Shift-F8",
+          run: (view) =>
+            isMergeActiveRef.current ? goToPreviousChunk(view) : false,
+        },
+        {
+          key: "Mod-Shift-y",
+          run: () => {
+            if (!isMergeActiveRef.current) return false;
+            acceptCurrentChunkRef.current();
+            return true;
+          },
+        },
+        {
+          key: "Mod-Shift-n",
+          run: () => {
+            if (!isMergeActiveRef.current) return false;
+            rejectCurrentChunkRef.current();
+            return true;
+          },
+        },
+        {
           key: "Mod-b",
           run: (view) => wrapSelection(view, "textbf"),
         },
@@ -1564,6 +1666,9 @@ export function LatexEditor() {
         themeCompartmentRef.current.of(
           getEditorThemeExtensions(editorHighlightTheme, resolvedTheme),
         ),
+        fontSizeCompartmentRef.current.of(
+          editorFontSizeTheme(useSettingsStore.getState().editorFontSize),
+        ),
         search(),
         highlightSelectionMatches(),
         mergeCompartmentRef.current.of([]),
@@ -1575,7 +1680,6 @@ export function LatexEditor() {
         EditorView.theme({
           "&": {
             height: "100%",
-            fontSize: "14px",
             color: "var(--foreground)",
             backgroundColor: "var(--background)",
             WebkitBackfaceVisibility: "hidden",
@@ -1822,6 +1926,34 @@ export function LatexEditor() {
       ),
     });
   }, [editorHighlightTheme, resolvedTheme]);
+
+  // Apply editor text size changes without rebuilding the editor.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: fontSizeCompartmentRef.current.reconfigure(
+        editorFontSizeTheme(editorFontSize),
+      ),
+    });
+  }, [editorFontSize]);
+
+  // Ctrl+scroll (and trackpad pinch, which browsers report as ctrl+wheel)
+  // adjusts the editor text size, matching common editor behavior.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isTextFile) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || e.deltaY === 0) return;
+      e.preventDefault();
+      const settings = useSettingsStore.getState();
+      settings.setEditorFontSize(
+        settings.editorFontSize + (e.deltaY < 0 ? 1 : -1),
+      );
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [isTextFile, activeFileId]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -2225,42 +2357,121 @@ export function LatexEditor() {
     [bibEntryEditor],
   );
 
+  // Snapshot the selected text/label before the toolbar clears selectionRange,
+  // so canned prompts and the free-form input still carry the right context.
+  const captureSelectionContext = useCallback(():
+    | { label: string; filePath: string; selectedText: string }
+    | undefined => {
+    const view = viewRef.current;
+    if (!view || !selectionRange || !activeFile) return undefined;
+    const selectedText = view.state.sliceDoc(
+      selectionRange.start,
+      selectionRange.end,
+    );
+    if (!selectedText) return undefined;
+    return {
+      label: selectionLabel ?? activeFile.relativePath,
+      filePath: activeFile.relativePath,
+      selectedText,
+    };
+  }, [selectionRange, selectionLabel, activeFile]);
+
   const handleToolbarSendPrompt = useCallback(
     (prompt: string) => {
+      const contextOverride = captureSelectionContext();
       toolbarStickyRef.current = false;
       setSelectionCoords(null);
       setSelectionRange(null);
-      useAiChatStore.getState().sendPrompt(prompt);
+      useAiChatStore.getState().sendPrompt(prompt, contextOverride);
     },
-    [setSelectionRange],
+    [captureSelectionContext, setSelectionRange],
   );
 
-  const editorToolbarActions: ToolbarAction[] = useMemo(
-    () =>
-      aiProvider !== "none"
-        ? [
-            {
-              id: "proofread",
-              label: "Proofread",
-              icon: <SpellCheckIcon className="size-4" />,
-            },
-          ]
-        : [],
-    [aiProvider],
-  );
+  const editorToolbarActions: ToolbarAction[] = useMemo(() => {
+    if (aiProvider === "none") return [];
+    const view = viewRef.current;
+    const selectedText =
+      view && selectionRange
+        ? view.state.sliceDoc(selectionRange.start, selectionRange.end)
+        : "";
+    const wordCount = selectedText.trim()
+      ? selectedText.trim().split(/\s+/).length
+      : 0;
+    const actions: ToolbarAction[] = [
+      {
+        id: "proofread",
+        label: "Proofread",
+        icon: <SpellCheckIcon className="size-4" />,
+      },
+      {
+        id: "paraphrase",
+        label: "Paraphrase",
+        icon: <RefreshCwIcon className="size-4" />,
+      },
+      {
+        id: "shorten",
+        label: "Shorten",
+        icon: <MinimizeIcon className="size-4" />,
+      },
+      {
+        id: "expand",
+        label: "Expand",
+        icon: <MaximizeIcon className="size-4" />,
+      },
+      {
+        id: "explain",
+        label: "Explain",
+        icon: <LightbulbIcon className="size-4" />,
+      },
+      {
+        id: "translate",
+        label: "Translate to…",
+        icon: <LanguagesIcon className="size-4" />,
+        prefill: "Translate this to ",
+      },
+    ];
+    // Web search only makes sense for a short phrase, not a whole paragraph.
+    if (wordCount > 0 && wordCount <= 6) {
+      actions.push({
+        id: "search-web",
+        label: "Search the web",
+        icon: <SearchIcon className="size-4" />,
+      });
+    }
+    return actions;
+  }, [aiProvider, selectionRange]);
 
   const handleToolbarAction = useCallback(
     (actionId: string) => {
+      const contextOverride = captureSelectionContext();
+      const selectedText = contextOverride?.selectedText ?? "";
       toolbarStickyRef.current = false;
       setSelectionCoords(null);
       setSelectionRange(null);
-      if (actionId === "proofread") {
-        useAiChatStore
-          .getState()
-          .sendPrompt("Proofread and fix any errors in this text");
+
+      if (actionId === "search-web") {
+        if (selectedText.trim()) {
+          void openExternalUrl(
+            `https://www.google.com/search?q=${encodeURIComponent(selectedText.trim())}`,
+          );
+        }
+        return;
+      }
+
+      const cannedPrompts: Record<string, string> = {
+        proofread: "Proofread and fix any errors in this text",
+        paraphrase: "Paraphrase this text, keeping the same meaning",
+        shorten: "Shorten this text while preserving its key meaning",
+        expand: "Expand this text with more detail and explanation",
+        explain:
+          "Explain this text in plain language, including any notation or jargon used",
+      };
+      const prompt = cannedPrompts[actionId];
+      if (prompt) {
+        useAiChatStore.getState().sendPrompt(prompt, contextOverride);
       }
     },
-    [setSelectionRange],
+    [captureSelectionContext, setSelectionRange],
   );
 
   const handleToolbarDismiss = useCallback(() => {
@@ -2313,6 +2524,7 @@ export function LatexEditor() {
 
   return (
     <div className="flex h-full flex-col bg-background">
+      <EditorTabs />
       {/* Toolbar — adapts to file type */}
       <EditorToolbar
         editorView={viewRef}
@@ -2459,6 +2671,88 @@ export function LatexEditor() {
               </ContextMenuTrigger>
               <ContextMenuContent className="min-w-60">
                 {activeFile?.type === "tex" && (
+                  <>
+                    <ContextMenuSub>
+                      <ContextMenuSubTrigger>
+                        <PlusIcon />
+                        Add here
+                      </ContextMenuSubTrigger>
+                      <ContextMenuSubContent className="w-52">
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.section")
+                          }
+                        >
+                          <Heading1Icon />
+                          Section
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.subsection")
+                          }
+                        >
+                          <Heading2Icon />
+                          Subsection
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.list-item")
+                          }
+                        >
+                          <ListIcon />
+                          List item
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.citation")
+                          }
+                        >
+                          <BookMarkedIcon />
+                          Citation…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.cross-reference")
+                          }
+                        >
+                          <Link2Icon />
+                          Cross-reference…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => dispatchEditorAction("insert.figure")}
+                        >
+                          <ImagePlusIcon />
+                          Figure…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => dispatchEditorAction("insert.table")}
+                        >
+                          <Table2Icon />
+                          Table…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.equation")
+                          }
+                        >
+                          <SigmaIcon />
+                          Equation…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.environment")
+                          }
+                        >
+                          <BoxesIcon />
+                          More structures…
+                        </ContextMenuItem>
+                      </ContextMenuSubContent>
+                    </ContextMenuSub>
+                    <ContextMenuSeparator />
+                  </>
+                )}
+                {activeFile?.type === "tex" && (
                   <ContextMenuItem
                     disabled={!projectRoot || !pdfAvailable}
                     onSelect={() => void handleGoToPdf()}
@@ -2476,6 +2770,12 @@ export function LatexEditor() {
                   <ContextMenuItem onSelect={editStructuredContext}>
                     <PencilIcon />
                     {structuredContextLabel}
+                  </ContextMenuItem>
+                )}
+                {contextBibEntry && (
+                  <ContextMenuItem onSelect={tidyContextBibEntry}>
+                    <BrushCleaningIcon />
+                    Tidy this reference
                   </ContextMenuItem>
                 )}
                 {(activeFile?.type === "tex" || structuredContextLabel) && (
@@ -2655,7 +2955,7 @@ export function LatexEditor() {
                     )
                   }
                   className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                  title="Previous change"
+                  title="Previous change (Shift+F8)"
                   aria-label="Previous change"
                 >
                   <svg
@@ -2680,7 +2980,7 @@ export function LatexEditor() {
                     )
                   }
                   className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                  title="Next change"
+                  title="Next change (F8)"
                   aria-label="Next change"
                 >
                   <svg
@@ -2700,7 +3000,7 @@ export function LatexEditor() {
                 <button
                   onClick={acceptCurrentChunk}
                   className="rounded p-0.5 text-green-400 transition-colors hover:bg-green-600/20"
-                  title="Accept this change"
+                  title="Accept this change (Ctrl+Shift+Y)"
                   aria-label="Accept this change"
                 >
                   <svg
@@ -2719,7 +3019,7 @@ export function LatexEditor() {
                 <button
                   onClick={rejectCurrentChunk}
                   className="rounded p-0.5 text-red-400 transition-colors hover:bg-red-600/20"
-                  title="Reject this change"
+                  title="Reject this change (Ctrl+Shift+N)"
                   aria-label="Reject this change"
                 >
                   <svg

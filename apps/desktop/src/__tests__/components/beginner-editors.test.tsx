@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { OnboardingPrompt } from "@/components/onboarding-prompt";
 import { TableEditor } from "@/components/workspace/table-editor";
-import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
+import { TutorialGuide } from "@/components/workspace/tutorial-guide";
 import { useDocumentStore, type ProjectFile } from "@/stores/document-store";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useSemanticIndexStore } from "@/stores/semantic-index-store";
@@ -32,7 +32,7 @@ describe("beginner editing dialogs", () => {
     ).toBeTruthy();
   });
 
-  it("turns tutorial steps into accessible editor actions", async () => {
+  it("drives the guide's current step into an accessible editor action", async () => {
     const file: ProjectFile = {
       id: "main.tex",
       name: "main.tex",
@@ -48,9 +48,11 @@ describe("beginner editing dialogs", () => {
       pdfRevision: 0,
     });
     useSemanticIndexStore.setState({ snapshots: {} });
+    // "Add a section" is step index 4 in the track.
     useOnboardingStore.setState({
-      activeTutorialProject: "/tutorial",
-      completed: {},
+      tutorialProject: "/tutorial",
+      currentStep: 4,
+      maxStepReached: 4,
     });
 
     const actions: string[] = [];
@@ -59,13 +61,11 @@ describe("beginner editing dialogs", () => {
     };
     window.addEventListener("editor-action", listener);
 
-    render(<TutorialChecklist />);
+    render(<TutorialGuide />);
     expect(
-      screen
-        .getByRole("progressbar", { name: "Tutorial progress" })
-        .getAttribute("aria-valuenow"),
-    ).toBe("0");
-    fireEvent.click(screen.getByRole("button", { name: "Add a section" }));
+      screen.getByRole("progressbar", { name: "Tutorial progress" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Insert a section" }));
 
     expect(actions).toEqual(["insert.section"]);
     window.removeEventListener("editor-action", listener);

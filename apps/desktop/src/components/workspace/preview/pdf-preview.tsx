@@ -17,6 +17,7 @@ import {
   MessageSquarePlusIcon,
   MessageSquareTextIcon,
   Minimize2Icon,
+  SparklesIcon,
 } from "lucide-react";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -78,21 +79,18 @@ import {
   ReviewCommentsPanel,
   type ReviewCommentDraft,
 } from "./review-comments-panel";
+import { runOneShotPrompt } from "@/lib/ai/one-shot";
+import {
+  buildExplainCompileErrorPrompt,
+  EXPLAIN_ERROR_SYSTEM_PROMPT,
+} from "@/lib/ai/explain-compile-error";
+import { MarkdownRenderer } from "@/components/ai-chat/markdown-renderer";
+import { zoomCache, type FitMode } from "./zoom-cache";
 
 const log = createLogger("pdf-preview");
 
-type FitMode = "fit-width" | "fit-height" | null;
-
-/** Per-root zoom state cache: rootFileId → { scale, fitMode } */
-const zoomCache = new Map<string, { scale: number; fitMode: FitMode }>();
-
 /** Max number of PdfViewer instances kept alive simultaneously. */
 const MAX_ALIVE_VIEWERS = 5;
-
-/** Clear zoom cache (e.g., on project close). */
-export function clearZoomCache(): void {
-  zoomCache.clear();
-}
 
 const ZOOM_OPTIONS = [
   { value: "0.5", label: "50%" },
@@ -127,6 +125,19 @@ export function PdfPreview() {
   });
   const activeFileType = activeFile?.type ?? "tex";
   const isTexActive = activeFileType === "tex";
+
+  // AI explanation of the current compile error (one-shot, outside chat)
+  const [errorExplanation, setErrorExplanation] = useState<string | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const explainCancelRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    // A new compile result invalidates any in-flight or shown explanation
+    explainCancelRef.current?.();
+    explainCancelRef.current = null;
+    setErrorExplanation(null);
+    setIsExplaining(false);
+  }, [compileError]);
+  useEffect(() => () => explainCancelRef.current?.(), []);
   const requestJumpToPosition = useDocumentStore(
     (s) => s.requestJumpToPosition,
   );
@@ -868,6 +879,27 @@ export function PdfPreview() {
           );
       };
 
+      const handleExplainError = () => {
+        setIsExplaining(true);
+        setErrorExplanation("");
+        const handle = runOneShotPrompt({
+          prompt: buildExplainCompileErrorPrompt(failure, files, rootFileName),
+          systemPrompt: EXPLAIN_ERROR_SYSTEM_PROMPT,
+          onDelta: (text) => setErrorExplanation(text),
+        });
+        explainCancelRef.current = handle.cancel;
+        handle.result
+          .then((text) => setErrorExplanation(text))
+          .catch((err: Error) => {
+            if (err.message === "Cancelled") return;
+            setErrorExplanation(
+              (prev) =>
+                prev || `_Could not get an explanation: ${err.message}_`,
+            );
+          })
+          .finally(() => setIsExplaining(false));
+      };
+
       return (
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-6">
           <div className="w-full max-w-lg">
@@ -919,6 +951,23 @@ export function PdfPreview() {
                   </div>
                 ))}
               </div>
+              {errorExplanation !== null && (
+                <div className="border-t p-3">
+                  <div className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
+                    <SparklesIcon className="size-3.5" />
+                    AI explanation
+                    {isExplaining && (
+                      <LoaderIcon className="size-3 animate-spin" />
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <MarkdownRenderer
+                      content={errorExplanation}
+                      className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                    />
+                  </div>
+                </div>
+              )}
               <details className="border-t p-3">
                 <summary className="cursor-pointer text-muted-foreground text-xs">
                   Technical details
@@ -939,14 +988,26 @@ export function PdfPreview() {
                 Retry
               </Button>
               {aiProvider !== "none" && (
-                <Button
-                  size="sm"
-                  onClick={handleFixWithChat}
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                >
-                  <MousePointerClickIcon className="size-3.5" />
-                  Fix with Chat
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExplainError}
+                    disabled={isExplaining}
+                    className="h-7 gap-1.5 px-2.5 text-xs"
+                  >
+                    <SparklesIcon className="size-3.5" />
+                    {isExplaining ? "Explaining…" : "Explain error"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleFixWithChat}
+                    className="h-7 gap-1.5 px-2.5 text-xs"
+                  >
+                    <MousePointerClickIcon className="size-3.5" />
+                    Fix with Chat
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -1074,7 +1135,9 @@ export function PdfPreview() {
                     isActive ? () => setCaptureMode(false) : undefined
                   }
                   onStartCapture={
-                    isActive ? () => setCaptureMode(true) : undefined
+                    isActive && aiProvider !== "none"
+                      ? () => setCaptureMode(true)
+                      : undefined
                   }
                   highlightLocation={isActive ? synctexHighlight : null}
                   reviewAnnotations={isActive ? reviewAnnotations : []}
@@ -1094,6 +1157,16 @@ export function PdfPreview() {
     );
   };
 
+  const compileStatusMessage = isSaving
+    ? "Saving files"
+    : isCompiling
+      ? "Compiling document"
+      : compileError
+        ? "Compile failed"
+        : pdfData
+          ? "Compile finished, PDF preview updated"
+          : "";
+
   return (
     <div
       ref={previewContainerRef}
@@ -1101,6 +1174,10 @@ export function PdfPreview() {
         reviewMode ? "pr-80" : ""
       }`}
     >
+      {/* Screen-reader announcement of compile progress; visually hidden. */}
+      <div aria-live="polite" role="status" className="sr-only">
+        {compileStatusMessage}
+      </div>
       <div className="preview-toolbar flex h-[calc(44px+var(--titlebar-height))] shrink-0 items-center border-border border-b px-2.5 pt-[var(--titlebar-height)]">
         <div className="flex items-center gap-1">
           <Select
@@ -1125,17 +1202,23 @@ export function PdfPreview() {
             <span className="truncate">{rootFileName}</span>
           </div>
           {isSaving && (
-            <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
+            <div
+              className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
+              title="Saving..."
+            >
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
-              <span className="font-medium text-muted-foreground text-xs">
+              <span className="@[34rem]/pv:inline hidden font-medium text-muted-foreground text-xs">
                 Saving...
               </span>
             </div>
           )}
           {!isSaving && isCompiling && (
-            <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">
+            <div
+              className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
+              title="Compiling..."
+            >
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
-              <span className="font-medium text-muted-foreground text-xs">
+              <span className="@[34rem]/pv:inline hidden font-medium text-muted-foreground text-xs">
                 Compiling...
               </span>
             </div>
@@ -1165,9 +1248,12 @@ export function PdfPreview() {
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
               onClick={() => handleCompile(true)}
+              title={pdfData ? "Recompile" : "Compile"}
             >
               <RefreshCwIcon className="size-3.5" />
-              {pdfData ? "Recompile" : "Compile"}
+              <span className="@[34rem]/pv:inline hidden">
+                {pdfData ? "Recompile" : "Compile"}
+              </span>
             </Button>
           )}
           {!isSaving && !isCompiling && compileError && (
@@ -1177,9 +1263,10 @@ export function PdfPreview() {
               className="h-7 gap-1.5 px-2.5 text-destructive text-xs hover:text-destructive"
               onClick={() => handleCompile(true)}
               disabled={!isTexActive}
+              title="Retry compile"
             >
               <RefreshCwIcon className="size-3.5" />
-              Retry
+              <span className="@[34rem]/pv:inline hidden">Retry</span>
             </Button>
           )}
         </div>
@@ -1289,31 +1376,6 @@ export function PdfPreview() {
                 </SelectContent>
               </Select>
               <div className="mx-1 h-4 w-px bg-border" />
-              {/* Capture mode — AI feature, only shown when a provider is configured */}
-              {aiProvider !== "none" && (
-                <>
-                  <Button
-                    variant={captureMode ? "default" : "secondary"}
-                    size="sm"
-                    className={`h-7 gap-1.5 px-2 text-xs ${
-                      captureMode
-                        ? "ring-2 ring-primary/30"
-                        : "bg-foreground text-background hover:bg-foreground/90"
-                    }`}
-                    onClick={() => setCaptureMode(!captureMode)}
-                    title={`Capture & Ask (${navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"})`}
-                  >
-                    <CrosshairIcon className="size-3.5 shrink-0" />
-                    <span className="@[36rem]/pv:inline hidden">
-                      Capture & Ask
-                    </span>
-                    <kbd className="pointer-events-none ml-0.5 @[36rem]/pv:inline hidden rounded border border-background/30 bg-background/20 px-1 py-0.5 font-medium text-[10px] text-background leading-none">
-                      {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
-                    </kbd>
-                  </Button>
-                  <div className="mx-1 h-4 w-px bg-border" />
-                </>
-              )}
               <Button
                 variant={reviewMode ? "secondary" : "ghost"}
                 size="sm"
@@ -1326,7 +1388,7 @@ export function PdfPreview() {
                 ) : (
                   <MessageSquareTextIcon className="size-3.5" />
                 )}
-                <span className="@[42rem]/pv:inline hidden">
+                <span className="@[34rem]/pv:inline hidden">
                   {reviewMode ? "Exit review" : "Review"}
                 </span>
               </Button>

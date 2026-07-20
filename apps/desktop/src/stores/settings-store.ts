@@ -1,9 +1,22 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { EditorHighlightTheme, WorkspacePalette } from "@/lib/appearance";
+import { DEFAULT_LANGUAGETOOL_URL } from "@/lib/language-tool";
 
 type CompilerBackend = "tectonic" | "texlive";
 type AiProvider = "none" | "anthropic" | "openai";
+
+export const DEFAULT_EDITOR_FONT_SIZE = 14;
+export const MIN_EDITOR_FONT_SIZE = 10;
+export const MAX_EDITOR_FONT_SIZE = 28;
+
+export function clampEditorFontSize(size: number): number {
+  if (!Number.isFinite(size)) return DEFAULT_EDITOR_FONT_SIZE;
+  return Math.min(
+    MAX_EDITOR_FONT_SIZE,
+    Math.max(MIN_EDITOR_FONT_SIZE, Math.round(size)),
+  );
+}
 
 interface SettingsState {
   compilerBackend: CompilerBackend;
@@ -23,6 +36,18 @@ interface SettingsState {
    *  Alt+Enter still opens the editor for the element at the cursor. */
   inlineEditorsOnClick: boolean;
   setInlineEditorsOnClick: (enabled: boolean) => void;
+  /** Editor text size in px, clamped to [MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE]. */
+  editorFontSize: number;
+  setEditorFontSize: (size: number) => void;
+  /** LanguageTool v2 endpoint — public API by default, self-hosted for offline. */
+  languageToolUrl: string;
+  setLanguageToolUrl: (url: string) => void;
+  /** Language code (e.g. "en-US") or "auto". */
+  languageToolLanguage: string;
+  setLanguageToolLanguage: (language: string) => void;
+  /** Enable LanguageTool's stricter "picky" rules. */
+  languageToolPicky: boolean;
+  setLanguageToolPicky: (picky: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -44,10 +69,20 @@ export const useSettingsStore = create<SettingsState>()(
       inlineEditorsOnClick: true,
       setInlineEditorsOnClick: (enabled) =>
         set({ inlineEditorsOnClick: enabled }),
+      editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
+      setEditorFontSize: (size) =>
+        set({ editorFontSize: clampEditorFontSize(size) }),
+      languageToolUrl: DEFAULT_LANGUAGETOOL_URL,
+      setLanguageToolUrl: (url) => set({ languageToolUrl: url.trim() }),
+      languageToolLanguage: "auto",
+      setLanguageToolLanguage: (language) =>
+        set({ languageToolLanguage: language }),
+      languageToolPicky: false,
+      setLanguageToolPicky: (picky) => set({ languageToolPicky: picky }),
     }),
     {
       name: "tectonic-editor-settings",
-      version: 2,
+      version: 3,
       // Coerce the removed "claude-cli" provider (and any unknown value) to "none"
       // for users upgrading from a build that still had the Claude CLI provider.
       migrate: (state) => {
@@ -59,6 +94,15 @@ export const useSettingsStore = create<SettingsState>()(
         if (s && !s.editorHighlightTheme) s.editorHighlightTheme = "match";
         if (s && typeof s.inlineEditorsOnClick !== "boolean") {
           s.inlineEditorsOnClick = true;
+        }
+        if (s && typeof s.languageToolUrl !== "string") {
+          s.languageToolUrl = DEFAULT_LANGUAGETOOL_URL;
+        }
+        if (s && typeof s.languageToolLanguage !== "string") {
+          s.languageToolLanguage = "auto";
+        }
+        if (s && typeof s.languageToolPicky !== "boolean") {
+          s.languageToolPicky = false;
         }
         return s as SettingsState;
       },

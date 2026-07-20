@@ -1,6 +1,7 @@
 import { RefObject, useCallback, useEffect, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import {
   BoldIcon,
   ItalicIcon,
@@ -22,8 +23,10 @@ import {
   ChevronDownIcon,
   MoreHorizontalIcon,
   MousePointerClickIcon,
+  RadicalIcon,
   SigmaIcon,
   Table2Icon,
+  BrushCleaningIcon,
 } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CitationPicker } from "@/components/workspace/citation-picker";
@@ -63,6 +66,7 @@ import { confirmPackageRequirements } from "@/lib/feature-packages";
 import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
 import type { TableModel } from "@/lib/latex-tables";
 import type { MathNode } from "@/lib/latex-math";
+import { tidyBibFileSource } from "@/lib/bibtex-entries";
 
 interface EditorInfo {
   id: string;
@@ -210,6 +214,24 @@ export function EditorToolbar({
     insertText(wrapper, wrapper);
   };
 
+  const tidyWholeFile = useCallback(() => {
+    const view = editorView.current;
+    if (!view) return;
+    const source = view.state.doc.toString();
+    const tidied = tidyBibFileSource(source);
+    if (!tidied) {
+      toast.info("Bibliography is already tidy");
+      return;
+    }
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: tidied.result },
+    });
+    view.focus();
+    toast.success(
+      `Tidied ${tidied.count} ${tidied.count === 1 ? "entry" : "entries"}`,
+    );
+  }, [editorView]);
+
   const insertCitation = (citationDraft: CitationDraft) => {
     const view = editorView.current;
     if (!view) return;
@@ -261,8 +283,53 @@ export function EditorToolbar({
 
   useEffect(() => {
     const handleAction = (event: Event) => {
-      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      const detail = (
+        event as CustomEvent<{ id: string; text?: string; pkg?: string }>
+      ).detail;
+      const id = detail?.id;
+      if (id === "insert.snippet" && detail?.text) insertText(detail.text);
+      if (id === "insert.package" && detail?.pkg) {
+        const view = editorView.current;
+        if (view) {
+          const doc = view.state.doc.toString();
+          const escaped = detail.pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const alreadyLoaded = new RegExp(
+            `\\\\usepackage(?:\\[[^\\]]*\\])?\\{[^}]*\\b${escaped}\\b[^}]*\\}`,
+          ).test(doc);
+          if (!alreadyLoaded) {
+            // Insert after the last \usepackage, or after \documentclass.
+            let insertPos = -1;
+            for (const match of doc.matchAll(
+              /\\usepackage(?:\[[^\]]*\])?\{[^}]*\}/g,
+            )) {
+              insertPos = match.index + match[0].length;
+            }
+            if (insertPos < 0) {
+              const documentclass = doc.match(
+                /\\documentclass(?:\[[^\]]*\])?\{[^}]*\}/,
+              );
+              if (documentclass)
+                insertPos =
+                  (documentclass.index ?? 0) + documentclass[0].length;
+            }
+            if (insertPos >= 0) {
+              view.dispatch({
+                changes: {
+                  from: insertPos,
+                  insert: `\n\\usepackage{${detail.pkg}}`,
+                },
+              });
+            }
+          }
+          // The cursor selection is remapped through the preamble change, so
+          // the follow-up snippet still lands where the learner was typing.
+          if (detail.text) insertText(detail.text);
+          else view.focus();
+        }
+      }
       if (id === "insert.section") insertText("\\section{", "}");
+      if (id === "insert.subsection") insertText("\\subsection{", "}");
+      if (id === "insert.list-item") insertText("\\item ");
       if (id === "insert.citation") setCitationPickerOpen(true);
       if (id === "insert.cross-reference") setCrossReferencePickerOpen(true);
       if (id === "insert.figure") setFigurePickerOpen(true);
@@ -398,6 +465,15 @@ export function EditorToolbar({
           Click a citation key or press Alt+Enter to edit its fields
         </span>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1.5 px-2 text-xs"
+          onClick={tidyWholeFile}
+        >
+          <BrushCleaningIcon className="size-3.5" />
+          Tidy file
+        </Button>
       </div>
     );
   }
@@ -500,15 +576,6 @@ export function EditorToolbar({
           variant="ghost"
           size="sm"
           className="calm-toolbar-action"
-          onClick={() => setMathEditorOpen(true)}
-        >
-          <SigmaIcon className="size-3.5" />
-          <span className="@[34rem]:inline hidden">Equation</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="calm-toolbar-action"
           onClick={() => setTableEditorOpen(true)}
         >
           <Table2Icon className="size-3.5" />
@@ -580,12 +647,16 @@ export function EditorToolbar({
               Code
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setMathEditorOpen(true)}>
+              <SigmaIcon className="size-4" />
+              Equation…
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => wrapSelection("$")}>
               <FunctionSquareIcon className="size-4" />
               Inline math
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => insertText("\\[\n  ", "\n\\]")}>
-              <SigmaIcon className="size-4" />
+              <RadicalIcon className="size-4" />
               Display math
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setCrossReferencePickerOpen(true)}>

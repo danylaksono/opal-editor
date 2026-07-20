@@ -21,10 +21,9 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   FileCodeIcon,
+  PanelTopIcon,
   FileIcon,
   FileSpreadsheetIcon,
-  AppWindowIcon,
-  TerminalIcon,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -48,7 +47,10 @@ import { useHistoryStore } from "@/stores/history-store";
 import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
 import { parseProjectOutline, type OutlineItem } from "@/lib/document-outline";
 import { cn } from "@/lib/utils";
-import { ZoteroPanel, ZoteroHeader } from "@/components/workspace/zotero-panel";
+import {
+  ReferencesHeader,
+  ReferencesPanel,
+} from "@/components/workspace/references-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,11 +76,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { useUvSetupStore } from "@/stores/uv-setup-store";
-import { UvSetupDialog } from "@/components/uv-setup";
 import { createLogger } from "@/lib/debug/logger";
+import { GrammarPanel } from "@/components/workspace/grammar-panel";
 import { HealthPanel } from "@/components/workspace/health-panel";
-import { TutorialChecklist } from "@/components/workspace/tutorial-checklist";
+import { TutorialGuide } from "@/components/workspace/tutorial-guide";
 import { ProjectSearchPanel } from "@/components/workspace/project-search-panel";
 
 const log = createLogger("sidebar");
@@ -247,6 +248,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
   const files = useDocumentStore((s) => s.files);
   const activeFileId = useDocumentStore((s) => s.activeFileId);
   const setActiveFile = useDocumentStore((s) => s.setActiveFile);
+  const openFileInTab = useDocumentStore((s) => s.openFileInTab);
   const deleteFile = useDocumentStore((s) => s.deleteFile);
   const deleteFolder = useDocumentStore((s) => s.deleteFolder);
   const renameFile = useDocumentStore((s) => s.renameFile);
@@ -503,6 +505,61 @@ export function Sidebar({ activePanel }: SidebarProps) {
     });
   }, []);
 
+  // Arrow-key navigation over the visible tree rows (ARIA tree pattern).
+  // Enter/Space activate rows natively since every row is a <button>.
+  const handleTreeKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const navKeys = [
+        "ArrowDown",
+        "ArrowUp",
+        "ArrowLeft",
+        "ArrowRight",
+        "Home",
+        "End",
+      ];
+      if (!navKeys.includes(e.key)) return;
+      const rows = Array.from(
+        e.currentTarget.querySelectorAll<HTMLElement>("[data-tree-row]"),
+      );
+      if (rows.length === 0) return;
+      const idx = rows.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      const focusRow = (i: number) =>
+        rows[Math.max(0, Math.min(rows.length - 1, i))]?.focus();
+
+      if (e.key === "ArrowDown") return focusRow(idx + 1);
+      if (e.key === "ArrowUp") return focusRow(idx <= 0 ? 0 : idx - 1);
+      if (e.key === "Home") return focusRow(0);
+      if (e.key === "End") return focusRow(rows.length - 1);
+
+      if (idx < 0) return focusRow(0);
+      const row = rows[idx];
+      const path = row.dataset.treePath ?? "";
+      const isFolder = row.dataset.treeFolder === "true";
+      const isExpanded = row.getAttribute("aria-expanded") === "true";
+
+      if (e.key === "ArrowRight" && isFolder) {
+        if (!isExpanded) toggleFolder(path);
+        else focusRow(idx + 1); // into first child
+      }
+      if (e.key === "ArrowLeft") {
+        if (isFolder && isExpanded) {
+          toggleFolder(path);
+        } else if (path.includes("/")) {
+          const parent = path.slice(0, path.lastIndexOf("/"));
+          rows
+            .find(
+              (r) =>
+                r.dataset.treePath === parent &&
+                r.dataset.treeFolder === "true",
+            )
+            ?.focus();
+        }
+      }
+    },
+    [toggleFolder],
+  );
+
   // Outline — project-wide, Overleaf-style: resolve the root document and
   // flatten \input/\include'd files into a single outline.
   const outlineRootId = useMemo(() => {
@@ -720,7 +777,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
       {/* Header — padded top for macOS overlay titlebar */}
       <div className="relative flex h-[calc(48px+var(--titlebar-height))] items-center justify-center border-sidebar-border border-b px-3 pt-[var(--titlebar-height)]">
         <div className="flex flex-col items-center">
-          <span className="font-semibold text-sm">TectonicEditor</span>
+          <span className="font-semibold text-sm">Opal</span>
           <span className="text-muted-foreground text-xs">
             {projectRoot?.split(/[/\\]/).pop() || "Desktop"}
           </span>
@@ -739,7 +796,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
       </div>
 
       <div className="min-h-0 flex-1">
-        {activePanel === "learn" && <TutorialChecklist />}
+        {activePanel === "learn" && <TutorialGuide />}
         {activePanel === "files" && (
           <div
             ref={sidebarFilesRef}
@@ -797,7 +854,10 @@ export function Sidebar({ activePanel }: SidebarProps) {
             >
               <ContextMenu>
                 <ContextMenuTrigger asChild>
-                  <DroppableRoot nativeDragOver={nativeDragOver === "__root__"}>
+                  <DroppableRoot
+                    nativeDragOver={nativeDragOver === "__root__"}
+                    onKeyDown={handleTreeKeyDown}
+                  >
                     {tree.map((node) => (
                       <FileTreeNode
                         key={node.relativePath}
@@ -812,6 +872,14 @@ export function Sidebar({ activePanel }: SidebarProps) {
                             : undefined;
                           setPasteTargetFolder(parent);
                           setActiveFile(id);
+                        }}
+                        onOpenInTab={(id: string) => {
+                          const parent = id.includes("/")
+                            ? id.substring(0, id.lastIndexOf("/"))
+                            : undefined;
+                          setPasteTargetFolder(parent);
+                          useHistoryStore.getState().stopReview();
+                          openFileInTab(id);
                         }}
                         onNewFile={openNewFileDialog}
                         onNewFolder={openNewFolderDialog}
@@ -977,26 +1045,24 @@ export function Sidebar({ activePanel }: SidebarProps) {
         {activePanel === "citations" && (
           <div className="flex h-full flex-col">
             <div className="flex h-8 shrink-0 items-center border-sidebar-border border-b">
-              <ZoteroHeader />
+              <ReferencesHeader />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              <ZoteroPanel />
+              <ReferencesPanel />
             </div>
           </div>
         )}
+        {activePanel === "grammar" && <GrammarPanel />}
         {activePanel === "health" && <HealthPanel />}
       </div>
 
-      {/* Environment section — Python */}
-      <EnvironmentSection />
-
       {/* Footer */}
       <div className="flex items-center justify-between border-sidebar-border border-t px-3 py-2 text-muted-foreground text-xs">
-        <span className="truncate">TectonicEditor v{appVersion}</span>
+        <span className="truncate">Opal v{appVersion}</span>
         <div className="flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="icon" className="size-6" asChild>
             <a
-              href="https://github.com/anomalyco/tectonic-editor"
+              href="https://github.com/danylaksono/tectonic-editor"
               target="_blank"
               rel="noopener noreferrer"
               title="GitHub"
@@ -1129,15 +1195,20 @@ export function Sidebar({ activePanel }: SidebarProps) {
 function DroppableRoot({
   children,
   nativeDragOver,
+  onKeyDown,
 }: {
   children: React.ReactNode;
   nativeDragOver?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "__root__" });
   return (
     <div
       ref={setNodeRef}
       data-drop-folder="__root__"
+      role="tree"
+      aria-label="Project files"
+      onKeyDown={onKeyDown}
       className={cn(
         "min-h-0 flex-1 overflow-y-auto p-1",
         (isOver || nativeDragOver) && "bg-accent/30",
@@ -1178,6 +1249,7 @@ interface FileTreeNodeProps {
   expandedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   onSelectFile: (id: string) => void;
+  onOpenInTab: (id: string) => void;
   onNewFile: (folder?: string) => void;
   onNewFolder: (parent?: string) => void;
   onImport: (folder?: string) => void;
@@ -1195,6 +1267,7 @@ function FileTreeNode({
   expandedFolders,
   onToggleFolder,
   onSelectFile,
+  onOpenInTab,
   onNewFile,
   onNewFolder,
   onImport,
@@ -1216,9 +1289,14 @@ function FileTreeNode({
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <button
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50 focus-visible:outline-2 focus-visible:outline-sidebar-ring"
                 style={{ paddingLeft: `${depth * 16 + 4}px` }}
                 onClick={() => onToggleFolder(node.relativePath)}
+                role="treeitem"
+                aria-expanded={isExpanded}
+                data-tree-row
+                data-tree-folder="true"
+                data-tree-path={node.relativePath}
               >
                 {isExpanded ? (
                   <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -1269,6 +1347,7 @@ function FileTreeNode({
               expandedFolders={expandedFolders}
               onToggleFolder={onToggleFolder}
               onSelectFile={onSelectFile}
+              onOpenInTab={onOpenInTab}
               onNewFile={onNewFile}
               onNewFolder={onNewFolder}
               onImport={onImport}
@@ -1291,7 +1370,7 @@ function FileTreeNode({
         <ContextMenuTrigger asChild>
           <button
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sidebar-ring",
               file.id === activeFileId
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "hover:bg-sidebar-accent/50",
@@ -1301,6 +1380,10 @@ function FileTreeNode({
               useHistoryStore.getState().stopReview();
               onSelectFile(file.id);
             }}
+            role="treeitem"
+            aria-selected={file.id === activeFileId}
+            data-tree-row
+            data-tree-path={file.relativePath}
           >
             {getFileIcon(file)}
             <span className="min-w-0 flex-1 truncate">{node.name}</span>
@@ -1313,6 +1396,11 @@ function FileTreeNode({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => onOpenInTab(file.id)}>
+            <PanelTopIcon className="mr-2 size-4" />
+            Open in New Tab
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={() => onRename(file.id, file.name)}>
             <PencilIcon className="mr-2 size-4" />
             Rename
@@ -1331,61 +1419,6 @@ function FileTreeNode({
   );
 }
 
-// ─── Environment Section (Python) ───
-
-function EnvironmentSection() {
-  const venvReady = useUvSetupStore((s) => s.venvReady);
-  const uvStatus = useUvSetupStore((s) => s.status);
-  const [showUvDialog, setShowUvDialog] = useState(false);
-
-  const pythonLabel = venvReady
-    ? "Active"
-    : uvStatus === "not-installed"
-      ? "Not installed"
-      : uvStatus === "ready"
-        ? "No venv"
-        : "";
-
-  return (
-    <>
-      <div className="border-sidebar-border border-t">
-        <div className="flex h-8 shrink-0 items-center justify-center gap-2 px-3">
-          <AppWindowIcon className="size-3.5 text-muted-foreground" />
-          <span className="font-medium text-xs">Environment</span>
-        </div>
-        <div className="space-y-0.5 px-1 pb-1.5">
-          {/* Python / uv row */}
-          <button
-            className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
-            onClick={() => setShowUvDialog(true)}
-          >
-            <TerminalIcon
-              className={cn(
-                "size-3.5 shrink-0",
-                venvReady ? "text-foreground" : "text-muted-foreground",
-              )}
-            />
-            <span className="min-w-0 flex-1 truncate text-xs">Python</span>
-            <span
-              className={cn(
-                "shrink-0 text-xs",
-                venvReady ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {pythonLabel}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <UvSetupDialog
-        open={showUvDialog}
-        onClose={() => setShowUvDialog(false)}
-      />
-    </>
-  );
-}
-
 // ─── Draggable wrapper ───
 
 function DraggableItem({
@@ -1399,7 +1432,7 @@ function DraggableItem({
   name: string;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { type, name },
   });
@@ -1416,11 +1449,13 @@ function DraggableItem({
       )
     : {};
 
+  // dnd-kit `attributes` are intentionally not spread: they make every wrapper
+  // div focusable (tabIndex=0, role="button"), doubling tab stops in the tree.
+  // Only the PointerSensor is used, so keyboard drag attributes add nothing.
   return (
     <div
       ref={setNodeRef}
       {...wrappedListeners}
-      {...attributes}
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
       {children}

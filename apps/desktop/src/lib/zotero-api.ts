@@ -3,11 +3,25 @@ import { open } from "@tauri-apps/plugin-shell";
 
 const ZOTERO_BASE = "https://api.zotero.org";
 
+export type ZoteroConnectionMode = "desktop" | "cloud";
+
 export interface ZoteroCredentials {
-  apiKey: string;
+  mode: ZoteroConnectionMode;
+  apiKey: string | null;
   userID: string;
   username: string;
 }
+
+export type ZoteroConnection =
+  | {
+      mode: "desktop";
+      userID: "0";
+    }
+  | {
+      mode: "cloud";
+      apiKey: string;
+      userID: string;
+    };
 
 export interface ZoteroCollection {
   key: string;
@@ -45,6 +59,7 @@ export async function completeOAuth(): Promise<ZoteroCredentials> {
     username: string;
   }>("zotero_complete_oauth");
   return {
+    mode: "cloud",
     apiKey: result.api_key,
     userID: result.user_id,
     username: result.username,
@@ -57,21 +72,45 @@ export async function cancelOAuth(): Promise<void> {
 
 // ─── Zotero Web API v3 ───
 
+interface ZoteroLocalResponse {
+  status: number;
+  body: string;
+  headers: Record<string, string>;
+}
+
 async function zoteroFetch(
-  apiKey: string,
+  connection: ZoteroConnection,
   path: string,
   headers?: Record<string, string>,
 ): Promise<Response> {
-  const response = await fetch(`${ZOTERO_BASE}${path}`, {
-    headers: {
-      "Zotero-API-Key": apiKey,
-      "Zotero-API-Version": "3",
-      ...headers,
-    },
-  });
+  const response =
+    connection.mode === "desktop"
+      ? await invoke<ZoteroLocalResponse>("zotero_local_request", {
+          path,
+        }).then(
+          (result) =>
+            new Response(result.body, {
+              status: result.status,
+              headers: result.headers,
+            }),
+        )
+      : await fetch(`${ZOTERO_BASE}${path}`, {
+          headers: {
+            "Zotero-API-Key": connection.apiKey,
+            "Zotero-API-Version": "3",
+            ...headers,
+          },
+        });
   if (!response.ok) {
     if (response.status === 304) return response;
-    if (response.status === 403) throw new Error("Invalid or expired API key");
+    if (response.status === 403) {
+      if (connection.mode === "desktop") {
+        throw new Error(
+          "Local access is disabled in Zotero. Enable “Allow other applications on this computer to communicate with Zotero” in Settings → Advanced.",
+        );
+      }
+      throw new Error("Invalid or expired Zotero API key");
+    }
     throw new Error(`Zotero API error: ${response.status}`);
   }
   return response;
@@ -85,24 +124,42 @@ function extractCitekey(bibtex: string): string {
 export async function validateApiKey(
   apiKey: string,
 ): Promise<ZoteroCredentials> {
-  const response = await zoteroFetch(apiKey, "/keys/current");
+  const connection: ZoteroConnection = {
+    mode: "cloud",
+    apiKey,
+    userID: "",
+  };
+  const response = await zoteroFetch(connection, "/keys/current");
   const data = await response.json();
   return {
+    mode: "cloud",
     apiKey,
     userID: String(data.userID),
     username: data.username ?? "",
   };
 }
 
+export async function validateDesktop(): Promise<ZoteroCredentials> {
+  await zoteroFetch(
+    { mode: "desktop", userID: "0" },
+    "/users/0/collections?limit=1",
+  );
+  return {
+    mode: "desktop",
+    apiKey: null,
+    userID: "0",
+    username: "Zotero Desktop",
+  };
+}
+
 // ─── Collections ───
 
 export async function fetchCollections(
-  apiKey: string,
-  userID: string,
+  connection: ZoteroConnection,
 ): Promise<ZoteroCollection[]> {
   const response = await zoteroFetch(
-    apiKey,
-    `/users/${userID}/collections?format=json`,
+    connection,
+    `/users/${connection.userID}/collections?format=json`,
   );
   const data = (await response.json()) as {
     key: string;
@@ -124,14 +181,13 @@ export async function fetchCollections(
  * Pass collectionKey = null to import the entire "My Library" (all top-level items).
  */
 export async function importCollection(
-  apiKey: string,
-  userID: string,
+  connection: ZoteroConnection,
   collectionKey: string | null,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<CollectionImportResult> {
   const basePath = collectionKey
-    ? `/users/${userID}/collections/${collectionKey}/items/top`
-    : `/users/${userID}/items/top`;
+    ? `/users/${connection.userID}/collections/${collectionKey}/items/top`
+    : `/users/${connection.userID}/items/top`;
 
   let allBibtex = "";
   const keyMap: Record<string, string> = {};
@@ -147,7 +203,7 @@ export async function importCollection(
       limit: String(limit),
       start: String(start),
     });
-    const response = await zoteroFetch(apiKey, `${basePath}?${params}`);
+    const response = await zoteroFetch(connection, `${basePath}?${params}`);
 
     if (start === 0) {
       total = Number(response.headers.get("Total-Results") ?? 0);
@@ -185,25 +241,19 @@ export async function importCollection(
  * so for collection sync we re-fetch all collection items and diff locally.
  */
 export async function syncCollection(
-  apiKey: string,
-  userID: string,
+  connection: ZoteroConnection,
   collectionKey: string | null,
   lastVersion: number,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<CollectionSyncResult> {
   // For "My Library" (all items), we can use the `since` param
   if (!collectionKey) {
-    return syncFullLibrary(apiKey, userID, lastVersion, onProgress);
+    return syncFullLibrary(connection, lastVersion, onProgress);
   }
 
   // For a specific collection, re-fetch all items and diff against keyMap
   // (Zotero API doesn't support `since` scoped to a collection)
-  const result = await importCollection(
-    apiKey,
-    userID,
-    collectionKey,
-    onProgress,
-  );
+  const result = await importCollection(connection, collectionKey, onProgress);
 
   return {
     updatedEntries: Object.entries(result.keyMap).map(([key, citekey]) => {
@@ -219,8 +269,7 @@ export async function syncCollection(
 }
 
 async function syncFullLibrary(
-  apiKey: string,
-  userID: string,
+  connection: ZoteroConnection,
   lastVersion: number,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<CollectionSyncResult> {
@@ -239,8 +288,8 @@ async function syncFullLibrary(
       start: String(start),
     });
     const response = await zoteroFetch(
-      apiKey,
-      `/users/${userID}/items/top?${params}`,
+      connection,
+      `/users/${connection.userID}/items/top?${params}`,
     );
 
     if (start === 0) {
@@ -267,8 +316,8 @@ async function syncFullLibrary(
 
   // Fetch deleted items
   const deletedResponse = await zoteroFetch(
-    apiKey,
-    `/users/${userID}/deleted?since=${lastVersion}`,
+    connection,
+    `/users/${connection.userID}/deleted?since=${lastVersion}`,
   );
   const deleted = (await deletedResponse.json()) as { items?: string[] };
   const deletedKeys = deleted.items ?? [];

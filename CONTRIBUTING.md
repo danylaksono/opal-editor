@@ -1,4 +1,4 @@
-# Contributing to TectonicEditor
+# Contributing to Opal
 
 Contributions are welcome! This guide covers the development environment, workflow, and testing.
 
@@ -157,8 +157,8 @@ creates the GitHub release with those notes before the platform builds upload
 their assets:
 
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 The release fails early when neither the tagged version nor `[Unreleased]`

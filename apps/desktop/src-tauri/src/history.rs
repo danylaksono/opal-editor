@@ -78,7 +78,7 @@ fn open_repo(project_root: &str) -> Result<Repository, String> {
 }
 
 fn default_signature() -> Result<Signature<'static>, String> {
-    Signature::now("TectonicEditor", "history@tectoniceditor.local")
+    Signature::now("Opal", "history@opal.local")
         .map_err(|e| format!("Failed to create signature: {}", e))
 }
 
@@ -129,7 +129,7 @@ Thumbs.db
 # Git
 .git/
 
-# TectonicEditor internal
+# Opal internal
 .tectonic-editor/
 .prism/
 .claudeprism/
@@ -159,13 +159,37 @@ pub fn history_init(project_root: String) -> Result<(), String> {
 
     if git_dir.exists() {
         // Already initialized — verify and ensure excludes
-        let repo =
-            Repository::open(&git_dir).map_err(|e| format!("Corrupt history repo: {}", e))?;
-        ensure_excludes(&project_root, &repo);
-        return Ok(());
+        match Repository::open(&git_dir) {
+            Ok(repo) => {
+                ensure_excludes(&project_root, &repo);
+                return Ok(());
+            }
+            Err(open_err) => {
+                // The directory exists but is not a readable repo (empty dir,
+                // interrupted init, deleted internals). Move it aside and
+                // re-init below so history recovers instead of failing on
+                // every launch. The renamed dir preserves whatever was there.
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let backup = git_dir.with_file_name(format!("history.git.broken-{}", timestamp));
+                fs::rename(&git_dir, &backup).map_err(|rename_err| {
+                    format!(
+                        "Corrupt history repo ({}) and moving it aside failed: {}",
+                        open_err, rename_err
+                    )
+                })?;
+                eprintln!(
+                    "[history] unreadable history repo moved to {} ({}); re-initializing",
+                    backup.display(),
+                    open_err
+                );
+            }
+        }
     }
 
-    // Create the TectonicEditor history directory.
+    // Create the Opal history directory.
     let internal_dir = history_dir(&project_root);
     fs::create_dir_all(&internal_dir)
         .map_err(|e| format!("Failed to create {} dir: {}", HISTORY_DIR, e))?;
@@ -611,6 +635,35 @@ mod tests {
         history_init(r.clone()).unwrap();
         // Second call should succeed without error
         history_init(r).unwrap();
+    }
+
+    #[test]
+    fn test_history_init_recovers_from_unreadable_repo() {
+        let dir = setup_project(&[("main.tex", "doc")]);
+        let r = root(&dir);
+
+        // An existing history.git that is not a valid repository (e.g. an
+        // interrupted init left an empty directory)
+        let git_dir = dir.path().join(HISTORY_DIR).join("history.git");
+        fs::create_dir_all(&git_dir).unwrap();
+
+        history_init(r).unwrap();
+
+        // A working repo was re-initialized in place
+        let repo = Repository::open(&git_dir).unwrap();
+        assert!(repo.head().unwrap().peel_to_commit().is_ok());
+
+        // The broken directory was preserved, not deleted
+        let backups: Vec<_> = fs::read_dir(dir.path().join(HISTORY_DIR))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("history.git.broken-")
+            })
+            .collect();
+        assert_eq!(backups.len(), 1);
     }
 
     #[test]

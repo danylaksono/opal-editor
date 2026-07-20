@@ -256,7 +256,7 @@ export function CitationPicker({
                     No bibliography found
                   </div>
                   <p className="max-w-xs text-muted-foreground text-xs leading-relaxed">
-                    Add a .bib file or import a Zotero collection to search and
+                    Add a .bib file or import a library collection to search and
                     insert citations from the editor.
                   </p>
                 </div>

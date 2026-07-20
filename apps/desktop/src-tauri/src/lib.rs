@@ -1,15 +1,17 @@
 mod ai;
 mod history;
+mod language_tool;
 mod latex;
 mod metadata;
 mod project_import;
+mod reference_sources;
 mod uv;
 mod zotero;
 
 use std::path::Path;
 use std::sync::Arc;
-use tauri_plugin_fs::FsExt;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_fs::FsExt;
 
 use ai::registry::ProviderRegistry;
 use ai::{AiProviderInfo, AiRequest, AiSessionInfo};
@@ -184,7 +186,7 @@ fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
 
     #[allow(unused_mut)]
     let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
-        .title("TectonicEditor")
+        .title("Opal")
         .inner_size(1400.0, 900.0)
         .min_inner_size(800.0, 600.0)
         .visible(false);
@@ -237,7 +239,7 @@ fn open_debug_window(app: tauri::AppHandle) -> Result<(), String> {
 
     let url = WebviewUrl::App("index.html?debug=1".into());
     WebviewWindowBuilder::new(&app, "debug", url)
-        .title("TectonicEditor — Debug")
+        .title("Opal — Debug")
         .inner_size(560.0, 700.0)
         .min_inner_size(400.0, 400.0)
         .visible(true)
@@ -482,8 +484,7 @@ async fn ai_get_api_key(key_name: String) -> Result<Option<String>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    let content =
-        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read: {}", e))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("Failed to read: {}", e))?;
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -550,8 +551,7 @@ async fn ai_set_api_key(key_name: String, value: String) -> Result<(), String> {
         format!("{}{}=\"{}\"\n", content, key_name, value)
     };
 
-    std::fs::write(&path, content)
-        .map_err(|e| format!("Failed to write: {}", e))?;
+    std::fs::write(&path, content).map_err(|e| format!("Failed to write: {}", e))?;
 
     // Keep the current process environment in sync. An empty value must
     // remove the var — a set-but-empty key would make providers think a
@@ -620,9 +620,7 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_secs(8)).await;
                 if let Some(window) = handle.get_webview_window("main") {
                     if !window.is_visible().unwrap_or(true) {
-                        eprintln!(
-                            "[safety] Main window still hidden after 8s, force-showing"
-                        );
+                        eprintln!("[safety] Main window still hidden after 8s, force-showing");
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
@@ -642,9 +640,12 @@ pub fn run() {
             latex::synctex_view,
             latex::detect_texlive,
             metadata::lookup_reference,
+            metadata::search_references,
             metadata::clear_metadata_cache,
             project_import::import_zip_project,
             project_import::import_github_project,
+            reference_sources::read_external_bibliography,
+            reference_sources::fetch_citedrive_bibliography,
             // Unified AI provider commands
             ai_list_providers,
             ai_get_active_provider,
@@ -660,6 +661,8 @@ pub fn run() {
             zotero::zotero_start_oauth,
             zotero::zotero_complete_oauth,
             zotero::zotero_cancel_oauth,
+            zotero::zotero_local_request,
+            language_tool::languagetool_check,
             history::history_init,
             history::history_snapshot,
             history::history_list,
@@ -718,7 +721,7 @@ pub fn run() {
                         let _ = window.eval(
                             "document.body.style.display='none';\
                              document.body.offsetHeight;\
-                             document.body.style.display='';"
+                             document.body.style.display='';",
                         );
                     }
                     let _ = window.emit("window-focus-restored", ());

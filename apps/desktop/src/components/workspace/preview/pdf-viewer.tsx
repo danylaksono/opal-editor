@@ -17,6 +17,7 @@ import {
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
 import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
 import { createLogger } from "@/lib/debug/logger";
+import { scrollBehavior } from "@/lib/utils";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { PageSize } from "@/lib/mupdf/types";
 import {
@@ -24,6 +25,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
@@ -616,7 +618,7 @@ export function PdfViewer({
         container.clientHeight / 2;
       container.scrollTo({
         top: Math.max(0, targetTop),
-        behavior: "smooth",
+        behavior: scrollBehavior(),
       });
     });
     return () => cancelAnimationFrame(frame);
@@ -1013,7 +1015,10 @@ export function PdfViewer({
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={onStartCapture}>
               <CrosshairIcon />
-              Capture area
+              Capture &amp; Ask
+              <ContextMenuShortcut>
+                {navigator.userAgent.includes("Mac") ? "⌘X" : "Ctrl+X"}
+              </ContextMenuShortcut>
             </ContextMenuItem>
           </>
         )}

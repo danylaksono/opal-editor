@@ -12,6 +12,8 @@ export interface ToolbarAction {
   label: string;
   icon: ReactNode;
   hint?: string; // e.g. "Double-click also works"
+  /** Instead of firing immediately, populate the prompt input with this text and focus it. */
+  prefill?: string;
 }
 
 interface SelectionToolbarProps {
@@ -122,7 +124,18 @@ export function SelectionToolbar({
           {actions.map((action) => (
             <button
               key={action.id}
-              onClick={() => onAction(action.id)}
+              onClick={() => {
+                if (action.prefill != null) {
+                  setInput(action.prefill);
+                  inputRef.current?.focus();
+                  inputRef.current?.setSelectionRange(
+                    action.prefill.length,
+                    action.prefill.length,
+                  );
+                  return;
+                }
+                onAction(action.id);
+              }}
               className="flex items-center gap-2.5 px-3 py-1.5 text-left text-foreground text-sm transition-colors hover:bg-muted"
             >
               <span className="size-4 text-muted-foreground">

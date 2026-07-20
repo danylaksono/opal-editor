@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, scrollBehavior } from "@/lib/utils";
 import { useAiChatStore, type TabState } from "@/stores/ai-chat-store";
 
 export function ChatTabBar() {
@@ -17,7 +17,7 @@ export function ChatTabBar() {
       `[data-tab-id="${activeTabId}"]`,
     );
     el?.scrollIntoView({
-      behavior: "smooth",
+      behavior: scrollBehavior(),
       block: "nearest",
       inline: "nearest",
     });

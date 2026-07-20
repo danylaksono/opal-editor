@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   AlertTriangleIcon,
   BookOpenIcon,
+  BookTypeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   FolderIcon,
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { PackageChangeDialog } from "./package-change-dialog";
 import { BibliographyImportDialog } from "./bibliography-import-dialog";
 import { useOnboardingStore } from "@/stores/onboarding-store";
+import { TUTORIAL_STEPS } from "@/lib/tutorial-steps";
 
 const sidePanelItems: Array<{
   id: WorkspaceSidePanel;
@@ -49,7 +51,8 @@ const sidePanelItems: Array<{
   { id: "files", label: "Files", icon: FolderIcon },
   { id: "search", label: "Search", icon: SearchIcon },
   { id: "outline", label: "Outline", icon: ListIcon },
-  { id: "citations", label: "Citations", icon: BookOpenIcon },
+  { id: "citations", label: "References", icon: BookOpenIcon },
+  { id: "grammar", label: "Grammar", icon: BookTypeIcon },
   { id: "health", label: "Project health", icon: StethoscopeIcon },
 ];
 
@@ -59,12 +62,10 @@ function ActivityRail() {
   const toggleSidePanel = useWorkspaceLayoutStore((s) => s.toggleSidePanel);
   const setSidePanelOpen = useWorkspaceLayoutStore((s) => s.setSidePanelOpen);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
-  const activeTutorialProject = useOnboardingStore(
-    (s) => s.activeTutorialProject,
-  );
+  const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
   const [showSettings, setShowSettings] = useState(false);
   const visiblePanelItems =
-    projectRoot && projectRoot === activeTutorialProject
+    projectRoot && projectRoot === tutorialProject
       ? [
           {
             id: "learn" as const,
@@ -250,22 +251,41 @@ export function WorkspaceLayout() {
   const toggleFocusMode = useWorkspaceLayoutStore((s) => s.toggleFocusMode);
   const reviewMode = useWorkspaceLayoutStore((s) => s.reviewMode);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
-  const activeTutorialProject = useOnboardingStore(
-    (s) => s.activeTutorialProject,
-  );
+  const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
+  const tutorialStep = useOnboardingStore((s) => s.currentStep);
   const openedTutorialProject = useRef<string | null>(null);
 
+  // While the Learn LaTeX guide is visible, softly spotlight the pane the
+  // current step talks about ("the editor on the left", "the PDF preview").
+  const guideVisible =
+    !focusMode &&
+    !reviewMode &&
+    sidePanelOpen &&
+    activeSidePanel === "learn" &&
+    projectRoot !== null &&
+    projectRoot === tutorialProject;
+  const paneHighlight = guideVisible
+    ? TUTORIAL_STEPS[Math.min(tutorialStep, TUTORIAL_STEPS.length - 1)]
+        ?.highlight
+    : undefined;
+  const highlightEditor =
+    paneHighlight === "editor" || paneHighlight === "both";
+  const highlightPreview =
+    paneHighlight === "preview" || paneHighlight === "both";
+
+  // When the Learn LaTeX project is (re)opened, surface the guide panel so the
+  // learner can pick up where they left off.
   useEffect(() => {
     if (
       projectRoot &&
-      projectRoot === activeTutorialProject &&
+      projectRoot === tutorialProject &&
       openedTutorialProject.current !== projectRoot
     ) {
       openedTutorialProject.current = projectRoot;
       setActiveSidePanel("learn");
     }
-    if (!activeTutorialProject) openedTutorialProject.current = null;
-  }, [activeTutorialProject, projectRoot, setActiveSidePanel]);
+    if (projectRoot !== tutorialProject) openedTutorialProject.current = null;
+  }, [tutorialProject, projectRoot, setActiveSidePanel]);
 
   // Cmd+\ / Ctrl+\ toggles the PDF preview pane.
   useEffect(() => {
@@ -305,7 +325,13 @@ export function WorkspaceLayout() {
         <PanelGroup direction="horizontal" className="min-h-0 min-w-0 flex-1">
           {!reviewMode && !focusMode && sidePanelOpen && (
             <>
-              <Panel defaultSize={18} minSize={12} maxSize={32}>
+              <Panel
+                id="sidebar"
+                order={1}
+                defaultSize={18}
+                minSize={12}
+                maxSize={32}
+              >
                 <Sidebar activePanel={activeSidePanel} />
               </Panel>
 
@@ -316,10 +342,17 @@ export function WorkspaceLayout() {
           {!reviewMode && (
             <Panel
               key="latex-editor"
+              id="latex-editor"
+              order={2}
               defaultSize={previewVisible ? 42.5 : 85}
               minSize={25}
             >
-              <div className="relative h-full">
+              <div
+                className={cn(
+                  "relative h-full",
+                  highlightEditor && "tutorial-highlight",
+                )}
+              >
                 <LatexEditor />
                 <button
                   type="button"
@@ -363,8 +396,20 @@ export function WorkspaceLayout() {
                 <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-ring" />
               )}
 
-              <Panel defaultSize={reviewMode ? 100 : 42.5} minSize={25}>
-                <PdfPreview />
+              <Panel
+                id="pdf-preview"
+                order={3}
+                defaultSize={reviewMode ? 100 : 42.5}
+                minSize={25}
+              >
+                <div
+                  className={cn(
+                    "relative h-full",
+                    highlightPreview && "tutorial-highlight",
+                  )}
+                >
+                  <PdfPreview />
+                </div>
               </Panel>
             </Fragment>
           )}

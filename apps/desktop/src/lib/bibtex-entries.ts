@@ -1,3 +1,50 @@
+import { tidy, type Options as BibtexTidyOptions } from "bibtex-tidy";
+
+const TIDY_OPTIONS: BibtexTidyOptions = {
+  curly: true,
+  numeric: true,
+  stripEnclosingBraces: true,
+  escape: true,
+  removeEmptyFields: true,
+  removeDuplicateFields: true,
+  sortFields: true,
+  lowercase: true,
+  space: 2,
+  align: false,
+};
+
+/** Reformat a single BibTeX entry's source (field order, casing, braces, indentation). */
+export function tidyBibEntrySource(source: string): string {
+  try {
+    const { bibtex, warnings } = tidy(source, TIDY_OPTIONS);
+    if (warnings.some((warning) => warning.code === "MISSING_KEY")) {
+      return source;
+    }
+    const tidied = bibtex.trim();
+    return tidied || source;
+  } catch {
+    return source;
+  }
+}
+
+/**
+ * Reformat every entry in a whole .bib file (field order, casing, braces,
+ * indentation) without reordering or merging entries.
+ */
+export function tidyBibFileSource(
+  source: string,
+): { result: string; count: number } | null {
+  try {
+    const { bibtex, count } = tidy(source, TIDY_OPTIONS);
+    const tidied = bibtex.trimEnd();
+    if (!tidied) return null;
+    const result = source.endsWith("\n") ? `${tidied}\n` : tidied;
+    return result === source ? null : { result, count };
+  } catch {
+    return null;
+  }
+}
+
 export const EDITABLE_BIB_FIELDS = [
   "title",
   "author",
@@ -170,7 +217,7 @@ export function findBibEntryAt(
 ): BibEntryMatch | null {
   return (
     findBibEntries(content).find(
-      (entry) => position >= entry.keyFrom && position <= entry.keyTo,
+      (entry) => position >= entry.from && position <= entry.to,
     ) ?? null
   );
 }

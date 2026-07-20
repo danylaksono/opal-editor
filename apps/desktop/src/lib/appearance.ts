@@ -1,4 +1,4 @@
-export type WorkspacePalette = "paper" | "sage" | "ocean" | "plum";
+export type WorkspacePalette = "paper" | "sage" | "ocean" | "plum" | "contrast";
 export type EditorHighlightTheme =
   | "match"
   | "ink"
@@ -36,6 +36,12 @@ export const workspacePaletteOptions: Array<{
     label: "Plum",
     description: "Soft neutral surfaces and violet ink",
     swatches: ["#faf8fb", "#ebe4ee", "#78548a"],
+  },
+  {
+    id: "contrast",
+    label: "High contrast",
+    description: "Strong borders and maximum legibility",
+    swatches: ["#ffffff", "#767676", "#1a3fa8"],
   },
 ];
 
