@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
+  BookTypeIcon,
   FileCogIcon,
   TerminalIcon,
   DownloadIcon,
@@ -9,6 +10,7 @@ import {
   CircleIcon,
   InfoIcon,
 } from "lucide-react";
+import { DEFAULT_LANGUAGETOOL_URL } from "@/lib/language-tool";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUvSetupStore } from "@/stores/uv-setup-store";
 import { useDocumentStore } from "@/stores/document-store";
@@ -44,6 +46,7 @@ export function SettingsDialog({
 
         <div className="space-y-6 pt-2">
           <EditorSection />
+          <GrammarSection />
           <AiSettings />
           <PythonSection />
           <div className="space-y-2">
@@ -161,6 +164,92 @@ function EditorSection() {
           type="checkbox"
           checked={lensExperimental}
           onChange={(event) => setLensExperimental(event.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+    </div>
+  );
+}
+
+const LANGUAGETOOL_LANGUAGES = [
+  ["auto", "Auto-detect"],
+  ["en-US", "English (US)"],
+  ["en-GB", "English (UK)"],
+  ["de-DE", "German"],
+  ["fr", "French"],
+  ["es", "Spanish"],
+  ["nl", "Dutch"],
+  ["pt-BR", "Portuguese (BR)"],
+  ["it", "Italian"],
+] as const;
+
+function GrammarSection() {
+  const url = useSettingsStore((s) => s.languageToolUrl);
+  const setUrl = useSettingsStore((s) => s.setLanguageToolUrl);
+  const language = useSettingsStore((s) => s.languageToolLanguage);
+  const setLanguage = useSettingsStore((s) => s.setLanguageToolLanguage);
+  const picky = useSettingsStore((s) => s.languageToolPicky);
+  const setPicky = useSettingsStore((s) => s.setLanguageToolPicky);
+
+  return (
+    <div className="space-y-3">
+      <SectionHeading icon={BookTypeIcon} title="Grammar (LanguageTool)" />
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="languagetool-url"
+          className="text-muted-foreground text-xs"
+        >
+          Server URL
+        </label>
+        <input
+          id="languagetool-url"
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={DEFAULT_LANGUAGETOOL_URL}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          The public API is rate-limited and requires internet. For offline or
+          private checking, run a local LanguageTool server (e.g.{" "}
+          <span className="font-mono">http://localhost:8081</span>) and point
+          this at it.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="languagetool-language"
+          className="text-muted-foreground text-xs"
+        >
+          Language
+        </label>
+        <select
+          id="languagetool-language"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+        >
+          {LANGUAGETOOL_LANGUAGES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Picky mode</div>
+          <div className="text-muted-foreground text-xs">
+            Enable stricter style and typography rules
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={picky}
+          onChange={(e) => setPicky(e.target.checked)}
           className="size-4 accent-primary"
         />
       </label>

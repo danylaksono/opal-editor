@@ -4,6 +4,7 @@ import {
   AlertCircleIcon,
   AlertTriangleIcon,
   BookOpenIcon,
+  BookTypeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   FolderIcon,
@@ -51,6 +52,7 @@ const sidePanelItems: Array<{
   { id: "search", label: "Search", icon: SearchIcon },
   { id: "outline", label: "Outline", icon: ListIcon },
   { id: "citations", label: "References", icon: BookOpenIcon },
+  { id: "grammar", label: "Grammar", icon: BookTypeIcon },
   { id: "health", label: "Project health", icon: StethoscopeIcon },
 ];
 

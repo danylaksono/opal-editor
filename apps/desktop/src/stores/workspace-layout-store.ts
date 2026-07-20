@@ -7,6 +7,7 @@ export type WorkspaceSidePanel =
   | "search"
   | "outline"
   | "citations"
+  | "grammar"
   | "health";
 
 interface WorkspaceLayoutState {

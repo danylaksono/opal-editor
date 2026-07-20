@@ -77,6 +77,7 @@ import { Input } from "@/components/ui/input";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { createLogger } from "@/lib/debug/logger";
+import { GrammarPanel } from "@/components/workspace/grammar-panel";
 import { HealthPanel } from "@/components/workspace/health-panel";
 import { TutorialGuide } from "@/components/workspace/tutorial-guide";
 import { ProjectSearchPanel } from "@/components/workspace/project-search-panel";
@@ -1051,6 +1052,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
             </div>
           </div>
         )}
+        {activePanel === "grammar" && <GrammarPanel />}
         {activePanel === "health" && <HealthPanel />}
       </div>
 

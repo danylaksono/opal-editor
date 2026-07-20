@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { EditorHighlightTheme, WorkspacePalette } from "@/lib/appearance";
+import { DEFAULT_LANGUAGETOOL_URL } from "@/lib/language-tool";
 
 type CompilerBackend = "tectonic" | "texlive";
 type AiProvider = "none" | "anthropic" | "openai";
@@ -38,6 +39,15 @@ interface SettingsState {
   /** Editor text size in px, clamped to [MIN_EDITOR_FONT_SIZE, MAX_EDITOR_FONT_SIZE]. */
   editorFontSize: number;
   setEditorFontSize: (size: number) => void;
+  /** LanguageTool v2 endpoint — public API by default, self-hosted for offline. */
+  languageToolUrl: string;
+  setLanguageToolUrl: (url: string) => void;
+  /** Language code (e.g. "en-US") or "auto". */
+  languageToolLanguage: string;
+  setLanguageToolLanguage: (language: string) => void;
+  /** Enable LanguageTool's stricter "picky" rules. */
+  languageToolPicky: boolean;
+  setLanguageToolPicky: (picky: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -62,10 +72,17 @@ export const useSettingsStore = create<SettingsState>()(
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,
       setEditorFontSize: (size) =>
         set({ editorFontSize: clampEditorFontSize(size) }),
+      languageToolUrl: DEFAULT_LANGUAGETOOL_URL,
+      setLanguageToolUrl: (url) => set({ languageToolUrl: url.trim() }),
+      languageToolLanguage: "auto",
+      setLanguageToolLanguage: (language) =>
+        set({ languageToolLanguage: language }),
+      languageToolPicky: false,
+      setLanguageToolPicky: (picky) => set({ languageToolPicky: picky }),
     }),
     {
       name: "tectonic-editor-settings",
-      version: 2,
+      version: 3,
       // Coerce the removed "claude-cli" provider (and any unknown value) to "none"
       // for users upgrading from a build that still had the Claude CLI provider.
       migrate: (state) => {
@@ -77,6 +94,15 @@ export const useSettingsStore = create<SettingsState>()(
         if (s && !s.editorHighlightTheme) s.editorHighlightTheme = "match";
         if (s && typeof s.inlineEditorsOnClick !== "boolean") {
           s.inlineEditorsOnClick = true;
+        }
+        if (s && typeof s.languageToolUrl !== "string") {
+          s.languageToolUrl = DEFAULT_LANGUAGETOOL_URL;
+        }
+        if (s && typeof s.languageToolLanguage !== "string") {
+          s.languageToolLanguage = "auto";
+        }
+        if (s && typeof s.languageToolPicky !== "boolean") {
+          s.languageToolPicky = false;
         }
         return s as SettingsState;
       },

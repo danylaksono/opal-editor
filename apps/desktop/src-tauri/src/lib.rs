@@ -1,5 +1,6 @@
 mod ai;
 mod history;
+mod language_tool;
 mod latex;
 mod metadata;
 mod project_import;
@@ -665,6 +666,7 @@ pub fn run() {
             zotero::zotero_complete_oauth,
             zotero::zotero_cancel_oauth,
             zotero::zotero_local_request,
+            language_tool::languagetool_check,
             history::history_init,
             history::history_snapshot,
             history::history_list,
