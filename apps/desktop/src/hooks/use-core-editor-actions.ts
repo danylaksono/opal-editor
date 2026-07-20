@@ -8,6 +8,8 @@ import { useDocumentStore } from "@/stores/document-store";
 
 const INSERT_ACTIONS = [
   ["insert.section", "Section", ["heading", "chapter"]],
+  ["insert.subsection", "Subsection", ["heading", "subsection"]],
+  ["insert.list-item", "List item", ["item", "bullet", "list"]],
   ["insert.citation", "Citation", ["reference", "bibliography", "cite"]],
   ["insert.cross-reference", "Cross-reference", ["label", "ref", "link"]],
   ["insert.figure", "Figure", ["image", "graphic", "caption"]],

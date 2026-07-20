@@ -307,6 +307,8 @@ export function EditorToolbar({
         }
       }
       if (id === "insert.section") insertText("\\section{", "}");
+      if (id === "insert.subsection") insertText("\\subsection{", "}");
+      if (id === "insert.list-item") insertText("\\item ");
       if (id === "insert.citation") setCitationPickerOpen(true);
       if (id === "insert.cross-reference") setCrossReferencePickerOpen(true);
       if (id === "insert.figure") setFigurePickerOpen(true);

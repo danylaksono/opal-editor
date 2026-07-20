@@ -104,6 +104,22 @@ import {
   CopyIcon,
   Undo2Icon,
   XIcon,
+  PlusIcon,
+  Heading1Icon,
+  Heading2Icon,
+  ListIcon,
+  BookMarkedIcon,
+  ImagePlusIcon,
+  Table2Icon,
+  SigmaIcon,
+  Link2Icon,
+  BoxesIcon,
+  RefreshCwIcon,
+  MinimizeIcon,
+  MaximizeIcon,
+  LightbulbIcon,
+  LanguagesIcon,
+  SearchIcon,
 } from "lucide-react";
 import { AiChatDrawer } from "@/components/ai-chat/ai-chat-drawer";
 import { ProposedChangesPanel } from "@/components/ai-chat/proposed-changes-panel";
@@ -132,8 +148,13 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { dispatchEditorAction } from "@/lib/editor-actions";
+import { open as openExternalUrl } from "@tauri-apps/plugin-shell";
 import { findTables } from "@/lib/latex-tables";
 import { findMathNodes } from "@/lib/latex-math";
 import { parseBibEntries, parseBibItems, type BibCitation } from "@/lib/bibtex";
@@ -2336,42 +2357,121 @@ export function LatexEditor() {
     [bibEntryEditor],
   );
 
+  // Snapshot the selected text/label before the toolbar clears selectionRange,
+  // so canned prompts and the free-form input still carry the right context.
+  const captureSelectionContext = useCallback(():
+    | { label: string; filePath: string; selectedText: string }
+    | undefined => {
+    const view = viewRef.current;
+    if (!view || !selectionRange || !activeFile) return undefined;
+    const selectedText = view.state.sliceDoc(
+      selectionRange.start,
+      selectionRange.end,
+    );
+    if (!selectedText) return undefined;
+    return {
+      label: selectionLabel ?? activeFile.relativePath,
+      filePath: activeFile.relativePath,
+      selectedText,
+    };
+  }, [selectionRange, selectionLabel, activeFile]);
+
   const handleToolbarSendPrompt = useCallback(
     (prompt: string) => {
+      const contextOverride = captureSelectionContext();
       toolbarStickyRef.current = false;
       setSelectionCoords(null);
       setSelectionRange(null);
-      useAiChatStore.getState().sendPrompt(prompt);
+      useAiChatStore.getState().sendPrompt(prompt, contextOverride);
     },
-    [setSelectionRange],
+    [captureSelectionContext, setSelectionRange],
   );
 
-  const editorToolbarActions: ToolbarAction[] = useMemo(
-    () =>
-      aiProvider !== "none"
-        ? [
-            {
-              id: "proofread",
-              label: "Proofread",
-              icon: <SpellCheckIcon className="size-4" />,
-            },
-          ]
-        : [],
-    [aiProvider],
-  );
+  const editorToolbarActions: ToolbarAction[] = useMemo(() => {
+    if (aiProvider === "none") return [];
+    const view = viewRef.current;
+    const selectedText =
+      view && selectionRange
+        ? view.state.sliceDoc(selectionRange.start, selectionRange.end)
+        : "";
+    const wordCount = selectedText.trim()
+      ? selectedText.trim().split(/\s+/).length
+      : 0;
+    const actions: ToolbarAction[] = [
+      {
+        id: "proofread",
+        label: "Proofread",
+        icon: <SpellCheckIcon className="size-4" />,
+      },
+      {
+        id: "paraphrase",
+        label: "Paraphrase",
+        icon: <RefreshCwIcon className="size-4" />,
+      },
+      {
+        id: "shorten",
+        label: "Shorten",
+        icon: <MinimizeIcon className="size-4" />,
+      },
+      {
+        id: "expand",
+        label: "Expand",
+        icon: <MaximizeIcon className="size-4" />,
+      },
+      {
+        id: "explain",
+        label: "Explain",
+        icon: <LightbulbIcon className="size-4" />,
+      },
+      {
+        id: "translate",
+        label: "Translate to…",
+        icon: <LanguagesIcon className="size-4" />,
+        prefill: "Translate this to ",
+      },
+    ];
+    // Web search only makes sense for a short phrase, not a whole paragraph.
+    if (wordCount > 0 && wordCount <= 6) {
+      actions.push({
+        id: "search-web",
+        label: "Search the web",
+        icon: <SearchIcon className="size-4" />,
+      });
+    }
+    return actions;
+  }, [aiProvider, selectionRange]);
 
   const handleToolbarAction = useCallback(
     (actionId: string) => {
+      const contextOverride = captureSelectionContext();
+      const selectedText = contextOverride?.selectedText ?? "";
       toolbarStickyRef.current = false;
       setSelectionCoords(null);
       setSelectionRange(null);
-      if (actionId === "proofread") {
-        useAiChatStore
-          .getState()
-          .sendPrompt("Proofread and fix any errors in this text");
+
+      if (actionId === "search-web") {
+        if (selectedText.trim()) {
+          void openExternalUrl(
+            `https://www.google.com/search?q=${encodeURIComponent(selectedText.trim())}`,
+          );
+        }
+        return;
+      }
+
+      const cannedPrompts: Record<string, string> = {
+        proofread: "Proofread and fix any errors in this text",
+        paraphrase: "Paraphrase this text, keeping the same meaning",
+        shorten: "Shorten this text while preserving its key meaning",
+        expand: "Expand this text with more detail and explanation",
+        explain:
+          "Explain this text in plain language, including any notation or jargon used",
+      };
+      const prompt = cannedPrompts[actionId];
+      if (prompt) {
+        useAiChatStore.getState().sendPrompt(prompt, contextOverride);
       }
     },
-    [setSelectionRange],
+    [captureSelectionContext, setSelectionRange],
   );
 
   const handleToolbarDismiss = useCallback(() => {
@@ -2570,6 +2670,86 @@ export function LatexEditor() {
                 />
               </ContextMenuTrigger>
               <ContextMenuContent className="min-w-60">
+                {activeFile?.type === "tex" && (
+                  <>
+                    <ContextMenuSub>
+                      <ContextMenuSubTrigger>
+                        <PlusIcon />
+                        Add here
+                      </ContextMenuSubTrigger>
+                      <ContextMenuSubContent className="w-52">
+                        <ContextMenuItem
+                          onSelect={() => dispatchEditorAction("insert.section")}
+                        >
+                          <Heading1Icon />
+                          Section
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.subsection")
+                          }
+                        >
+                          <Heading2Icon />
+                          Subsection
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.list-item")
+                          }
+                        >
+                          <ListIcon />
+                          List item
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.citation")
+                          }
+                        >
+                          <BookMarkedIcon />
+                          Citation…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.cross-reference")
+                          }
+                        >
+                          <Link2Icon />
+                          Cross-reference…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => dispatchEditorAction("insert.figure")}
+                        >
+                          <ImagePlusIcon />
+                          Figure…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => dispatchEditorAction("insert.table")}
+                        >
+                          <Table2Icon />
+                          Table…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.equation")
+                          }
+                        >
+                          <SigmaIcon />
+                          Equation…
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            dispatchEditorAction("insert.environment")
+                          }
+                        >
+                          <BoxesIcon />
+                          More structures…
+                        </ContextMenuItem>
+                      </ContextMenuSubContent>
+                    </ContextMenuSub>
+                    <ContextMenuSeparator />
+                  </>
+                )}
                 {activeFile?.type === "tex" && (
                   <ContextMenuItem
                     disabled={!projectRoot || !pdfAvailable}
