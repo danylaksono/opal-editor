@@ -244,9 +244,7 @@ export function ProjectPicker() {
               className="size-11 rounded-xl shadow-sm"
             />
             <div>
-              <div className="font-semibold text-sm tracking-tight">
-                Opal
-              </div>
+              <div className="font-semibold text-sm tracking-tight">Opal</div>
               <VersionBadge
                 version={appVersion}
                 updateStatus={updateStatus}
