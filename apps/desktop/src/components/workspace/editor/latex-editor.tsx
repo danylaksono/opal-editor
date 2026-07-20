@@ -91,6 +91,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  BrushCleaningIcon,
   ClipboardPasteIcon,
   FileSearchIcon,
   PencilIcon,
@@ -176,6 +177,7 @@ import {
 import {
   findBibEntries,
   findBibEntryAt,
+  tidyBibEntrySource,
   type BibEntryMatch,
 } from "@/lib/bibtex-entries";
 
@@ -624,6 +626,24 @@ export function LatexEditor() {
     [activeFile?.type],
   );
 
+  const tidyBibEntryAt = useCallback(
+    (view: EditorView, position: number): boolean => {
+      if (activeFile?.type !== "bib" || isMergeActiveRef.current) return false;
+      const target = findBibEntryAt(view.state.doc.toString(), position);
+      if (!target) return false;
+      const tidied = tidyBibEntrySource(target.source);
+      if (tidied !== target.source) {
+        view.dispatch({
+          changes: { from: target.from, to: target.to, insert: tidied },
+          selection: { anchor: target.from + tidied.length },
+        });
+      }
+      view.focus();
+      return true;
+    },
+    [activeFile?.type],
+  );
+
   const openTableEditorAt = useCallback(
     (view: EditorView, position: number): boolean => {
       if (activeFile?.type !== "tex" || isMergeActiveRef.current) return false;
@@ -768,13 +788,20 @@ export function LatexEditor() {
     }
   }, []);
 
+  const contextBibEntry = (() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null || activeFile?.type !== "bib")
+      return null;
+    return findBibEntryAt(view.state.doc.toString(), contextPosition);
+  })();
+
   const structuredContextLabel = (() => {
     const view = viewRef.current;
     if (!view || contextPosition === null) return null;
-    const source = view.state.doc.toString();
-    if (activeFile?.type === "bib" && findBibEntryAt(source, contextPosition)) {
-      return "Edit bibliography entry";
+    if (activeFile?.type === "bib") {
+      return contextBibEntry ? "Edit bibliography entry" : null;
     }
+    const source = view.state.doc.toString();
     if (activeFile?.type !== "tex") return null;
     if (findCitationAt(source, contextPosition)) return "Edit citation";
     if (findReferenceAt(source, contextPosition)) return "Edit reference";
@@ -819,6 +846,12 @@ export function LatexEditor() {
     openReferenceEditorAt,
     openTableEditorAt,
   ]);
+
+  const tidyContextBibEntry = useCallback(() => {
+    const view = viewRef.current;
+    if (!view || contextPosition === null) return;
+    tidyBibEntryAt(view, contextPosition);
+  }, [contextPosition, tidyBibEntryAt]);
 
   useEffect(() => {
     isSearchOpenRef.current = isSearchOpen;
@@ -2555,6 +2588,12 @@ export function LatexEditor() {
                   <ContextMenuItem onSelect={editStructuredContext}>
                     <PencilIcon />
                     {structuredContextLabel}
+                  </ContextMenuItem>
+                )}
+                {contextBibEntry && (
+                  <ContextMenuItem onSelect={tidyContextBibEntry}>
+                    <BrushCleaningIcon />
+                    Tidy this reference
                   </ContextMenuItem>
                 )}
                 {(activeFile?.type === "tex" || structuredContextLabel) && (

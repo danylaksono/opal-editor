@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findBibEntries,
   findBibEntryAt,
+  tidyBibEntrySource,
   updateBibEntrySource,
 } from "@/lib/bibtex-entries";
 
@@ -45,5 +46,24 @@ describe("structured BibTeX entries", () => {
     expect(updated).toContain("title = {Updated title}");
     expect(updated).toContain("custom = {preserve me}");
     expect(updated).toContain("doi = {10.1000/example}");
+  });
+});
+
+describe("tidyBibEntrySource", () => {
+  it("reformats field order, casing, and quotes to braces", () => {
+    const messy = `@ARTICLE{smith2024,
+      year = "2024",
+      title = "A Title",
+      author = "Jane Smith"
+    }`;
+    const tidied = tidyBibEntrySource(messy);
+    expect(tidied).toBe(
+      `@article{smith2024,\n  title = {A Title},\n  author = {Jane Smith},\n  year = 2024\n}`,
+    );
+  });
+
+  it("returns the original source when the entry has no citation key", () => {
+    const noKey = "@article{, year = {2024}}";
+    expect(tidyBibEntrySource(noKey)).toBe(noKey);
   });
 });

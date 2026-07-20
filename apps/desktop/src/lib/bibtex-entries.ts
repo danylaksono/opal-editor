@@ -1,3 +1,32 @@
+import { tidy, type Options as BibtexTidyOptions } from "bibtex-tidy";
+
+const TIDY_OPTIONS: BibtexTidyOptions = {
+  curly: true,
+  numeric: true,
+  stripEnclosingBraces: true,
+  escape: true,
+  removeEmptyFields: true,
+  removeDuplicateFields: true,
+  sortFields: true,
+  lowercase: true,
+  space: 2,
+  align: false,
+};
+
+/** Reformat a single BibTeX entry's source (field order, casing, braces, indentation). */
+export function tidyBibEntrySource(source: string): string {
+  try {
+    const { bibtex, warnings } = tidy(source, TIDY_OPTIONS);
+    if (warnings.some((warning) => warning.code === "MISSING_KEY")) {
+      return source;
+    }
+    const tidied = bibtex.trim();
+    return tidied || source;
+  } catch {
+    return source;
+  }
+}
+
 export const EDITABLE_BIB_FIELDS = [
   "title",
   "author",
