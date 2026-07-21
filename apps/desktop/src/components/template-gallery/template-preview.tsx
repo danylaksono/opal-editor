@@ -466,8 +466,8 @@ export function TemplatePreview() {
       }
 
       setLastProjectFolder(projectFolder);
-      addRecentProject(projectPath);
       await openProject(projectPath);
+      addRecentProject(projectPath);
 
       if (attachments.length > 0) {
         await useDocumentStore

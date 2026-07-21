@@ -393,6 +393,20 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       selectionRange: null,
     });
 
+    // Seed "last modified" from the files' actual on-disk mtimes, so a
+    // project you last touched externally (e.g. last week) reflects that
+    // instead of looking untouched.
+    const latestSourceMtime = fsFiles.reduce(
+      (max, f) => (f.mtime && f.mtime > max ? f.mtime : max),
+      0,
+    );
+    if (latestSourceMtime > 0) {
+      useProjectStore.getState().markProjectModified(
+        rootPath,
+        latestSourceMtime,
+      );
+    }
+
     // Initialize history system early so snapshots work before the panel is opened
     const historyStore = useHistoryStore.getState();
     historyStore

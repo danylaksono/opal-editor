@@ -29,6 +29,10 @@ export interface FsProjectFile {
   absolutePath: string;
   type: ProjectFileType;
   fileSize: number;
+  /** Last-modified time (epoch ms), when available. Not read for PDFs — those
+   *  are compiled output, and recompiling would make "last modified" appear
+   *  to change on every build rather than on real edits. */
+  mtime?: number;
 }
 
 /** Files larger than this (1 MB) are not auto-loaded into memory during project open. */
@@ -177,15 +181,16 @@ export async function scanProjectFolder(rootPath: string): Promise<ScanResult> {
       } else {
         const type = getProjectFileType(entry.name);
         if (type) {
-          // Only stat files that may be skipped by the large-file threshold
-          // (image and other). tex/bib/style are always loaded, pdf is always lazy.
           let fileSize = 0;
-          if (type === "image" || type === "other") {
+          let mtime: number | undefined;
+          // Skip stat for PDFs (compiled output, mtime churns on every build).
+          if (type !== "pdf") {
             try {
               const info = await stat(entryPath);
               fileSize = info.size;
+              mtime = info.mtime ? info.mtime.getTime() : undefined;
             } catch {
-              /* stat failed — treat as 0 */
+              /* stat failed — treat as unknown */
             }
           }
           files.push({
@@ -193,6 +198,7 @@ export async function scanProjectFolder(rootPath: string): Promise<ScanResult> {
             absolutePath: entryPath,
             type,
             fileSize,
+            mtime,
           });
         }
       }

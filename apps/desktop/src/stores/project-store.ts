@@ -14,8 +14,10 @@ interface ProjectState {
   addRecentProject: (path: string) => void;
   removeRecentProject: (path: string) => void;
   setLastProjectFolder: (path: string) => void;
-  /** Records that a file inside this project was actually saved to disk. */
-  markProjectModified: (path: string) => void;
+  /** Records that a file inside this project was modified (saved by the app,
+   *  or found via an on-disk mtime scan). Pass a specific timestamp for the
+   *  latter; omit it to stamp "now". Never moves the value backwards. */
+  markProjectModified: (path: string, timestamp?: number) => void;
 }
 
 const MAX_RECENT = 10;
@@ -53,12 +55,31 @@ export const useProjectStore = create<ProjectState>()(
         }));
       },
 
-      markProjectModified: (path) => {
-        set((state) => ({
-          recentProjects: state.recentProjects.map((p) =>
-            p.path === path ? { ...p, lastModified: Date.now() } : p,
-          ),
-        }));
+      markProjectModified: (path, timestamp) => {
+        const ts = timestamp ?? Date.now();
+        set((state) => {
+          const existing = state.recentProjects.find((p) => p.path === path);
+          if (existing) {
+            return {
+              recentProjects: state.recentProjects.map((p) =>
+                p.path === path
+                  ? { ...p, lastModified: Math.max(p.lastModified ?? 0, ts) }
+                  : p,
+              ),
+            };
+          }
+          // openProject can finish scanning before the caller records the
+          // project as "recent" (addRecentProject runs after load succeeds).
+          // Seed a placeholder here so the mtime isn't lost; addRecentProject
+          // will fill in lastOpened/reordering once the caller runs it.
+          const name = path.split(/[/\\]/).pop() || path;
+          return {
+            recentProjects: [
+              ...state.recentProjects,
+              { path, name, lastOpened: 0, lastModified: ts },
+            ],
+          };
+        });
       },
     }),
     {

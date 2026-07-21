@@ -203,8 +203,11 @@ describe("useDocumentStore", () => {
 
       expect(readDir).toHaveBeenCalledWith("/project");
       expect(readDir).not.toHaveBeenCalledWith("/project/__pycache__");
-      expect(stat).toHaveBeenCalledTimes(1);
+      // stat is called for every non-PDF file now (not just image/other),
+      // to capture mtime for the "last modified" display.
+      expect(stat).toHaveBeenCalledTimes(2);
       expect(stat).toHaveBeenCalledWith("/project/tool.py");
+      expect(stat).toHaveBeenCalledWith("/project/main.tex");
       expect(readTextFile).toHaveBeenCalledTimes(2);
       expect(readTextFile).not.toHaveBeenCalledWith("/project/compiled.pyc");
       expect(
