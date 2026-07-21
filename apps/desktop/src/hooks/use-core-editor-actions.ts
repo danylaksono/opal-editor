@@ -6,10 +6,7 @@ import {
 } from "@/lib/editor-actions";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useDocumentStore } from "@/stores/document-store";
-import {
-  isTutorialSandbox,
-  restoreTutorialFiles,
-} from "@/lib/tutorial-setup";
+import { isTutorialSandbox, restoreTutorialFiles } from "@/lib/tutorial-setup";
 
 /**
  * Full "start from scratch" reset: restore the Learn LaTeX sandbox files to

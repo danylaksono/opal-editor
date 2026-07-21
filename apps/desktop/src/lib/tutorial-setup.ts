@@ -30,7 +30,9 @@ export async function restoreTutorialFiles(projectPath: string): Promise<void> {
 /** True when the sandbox's main.tex still matches the canonical starting
  *  content — i.e. the learner hasn't edited it. A missing file counts as
  *  pristine (nothing to lose by restoring). */
-export async function isTutorialPristine(projectPath: string): Promise<boolean> {
+export async function isTutorialPristine(
+  projectPath: string,
+): Promise<boolean> {
   try {
     const mainPath = await join(projectPath, "main.tex");
     if (!(await exists(mainPath))) return true;

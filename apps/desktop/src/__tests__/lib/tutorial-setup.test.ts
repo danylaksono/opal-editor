@@ -3,11 +3,13 @@ import { isTutorialSandbox, TUTORIAL_FOLDER_NAME } from "@/lib/tutorial-setup";
 
 describe("isTutorialSandbox", () => {
   it("accepts the dedicated Learn-LaTeX sandbox on both path styles", () => {
-    expect(isTutorialSandbox(`/Users/me/Documents/Opal/${TUTORIAL_FOLDER_NAME}`)).toBe(
-      true,
-    );
     expect(
-      isTutorialSandbox(`C:\\Users\\me\\Documents\\Opal\\${TUTORIAL_FOLDER_NAME}`),
+      isTutorialSandbox(`/Users/me/Documents/Opal/${TUTORIAL_FOLDER_NAME}`),
+    ).toBe(true);
+    expect(
+      isTutorialSandbox(
+        `C:\\Users\\me\\Documents\\Opal\\${TUTORIAL_FOLDER_NAME}`,
+      ),
     ).toBe(true);
   });
 
