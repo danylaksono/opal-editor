@@ -135,6 +135,80 @@ export function friendlyLatexDiagnostic(message: string): string {
   return message;
 }
 
+/**
+ * A single, actionable "what to do" sentence for a failed compile, derived by
+ * scanning the raw engine output for common beginner mistakes.
+ *
+ * This is distinct from `friendlyCompileError` (which formats a full message
+ * with technical details for the legacy string path). The structured Rust
+ * backend returns a `CompileFailure` whose raw first-`!` line is often cryptic
+ * — e.g. a table row missing its trailing `\\` surfaces only as
+ * "Misplaced \noalign" — so the UI shows this suggestion in the
+ * "Suggested action" slot regardless of the coarse `category`.
+ *
+ * Rules are ordered most-specific first; the first match wins. `category` is a
+ * fallback signal when the raw text doesn't match a known pattern.
+ */
+export function suggestCompileFix(rawOutput: string, category?: string): string {
+  const rules: Array<[RegExp, string]> = [
+    [
+      /missing \$ inserted/i,
+      "Some math notation is outside math mode. Wrap inline math in $…$ or use an equation environment.",
+    ],
+    [
+      /misplaced \\noalign|extra alignment tab|misplaced alignment tab character/i,
+      "A row in a table/array is missing its trailing \\\\ line break, or has an extra & column separator. Check the row just above the reported line too — LaTeX often flags this a line or two late.",
+    ],
+    [
+      /there's no line here to end|no line here to end/i,
+      "A line break (\\\\) appears where LaTeX isn't building a line — e.g. an extra \\\\ after the last table row, or a \\\\ on a blank line. Remove it.",
+    ],
+    [
+      /(\\begin\{[^}]*\}) ended by (\\end\{[^}]*\})|\\begin\{.*\} on input line .* ended by/i,
+      "An environment isn't closed properly. Make sure every \\begin{…} has a matching \\end{…} with the same name, correctly nested.",
+    ],
+    [
+      /environment .* undefined/i,
+      "LaTeX doesn't recognize an environment. Check its spelling, or add the package that defines it.",
+    ],
+    [
+      /undefined control sequence/i,
+      "LaTeX doesn't recognize a command. Check its spelling, or add the package that provides it.",
+    ],
+    [
+      /file [`']?([^`'\n]+)[`']? not found|cannot find|no file /i,
+      "LaTeX can't find a referenced file (an image or an \\input/\\include). Check its name and path in the project.",
+    ],
+    [
+      /runaway argument|paragraph ended before/i,
+      "A command's argument runs on further than expected — usually a missing closing brace }. Look for an unbalanced { near the reported line.",
+    ],
+    [
+      /missing (\{|\}|\\right|\\endgroup)/i,
+      "A brace or delimiter isn't balanced. Add the matching } (or \\right for a \\left).",
+    ],
+    [
+      /double superscript|double subscript/i,
+      "Two ^ or two _ in a row in math. Group exponents/indices with braces, e.g. x^{a+b}.",
+    ],
+  ];
+
+  const match = rules.find(([pattern]) => pattern.test(rawOutput));
+  if (match) return match[1];
+
+  // Category-based fallbacks when the raw text doesn't match a known pattern.
+  switch (category) {
+    case "missing-file":
+      return "Check the file path and spelling.";
+    case "undefined-command":
+      return "Check the command spelling or required package.";
+    case "busy":
+      return "The compiler was busy. Wait a moment and retry.";
+    default:
+      return "Open the first reported location and correct the source, then retry.";
+  }
+}
+
 export function friendlyCompileError(error: string): string {
   const normalized = error.trim();
   const rules: Array<[RegExp, string]> = [

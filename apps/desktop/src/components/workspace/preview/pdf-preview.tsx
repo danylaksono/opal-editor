@@ -51,7 +51,14 @@ import {
   synctexEdit,
   resolveCompileTarget,
   formatCompileError,
+  type CompileFailure,
 } from "@/lib/latex-compiler";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ErrorBoundary } from "react-error-boundary";
 import {
   SelectionToolbar,
@@ -85,6 +92,7 @@ import {
   EXPLAIN_ERROR_SYSTEM_PROMPT,
 } from "@/lib/ai/explain-compile-error";
 import { MarkdownRenderer } from "@/components/ai-chat/markdown-renderer";
+import { suggestCompileFix } from "@/lib/latex-guidance";
 import { zoomCache, type FitMode } from "./zoom-cache";
 
 const log = createLogger("pdf-preview");
@@ -102,6 +110,141 @@ const ZOOM_OPTIONS = [
   { value: "3", label: "300%" },
   { value: "4", label: "400%" },
 ];
+
+interface CompileErrorDetailsProps {
+  failure: CompileFailure;
+  errors: string[];
+  compilerBackend: string;
+  rootFileName: string;
+  errorExplanation: string | null;
+  isExplaining: boolean;
+  aiProvider: string;
+  onRetry: () => void;
+  onExplain: () => void;
+  onFixWithChat: () => void;
+}
+
+/** The "what happened / where / suggested action" panel for a failed
+ *  compile. Shared between the full-page error state (no PDF available yet)
+ *  and the dialog reachable from the "showing stale PDF" banner, so error
+ *  details stay reachable even when an earlier successful compile is still
+ *  on screen. */
+function CompileErrorDetails({
+  failure,
+  errors,
+  compilerBackend,
+  rootFileName,
+  errorExplanation,
+  isExplaining,
+  aiProvider,
+  onRetry,
+  onExplain,
+  onFixWithChat,
+}: CompileErrorDetailsProps) {
+  return (
+    <div className="w-full max-w-lg">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+          <AlertCircleIcon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-base text-destructive">
+              Compilation failed
+            </h2>
+            <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive text-xs">
+              {errors.length} {errors.length === 1 ? "error" : "errors"}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-muted-foreground text-xs">
+            {failure.backend === "unknown" ? compilerBackend : failure.backend}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border border-destructive/20 bg-background">
+        <div className="space-y-2 border-b p-3 text-sm">
+          <div>
+            <span className="font-medium">What happened:</span>{" "}
+            {failure.summary}
+          </div>
+          <div>
+            <span className="font-medium">Where:</span>{" "}
+            {failure.sourceFile ?? rootFileName}
+            {failure.sourceLine ? `, line ${failure.sourceLine}` : ""}
+          </div>
+          <div>
+            <span className="font-medium">Suggested action:</span>{" "}
+            {suggestCompileFix(failure.rawEngineOutput, failure.category)}
+          </div>
+        </div>
+        <div className="max-h-60 divide-y divide-border overflow-y-auto">
+          {errors.map((error, i) => (
+            <div key={i} className="flex items-start gap-2.5 px-3 py-2.5">
+              <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-destructive/70" />
+              <span className="text-foreground text-sm">{error}</span>
+            </div>
+          ))}
+        </div>
+        {errorExplanation !== null && (
+          <div className="border-t p-3">
+            <div className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
+              <SparklesIcon className="size-3.5" />
+              AI explanation
+              {isExplaining && <LoaderIcon className="size-3 animate-spin" />}
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              <MarkdownRenderer
+                content={errorExplanation}
+                className="prose prose-sm dark:prose-invert max-w-none text-sm"
+              />
+            </div>
+          </div>
+        )}
+        <details className="border-t p-3">
+          <summary className="cursor-pointer text-muted-foreground text-xs">
+            Technical details
+          </summary>
+          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">
+            {failure.rawEngineOutput}
+          </pre>
+        </details>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          className="h-7 gap-1.5 px-2.5 text-xs"
+        >
+          <RefreshCwIcon className="size-3.5" />
+          Retry
+        </Button>
+        {aiProvider !== "none" && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExplain}
+              disabled={isExplaining}
+              className="h-7 gap-1.5 px-2.5 text-xs"
+            >
+              <SparklesIcon className="size-3.5" />
+              {isExplaining ? "Explaining…" : "Explain error"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={onFixWithChat}
+              className="h-7 gap-1.5 px-2.5 text-xs"
+            >
+              <MousePointerClickIcon className="size-3.5" />
+              Fix with Chat
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function PdfPreview() {
   const compilerBackend = useSettingsStore((s) => s.compilerBackend);
@@ -207,6 +350,34 @@ export function PdfPreview() {
   );
   const rootFileName =
     files.find((f) => f.id === currentRootFileId)?.relativePath ?? "main.tex";
+
+  // Normalized compile failure, available regardless of whether a stale PDF
+  // is still on screen — so error details stay reachable even when the
+  // full-page error state (which only shows when there's no PDF at all) is
+  // bypassed by an earlier successful compile.
+  const compileFailure = useMemo<CompileFailure | null>(() => {
+    if (!compileError) return null;
+    return typeof compileError === "string"
+      ? formatCompileError(compileError)
+      : compileError;
+  }, [compileError]);
+  const compileFailureMessages = useMemo(() => {
+    if (!compileFailure) return [];
+    return [
+      ...new Set(
+        compileFailure.rawEngineOutput
+          .split(/\s*!\s*/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0 && s !== "Compilation failed"),
+      ),
+    ];
+  }, [compileFailure]);
+  const [staleErrorDialogOpen, setStaleErrorDialogOpen] = useState(false);
+  useEffect(() => {
+    // A fresh compile (success or new failure) invalidates the dialog's
+    // stale contents — close it rather than show a leftover error.
+    setStaleErrorDialogOpen(false);
+  }, [compileError]);
   const documentReviewComments = useMemo(
     () =>
       reviewComments.filter((comment) => comment.documentRoot === rootFileName),
@@ -855,162 +1026,56 @@ export function PdfPreview() {
       window.removeEventListener("toggle-capture-mode", handleToggleCapture);
   }, [pdfData, aiProvider]);
 
+  const handleFixWithChat = () => {
+    const errorList = compileFailureMessages.map((e) => `- ${e}`).join("\n");
+    useAiChatStore
+      .getState()
+      .sendPrompt(
+        `[Compilation errors]\n${errorList}\n\nFix these LaTeX compilation errors.`,
+      );
+  };
+
+  const handleExplainError = () => {
+    if (!compileFailure) return;
+    setIsExplaining(true);
+    setErrorExplanation("");
+    const handle = runOneShotPrompt({
+      prompt: buildExplainCompileErrorPrompt(
+        compileFailure,
+        files,
+        rootFileName,
+      ),
+      systemPrompt: EXPLAIN_ERROR_SYSTEM_PROMPT,
+      onDelta: (text) => setErrorExplanation(text),
+    });
+    explainCancelRef.current = handle.cancel;
+    handle.result
+      .then((text) => setErrorExplanation(text))
+      .catch((err: Error) => {
+        if (err.message === "Cancelled") return;
+        setErrorExplanation(
+          (prev) => prev || `_Could not get an explanation: ${err.message}_`,
+        );
+      })
+      .finally(() => setIsExplaining(false));
+  };
+
   const renderContent = () => {
-    if (compileError && !pdfData) {
-      const failure =
-        typeof compileError === "string"
-          ? formatCompileError(compileError)
-          : compileError;
-      const errors = [
-        ...new Set(
-          failure.rawEngineOutput
-            .split(/\s*!\s*/)
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0 && s !== "Compilation failed"),
-        ),
-      ];
-
-      const handleFixWithChat = () => {
-        const errorList = errors.map((e) => `- ${e}`).join("\n");
-        useAiChatStore
-          .getState()
-          .sendPrompt(
-            `[Compilation errors]\n${errorList}\n\nFix these LaTeX compilation errors.`,
-          );
-      };
-
-      const handleExplainError = () => {
-        setIsExplaining(true);
-        setErrorExplanation("");
-        const handle = runOneShotPrompt({
-          prompt: buildExplainCompileErrorPrompt(failure, files, rootFileName),
-          systemPrompt: EXPLAIN_ERROR_SYSTEM_PROMPT,
-          onDelta: (text) => setErrorExplanation(text),
-        });
-        explainCancelRef.current = handle.cancel;
-        handle.result
-          .then((text) => setErrorExplanation(text))
-          .catch((err: Error) => {
-            if (err.message === "Cancelled") return;
-            setErrorExplanation(
-              (prev) =>
-                prev || `_Could not get an explanation: ${err.message}_`,
-            );
-          })
-          .finally(() => setIsExplaining(false));
-      };
-
+    if (compileFailure && !pdfData) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-6">
-          <div className="w-full max-w-lg">
-            <div className="mb-4 flex items-start gap-3">
-              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-                <AlertCircleIcon className="size-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-semibold text-base text-destructive">
-                    Compilation failed
-                  </h2>
-                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive text-xs">
-                    {errors.length} {errors.length === 1 ? "error" : "errors"}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-muted-foreground text-xs">
-                  {failure.backend === "unknown"
-                    ? compilerBackend
-                    : failure.backend}
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg border border-destructive/20 bg-background">
-              <div className="space-y-2 border-b p-3 text-sm">
-                <div>
-                  <span className="font-medium">What happened:</span>{" "}
-                  {failure.summary}
-                </div>
-                <div>
-                  <span className="font-medium">Where:</span>{" "}
-                  {failure.sourceFile ?? rootFileName}
-                  {failure.sourceLine ? `, line ${failure.sourceLine}` : ""}
-                </div>
-                <div>
-                  <span className="font-medium">Suggested action:</span>{" "}
-                  {failure.category === "missing-file"
-                    ? "Check the file path and spelling."
-                    : failure.category === "undefined-command"
-                      ? "Check the command spelling or required package."
-                      : "Open the first reported location and correct the source, then retry."}
-                </div>
-              </div>
-              <div className="max-h-60 divide-y divide-border overflow-y-auto">
-                {errors.map((error, i) => (
-                  <div key={i} className="flex items-start gap-2.5 px-3 py-2.5">
-                    <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0 text-destructive/70" />
-                    <span className="text-foreground text-sm">{error}</span>
-                  </div>
-                ))}
-              </div>
-              {errorExplanation !== null && (
-                <div className="border-t p-3">
-                  <div className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
-                    <SparklesIcon className="size-3.5" />
-                    AI explanation
-                    {isExplaining && (
-                      <LoaderIcon className="size-3 animate-spin" />
-                    )}
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <MarkdownRenderer
-                      content={errorExplanation}
-                      className="prose prose-sm dark:prose-invert max-w-none text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-              <details className="border-t p-3">
-                <summary className="cursor-pointer text-muted-foreground text-xs">
-                  Technical details
-                </summary>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">
-                  {failure.rawEngineOutput}
-                </pre>
-              </details>
-            </div>
-            <div className="mt-3 flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCompile(true)}
-                className="h-7 gap-1.5 px-2.5 text-xs"
-              >
-                <RefreshCwIcon className="size-3.5" />
-                Retry
-              </Button>
-              {aiProvider !== "none" && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExplainError}
-                    disabled={isExplaining}
-                    className="h-7 gap-1.5 px-2.5 text-xs"
-                  >
-                    <SparklesIcon className="size-3.5" />
-                    {isExplaining ? "Explaining…" : "Explain error"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleFixWithChat}
-                    className="h-7 gap-1.5 px-2.5 text-xs"
-                  >
-                    <MousePointerClickIcon className="size-3.5" />
-                    Fix with Chat
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+          <CompileErrorDetails
+            failure={compileFailure}
+            errors={compileFailureMessages}
+            compilerBackend={compilerBackend}
+            rootFileName={rootFileName}
+            errorExplanation={errorExplanation}
+            isExplaining={isExplaining}
+            aiProvider={aiProvider}
+            onRetry={() => handleCompile(true)}
+            onExplain={handleExplainError}
+            onFixWithChat={handleFixWithChat}
+          />
         </div>
       );
     }
@@ -1421,11 +1486,43 @@ export function PdfPreview() {
         </div>
       </div>
       {renderContent()}
-      {compileError && pdfData && (
-        <div className="pointer-events-none absolute top-[calc(48px+var(--titlebar-height))] left-1/2 z-30 -translate-x-1/2 rounded-md border border-amber-500/40 bg-amber-100 px-3 py-2 font-medium text-amber-950 text-xs shadow dark:bg-amber-950 dark:text-amber-100">
-          Showing the last successful PDF — the latest compile failed.
-        </div>
+      {compileFailure && pdfData && (
+        <button
+          type="button"
+          onClick={() => setStaleErrorDialogOpen(true)}
+          className="absolute top-[calc(48px+var(--titlebar-height))] left-1/2 z-30 -translate-x-1/2 rounded-md border border-amber-500/40 bg-amber-100 px-3 py-2 font-medium text-amber-950 text-xs shadow transition-colors hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+        >
+          Showing the last successful PDF — the latest compile failed.{" "}
+          <span className="underline">View details</span>
+        </button>
       )}
+      <Dialog
+        open={staleErrorDialogOpen && Boolean(compileFailure)}
+        onOpenChange={setStaleErrorDialogOpen}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Compile error details</DialogTitle>
+          </DialogHeader>
+          {compileFailure && (
+            <CompileErrorDetails
+              failure={compileFailure}
+              errors={compileFailureMessages}
+              compilerBackend={compilerBackend}
+              rootFileName={rootFileName}
+              errorExplanation={errorExplanation}
+              isExplaining={isExplaining}
+              aiProvider={aiProvider}
+              onRetry={() => {
+                setStaleErrorDialogOpen(false);
+                handleCompile(true);
+              }}
+              onExplain={handleExplainError}
+              onFixWithChat={handleFixWithChat}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       {/* PDF selection toolbar */}
       {pdfToolbarPosition && pdfSelection && (
         <SelectionToolbar
