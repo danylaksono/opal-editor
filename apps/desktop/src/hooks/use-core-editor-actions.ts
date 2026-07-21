@@ -1,10 +1,37 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 import {
   dispatchEditorAction,
   registerEditorAction,
 } from "@/lib/editor-actions";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useDocumentStore } from "@/stores/document-store";
+import {
+  isTutorialSandbox,
+  restoreTutorialFiles,
+} from "@/lib/tutorial-setup";
+
+/**
+ * Full "start from scratch" reset: restore the Learn LaTeX sandbox files to
+ * their original content (so a modified tutorial doesn't linger), forget
+ * progress, and re-arm the first-launch offer. Reopens the sandbox if it's the
+ * project currently on screen so the editor reflects the restored files.
+ */
+async function performOnboardingReset(): Promise<void> {
+  const onboarding = useOnboardingStore.getState();
+  const doc = useDocumentStore.getState();
+  const tutorialPath = onboarding.tutorialProject;
+
+  if (isTutorialSandbox(tutorialPath) && tutorialPath) {
+    await restoreTutorialFiles(tutorialPath);
+    if (doc.projectRoot === tutorialPath) {
+      // Reopen so the editor loads the freshly-restored files.
+      await doc.openProject(tutorialPath);
+    }
+  }
+
+  onboarding.resetTutorial();
+}
 
 const INSERT_ACTIONS = [
   ["insert.section", "Section", ["heading", "chapter"]],
@@ -60,10 +87,39 @@ export function useCoreEditorActions(): void {
       registerEditorAction({
         id: "help.reset-onboarding",
         label: "Reset LaTeX onboarding",
-        description: "Reset the first-launch offer and tutorial progress",
+        description:
+          "Restore the tutorial to its original content and re-arm the welcome offer",
         keywords: ["help", "tutorial", "onboarding", "reset"],
         category: "help",
-        run: () => useOnboardingStore.getState().resetTutorial(),
+        run: () => {
+          const tutorialPath = useOnboardingStore.getState().tutorialProject;
+          const willRestoreFiles = isTutorialSandbox(tutorialPath);
+          // Overwriting the sandbox files is destructive, so confirm first.
+          toast("Reset LaTeX onboarding?", {
+            description: willRestoreFiles
+              ? "Restores the Learn LaTeX tutorial to its original content (discarding changes) and re-arms the welcome offer."
+              : "Re-arms the welcome tutorial offer.",
+            action: {
+              label: "Reset",
+              onClick: () => {
+                performOnboardingReset()
+                  .then(() =>
+                    toast.success("LaTeX onboarding reset", {
+                      description: willRestoreFiles
+                        ? "The tutorial is back to its starting point."
+                        : "Tutorial progress and the welcome offer were reset.",
+                    }),
+                  )
+                  .catch((err) =>
+                    toast.error("Could not reset onboarding", {
+                      description:
+                        err instanceof Error ? err.message : String(err),
+                    }),
+                  );
+              },
+            },
+          });
+        },
       }),
     );
     return () => unregister.forEach((dispose) => dispose());
