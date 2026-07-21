@@ -401,10 +401,9 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       0,
     );
     if (latestSourceMtime > 0) {
-      useProjectStore.getState().markProjectModified(
-        rootPath,
-        latestSourceMtime,
-      );
+      useProjectStore
+        .getState()
+        .markProjectModified(rootPath, latestSourceMtime);
     }
 
     // Initialize history system early so snapshots work before the panel is opened
