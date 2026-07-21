@@ -3,7 +3,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import {
   FileTextIcon,
   FolderIcon,
-  HomeIcon,
   FolderPlusIcon,
   ImageIcon,
   PlusIcon,
@@ -46,7 +45,8 @@ import {
 import { useHistoryStore } from "@/stores/history-store";
 import type { WorkspaceSidePanel } from "@/stores/workspace-layout-store";
 import { parseProjectOutline, type OutlineItem } from "@/lib/document-outline";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
+import { useProjectStore } from "@/stores/project-store";
 import {
   ReferencesHeader,
   ReferencesPanel,
@@ -266,10 +266,19 @@ export function Sidebar({ activePanel }: SidebarProps) {
   const _insertAtCursor = useDocumentStore((s) => s.insertAtCursor);
   const moveFile = useDocumentStore((s) => s.moveFile);
   const moveFolder = useDocumentStore((s) => s.moveFolder);
-  const closeProject = useDocumentStore((s) => s.closeProject);
   const refreshFiles = useDocumentStore((s) => s.refreshFiles);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const folders = useDocumentStore((s) => s.folders);
+  const recentProjects = useProjectStore((s) => s.recentProjects);
+  const lastModified = projectRoot
+    ? recentProjects.find((p) => p.path === projectRoot)?.lastModified
+    : undefined;
+  // Re-render periodically so the "modified X ago" label stays fresh.
+  const [, forceRelativeTimeTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceRelativeTimeTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   // ─── Native OS file drop (Tauri onDragDropEvent) ───
   const sidebarFilesRef = useRef<HTMLDivElement>(null);
   const nativeDropTargetRef = useRef<string | null>(null);
@@ -775,23 +784,19 @@ export function Sidebar({ activePanel }: SidebarProps) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Header — padded top for macOS overlay titlebar */}
-      <div className="relative flex h-[calc(48px+var(--titlebar-height))] items-center justify-center border-sidebar-border border-b px-3 pt-[var(--titlebar-height)]">
-        <div className="flex flex-col items-center">
-          <span className="font-semibold text-sm">Opal</span>
-          <span className="text-muted-foreground text-xs">
-            {projectRoot?.split(/[/\\]/).pop() || "Desktop"}
-          </span>
-        </div>
-        <div className="absolute right-3 flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            onClick={closeProject}
-            title="Close Project"
+      <div className="relative flex h-[calc(48px+var(--titlebar-height))] items-center justify-center border-sidebar-border border-b px-6 pt-[var(--titlebar-height)]">
+        <div className="flex max-w-full flex-col items-center overflow-hidden">
+          <span
+            className="max-w-full truncate font-semibold text-sm"
+            title={projectRoot ?? undefined}
           >
-            <HomeIcon className="size-3.5" />
-          </Button>
+            {projectRoot?.split(/[/\\]/).pop() || "Opal"}
+          </span>
+          <span className="text-muted-foreground text-xs">
+            {lastModified
+              ? `Modified ${formatRelativeTime(lastModified)}`
+              : "No changes yet"}
+          </span>
         </div>
       </div>
 

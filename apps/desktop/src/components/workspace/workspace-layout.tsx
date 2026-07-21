@@ -9,6 +9,7 @@ import {
   ChevronUpIcon,
   FolderIcon,
   GraduationCapIcon,
+  HomeIcon,
   ListIcon,
   Maximize2Icon,
   Minimize2Icon,
@@ -62,6 +63,7 @@ function ActivityRail() {
   const toggleSidePanel = useWorkspaceLayoutStore((s) => s.toggleSidePanel);
   const setSidePanelOpen = useWorkspaceLayoutStore((s) => s.setSidePanelOpen);
   const projectRoot = useDocumentStore((s) => s.projectRoot);
+  const closeProject = useDocumentStore((s) => s.closeProject);
   const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
   const [showSettings, setShowSettings] = useState(false);
   const visiblePanelItems =
@@ -98,6 +100,18 @@ function ActivityRail() {
           ) : (
             <PanelLeftOpenIcon className="size-4" />
           )}
+        </Button>
+      </div>
+
+      <div className="flex h-12 items-center justify-center border-sidebar-border border-b">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={closeProject}
+          title="Home"
+        >
+          <HomeIcon className="size-4" />
         </Button>
       </div>
 

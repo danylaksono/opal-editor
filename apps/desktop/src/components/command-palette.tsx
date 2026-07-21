@@ -13,6 +13,7 @@ import {
   MonitorIcon,
   FilePlusIcon,
   FileTextIcon,
+  FolderOpenIcon,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -26,6 +27,7 @@ import {
 import { useDocumentStore } from "@/stores/document-store";
 import { usePreviewStore } from "@/stores/preview-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { useProjectStore } from "@/stores/project-store";
 import { getEditorActions } from "@/lib/editor-actions";
 
 export function CommandPalette() {
@@ -35,6 +37,17 @@ export function CommandPalette() {
   const projectRoot = useDocumentStore((s) => s.projectRoot);
   const files = useDocumentStore((s) => s.files);
   const setActiveFile = useDocumentStore((s) => s.setActiveFile);
+  const recentProjects = useProjectStore((s) => s.recentProjects);
+  const addRecentProject = useProjectStore((s) => s.addRecentProject);
+  const openProject = useDocumentStore((s) => s.openProject);
+
+  const openProjectByPath = (path: string) => {
+    // Only record it as "recent" once it has actually loaded, so the
+    // recent-projects list doesn't reorder itself before the switch is real.
+    openProject(path)
+      .then(() => addRecentProject(path))
+      .catch((err) => console.error("Failed to open project", err));
+  };
 
   useEffect(() => {
     const handler = () => setOpen((v) => !v);
@@ -57,11 +70,33 @@ export function CommandPalette() {
     activeFileType: activeFile?.type,
   });
 
+  const otherRecentProjects = recentProjects.filter(
+    (project) => project.path !== projectRoot,
+  );
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search files…" />
+      <CommandInput placeholder="Type a command or search files and projects…" />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {otherRecentProjects.length > 0 && (
+          <CommandGroup heading="Projects">
+            {otherRecentProjects.map((project) => (
+              <CommandItem
+                key={project.path}
+                value={`project ${project.name} ${project.path}`}
+                onSelect={() => run(() => openProjectByPath(project.path))}
+              >
+                <FolderOpenIcon />
+                <span className="truncate">{project.name}</span>
+                <span className="ml-auto max-w-[45%] truncate text-muted-foreground text-xs">
+                  {project.path}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {sharedActions.length > 0 && (
           <CommandGroup heading="Insert & Help">

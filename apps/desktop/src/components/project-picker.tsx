@@ -36,6 +36,7 @@ import {
 import { ProjectWizard, type CreationMode } from "./project-wizard";
 import { SettingsDialog } from "./settings-dialog";
 import { exists, join } from "@/lib/tauri/fs";
+import { cn } from "@/lib/utils";
 import { getTemplateById, getTemplateSkeleton } from "@/lib/template-registry";
 import { DEFAULT_AI_PROJECT_GUIDE } from "@/lib/default-ai-project-guide";
 import { OnboardingPrompt } from "@/components/onboarding-prompt";
@@ -65,6 +66,7 @@ export function ProjectPicker() {
   const [showSettings, setShowSettings] = useState(false);
   const [isCreatingTutorial, setIsCreatingTutorial] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [openingPath, setOpeningPath] = useState<string | null>(null);
   const { status: updateStatus, checkForUpdate, installUpdate } = useUpdater();
 
   const recentProjects = useProjectStore((s) => s.recentProjects);
@@ -99,23 +101,54 @@ export function ProjectPicker() {
       title: "Open Project Folder",
     });
     if (selected) {
-      addRecentProject(selected);
-      await openProject(selected);
+      setOpeningPath(selected);
+      try {
+        await openProject(selected);
+        addRecentProject(selected);
+      } catch (err) {
+        toast.error("Failed to open project", {
+          description: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setOpeningPath(null);
+      }
     }
   };
 
+  // Reorder the recent-projects list only once the project has actually
+  // finished loading, so the list doesn't shift under the user's cursor
+  // while `openProject` is still scanning/reading files.
   const handleOpenRecent = async (path: string) => {
-    addRecentProject(path);
-    await openProject(path);
+    if (openingPath) return;
+    setOpeningPath(path);
+    try {
+      await openProject(path);
+      addRecentProject(path);
+    } catch (err) {
+      toast.error("Failed to open project", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setOpeningPath(null);
+    }
   };
 
   const handleImportedProject = async (path: string) => {
-    addRecentProject(path);
     const pathParts = path.split(/[/\\]/);
     pathParts.pop();
     const parent = pathParts.join(path.includes("\\") ? "\\" : "/");
     if (parent) setLastProjectFolder(parent);
-    await openProject(path);
+    setOpeningPath(path);
+    try {
+      await openProject(path);
+      addRecentProject(path);
+    } catch (err) {
+      toast.error("Failed to open project", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setOpeningPath(null);
+    }
   };
 
   const handleSelectMode = (mode: CreationMode) => {
@@ -152,8 +185,8 @@ export function ProjectPicker() {
 
       setShowModeDialog(false);
       setLastProjectFolder(baseFolder);
-      addRecentProject(projectPath);
       await openProject(projectPath);
+      addRecentProject(projectPath);
     } catch (err) {
       toast.error("Failed to create blank document", {
         description: err instanceof Error ? err.message : String(err),
@@ -191,9 +224,9 @@ export function ProjectPicker() {
         }
       }
       setLastProjectFolder(baseFolder);
-      addRecentProject(projectPath);
       startTutorial(projectPath);
       await openProject(projectPath);
+      addRecentProject(projectPath);
     } catch (error) {
       toast.error("Failed to create tutorial", {
         description: error instanceof Error ? error.message : String(error),
@@ -369,37 +402,52 @@ export function ProjectPicker() {
             </div>
             {recentProjects.length > 0 ? (
               <div className="max-h-52 space-y-1 overflow-y-auto">
-                {recentProjects.map((project) => (
-                  <div
-                    key={project.path}
-                    className="group flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
-                  >
-                    <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
-                    <button
-                      className="flex min-w-0 flex-1 flex-col items-start text-left"
-                      onClick={() => handleOpenRecent(project.path)}
+                {recentProjects.map((project) => {
+                  const isOpeningThis = openingPath === project.path;
+                  const isBlocked = openingPath !== null && !isOpeningThis;
+                  return (
+                    <div
+                      key={project.path}
+                      className={cn(
+                        "group flex items-center gap-2 rounded-lg px-2 py-2 transition-colors",
+                        isOpeningThis && "bg-muted",
+                        !isBlocked && "hover:bg-muted",
+                        isBlocked && "opacity-50",
+                      )}
                     >
-                      <span className="w-full truncate font-medium text-sm">
-                        {project.name}
-                      </span>
-                      <span className="w-full truncate text-[10px] text-muted-foreground">
-                        {project.path}
-                      </span>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-                      aria-label={`Remove ${project.name} from recent projects`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeRecentProject(project.path);
-                      }}
-                    >
-                      <XIcon className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                      {isOpeningThis ? (
+                        <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                      ) : (
+                        <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <button
+                        className="flex min-w-0 flex-1 flex-col items-start text-left disabled:cursor-not-allowed"
+                        disabled={openingPath !== null}
+                        onClick={() => handleOpenRecent(project.path)}
+                      >
+                        <span className="w-full truncate font-medium text-sm">
+                          {project.name}
+                        </span>
+                        <span className="w-full truncate text-[10px] text-muted-foreground">
+                          {isOpeningThis ? "Opening…" : project.path}
+                        </span>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                        disabled={openingPath !== null}
+                        aria-label={`Remove ${project.name} from recent projects`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeRecentProject(project.path);
+                        }}
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex min-h-20 items-center justify-center rounded-xl border border-dashed text-center text-muted-foreground text-xs">

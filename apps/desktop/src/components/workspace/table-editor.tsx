@@ -50,6 +50,13 @@ interface DropIndicator {
   after: boolean;
 }
 
+const PLACEMENT_OPTIONS = [
+  { flag: "h", label: "Near this text" },
+  { flag: "t", label: "Top of a page" },
+  { flag: "b", label: "Bottom of a page" },
+  { flag: "p", label: "Separate floats page" },
+] as const;
+
 export function TableEditor({
   open,
   onOpenChange,
@@ -144,6 +151,15 @@ export function TableEditor({
       };
     });
   const addColumn = () => insertColumn(model.columns.length);
+  const togglePlacement = (flag: string, checked: boolean) =>
+    setModel((current) => ({
+      ...current,
+      placement: checked
+        ? current.placement.includes(flag)
+          ? current.placement
+          : `${current.placement}${flag}`
+        : current.placement.split(flag).join(""),
+    }));
   const removeColumn = (column: number) =>
     setModel((current) =>
       current.columns.length === 1
@@ -263,7 +279,7 @@ export function TableEditor({
             the row handles to reorder; right-click cells for more options.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="table-caption">Caption</Label>
             <Input
@@ -285,17 +301,50 @@ export function TableEditor({
               placeholder="tab:results"
             />
           </div>
-          <div>
-            <Label htmlFor="table-placement">Placement</Label>
-            <Input
-              id="table-placement"
-              value={model.placement}
-              onChange={(event) =>
-                setModel({ ...model, placement: event.target.value })
-              }
-            />
-          </div>
         </div>
+        <fieldset className="rounded border p-3">
+          <legend className="px-1 font-medium text-sm">
+            Where may it appear?
+          </legend>
+          <p className="mb-2 text-muted-foreground text-xs">
+            LaTeX tries the selected locations and chooses one that fits. Clear
+            every option to use the document class default.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {PLACEMENT_OPTIONS.map((option) => (
+              <label
+                key={option.flag}
+                className="flex items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={model.placement.includes(option.flag)}
+                  onChange={(event) =>
+                    togglePlacement(option.flag, event.target.checked)
+                  }
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-muted-foreground text-xs">
+              Advanced placement code
+            </summary>
+            <div className="mt-2 max-w-sm">
+              <Label htmlFor="table-placement">Custom LaTeX code</Label>
+              <Input
+                id="table-placement"
+                className="font-mono"
+                value={model.placement}
+                onChange={(event) =>
+                  setModel({ ...model, placement: event.target.value })
+                }
+                placeholder="Document default"
+              />
+            </div>
+          </details>
+        </fieldset>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={addRow}>
             <PlusIcon /> Row
@@ -303,6 +352,16 @@ export function TableEditor({
           <Button size="sm" variant="outline" onClick={addColumn}>
             <PlusIcon /> Column
           </Button>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={model.centered}
+              onChange={(event) =>
+                setModel({ ...model, centered: event.target.checked })
+              }
+            />{" "}
+            Centre table on page
+          </label>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

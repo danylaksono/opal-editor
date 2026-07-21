@@ -31,8 +31,45 @@ Alpha & $x_1$ \\
     expect(table.unsupported).toBe(false);
     expect(table.rows[0]).toEqual([String.raw`\textbf{Name}`, "Value"]);
     expect(table.rows[1][1]).toBe("$x_1$");
+    expect(table.rows).toHaveLength(2);
     expect(table.beforeTabular).toContain("% custom note");
     expect(serializeTable(table)).toContain(String.raw`\textbf{Name}`);
+  });
+
+  it("terminates every row before table rules", () => {
+    const output = serializeTable(createTableModel(2, 2));
+    expect(output).toContain("Header 1 & Header 2 \\\\\n\\midrule");
+    expect(output).toMatch(/ {2}& {2}\\\\\n\\bottomrule/);
+  });
+
+  it("does not add placement, centering, or duplicate metadata on edit", () => {
+    const source = String.raw`\begin{table}
+\begin{tabular}{cc}
+A & B \\
+1 & 2 \\
+\end{tabular}
+\caption{Results}
+\label{tab:results}
+\end{table}`;
+    const output = serializeTable(findTables(source)[0]);
+
+    expect(output).toContain(String.raw`\begin{table}`);
+    expect(output).not.toContain(String.raw`\begin{table}[`);
+    expect(output).not.toContain(String.raw`\centering`);
+    expect(output.match(/\\caption/g)).toHaveLength(1);
+    expect(output.match(/\\label/g)).toHaveLength(1);
+  });
+
+  it("preserves an existing centering choice", () => {
+    const source = String.raw`\begin{table}[tb]
+\centering
+\begin{tabular}{c}
+A \\
+\end{tabular}
+\end{table}`;
+    const table = findTables(source)[0];
+    expect(table.centered).toBe(true);
+    expect(serializeTable(table).match(/\\centering/g)).toHaveLength(1);
   });
 
   it("refuses constructs that cannot be safely rewritten", () => {

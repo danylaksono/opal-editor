@@ -16,6 +16,34 @@ afterEach(() => {
 });
 
 describe("TableEditor interactions", () => {
+  it("explains float placement with simple choices and keeps custom access", async () => {
+    render(<TableEditor open onOpenChange={vi.fn()} onInsert={vi.fn()} />);
+
+    expect(
+      (screen.getByLabelText("Near this text") as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("Top of a page") as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("Bottom of a page") as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("Separate floats page") as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+
+    await userEvent.click(screen.getByLabelText("Near this text"));
+    await userEvent.click(screen.getByText("Advanced placement code"));
+    expect(
+      (screen.getByLabelText("Custom LaTeX code") as HTMLInputElement).value,
+    ).toBe("tbp");
+    expect(
+      (screen.getByLabelText("Centre table on page") as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+  });
+
   it("reorders rows by dragging the row handle", () => {
     render(<TableEditor open onOpenChange={vi.fn()} onInsert={vi.fn()} />);
     // Default model: row 1 is "Header 1..3", rows 2-3 empty

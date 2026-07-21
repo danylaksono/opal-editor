@@ -17,6 +17,7 @@ export interface TableModel {
   rows: string[][];
   caption: string;
   label: string;
+  centered: boolean;
   booktabs: boolean;
   beforeTabular: string;
   afterTabular: string;
@@ -132,38 +133,50 @@ export function findTables(source: string): TableModel[] {
       .replace(/\\(?:toprule|midrule|bottomrule|hline)\s*/g, "")
       .trim();
     const columns = parseColumnSpec(tabular?.[3] ?? "");
-    const rows = cleanBody
-      ? splitTopLevel(cleanBody, "row").map((row) =>
+    const rowParts = cleanBody ? splitTopLevel(cleanBody, "row") : [];
+    if (rowParts[rowParts.length - 1]?.trim() === "") rowParts.pop();
+    const rows = rowParts.length
+      ? rowParts.map((row) =>
           splitTopLevel(row.trim(), "&").map((cell) => cell.trim()),
         )
       : [];
-    const beforeTabular = tabular
+    const rawBeforeTabular = tabular
       ? originalSource.slice(match[0].length, tabular.index)
       : "";
     const afterStart =
       tabular && tabularEnd >= 0
         ? tabularEnd + `\\end{${tabular[1]}}`.length
         : originalSource.length - `\\end{${outerName}}`.length;
-    const afterTabular = originalSource.slice(
+    const rawAfterTabular = originalSource.slice(
       afterStart,
       originalSource.length - `\\end{${outerName}}`.length,
     );
+    const caption =
+      /\\caption(?:\[[^\]]*\])?\s*\{((?:[^{}]|\{[^{}]*\})*)\}/.exec(
+        originalSource,
+      )?.[1] ?? "";
+    const label = /\\label\s*\{([^{}]*)\}/.exec(originalSource)?.[1] ?? "";
+    const stripManagedCommands = (value: string) =>
+      value
+        .replace(/\\centering\b\s*/g, "")
+        .replace(/\\caption(?:\[[^\]]*\])?\s*\{(?:[^{}]|\{[^{}]*\})*\}\s*/g, "")
+        .replace(/\\label\s*\{[^{}]*\}\s*/g, "");
     results.push({
       from: match.index,
       to,
       originalSource,
       environment: "table",
       tabularEnvironment: tabular?.[1] === "tabularx" ? "tabularx" : "tabular",
-      placement: match[2] ?? "htbp",
+      placement: match[2] ?? "",
       width: tabular?.[1] === "tabularx" ? (tabular[2] ?? "\\textwidth") : "",
       columns,
       rows,
-      caption:
-        /\\caption(?:\[[^\]]*\])?\{([^}]*)\}/.exec(originalSource)?.[1] ?? "",
-      label: /\\label\{([^}]*)\}/.exec(originalSource)?.[1] ?? "",
+      caption,
+      label,
+      centered: /\\centering\b/.test(originalSource),
       booktabs: /\\(?:toprule|midrule|bottomrule)\b/.test(originalSource),
-      beforeTabular,
-      afterTabular,
+      beforeTabular: stripManagedCommands(rawBeforeTabular),
+      afterTabular: stripManagedCommands(rawAfterTabular),
       unsupported,
       unsupportedReason:
         outerName === "longtable"
@@ -197,7 +210,7 @@ export function serializeTable(
       : `\\begin{tabular}{${columns}}`;
   const rowSource = model.rows
     .map((row, index) => {
-      const suffix = index < model.rows.length - 1 ? " \\\\" : "";
+      const suffix = " \\\\";
       const rule =
         model.booktabs && index === 0 && model.rows.length > 1
           ? "\n\\midrule"
@@ -213,7 +226,15 @@ export function serializeTable(
   ]
     .filter(Boolean)
     .join("\n");
-  return `\\begin{table}[${model.placement || "htbp"}]${model.beforeTabular}\n  \\centering\n${begin}${top}\n${rowSource}${bottom}\n\\end{${model.tabularEnvironment}}${model.afterTabular}${metadata ? `\n${metadata}` : ""}\n\\end{table}`;
+  const placement = model.placement.trim();
+  const outerBegin = `\\begin{table}${placement ? `[${placement}]` : ""}`;
+  const beforeTabular = model.beforeTabular
+    ? `${model.beforeTabular}${/\r?\n$/.test(model.beforeTabular) ? "" : "\n"}`
+    : "\n";
+  const afterTabular = model.afterTabular
+    ? `${/^\r?\n/.test(model.afterTabular) ? "" : "\n"}${model.afterTabular}${/\r?\n$/.test(model.afterTabular) ? "" : "\n"}`
+    : "\n";
+  return `${outerBegin}${beforeTabular}${model.centered ? "  \\centering\n" : ""}${begin}${top}\n${rowSource}${bottom}\n\\end{${model.tabularEnvironment}}${afterTabular}${metadata ? `${metadata}\n` : ""}\\end{table}`;
 }
 
 export function createTableModel(columns = 3, rows = 3): TableModel {
@@ -235,6 +256,7 @@ export function createTableModel(columns = 3, rows = 3): TableModel {
     ),
     caption: "",
     label: "",
+    centered: false,
     booktabs: true,
     beforeTabular: "",
     afterTabular: "",

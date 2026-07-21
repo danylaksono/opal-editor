@@ -17,6 +17,7 @@ import {
   type ProjectFileType,
 } from "@/lib/tauri/fs";
 import { useHistoryStore } from "@/stores/history-store";
+import { useProjectStore } from "@/stores/project-store";
 import { clearDocCache } from "@/lib/mupdf/pdf-doc-cache";
 import { clearScrollPositionCache } from "@/components/workspace/preview/pdf-viewer";
 import { clearZoomCache } from "@/components/workspace/preview/zoom-cache";
@@ -814,6 +815,9 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     set((s) => ({
       files: s.files.map((f) => (f.id === id ? { ...f, isDirty: false } : f)),
     }));
+    if (state.projectRoot) {
+      useProjectStore.getState().markProjectModified(state.projectRoot);
+    }
   },
 
   saveAllFiles: async () => {
@@ -835,6 +839,9 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
           savedIds.has(f.id) ? { ...f, isDirty: false } : f,
         ),
       }));
+      if (state.projectRoot) {
+        useProjectStore.getState().markProjectModified(state.projectRoot);
+      }
     }
   },
 
