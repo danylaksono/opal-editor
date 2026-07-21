@@ -68,7 +68,10 @@ l.9 \bottomrule`;
 
     it("explains a stray line break", () => {
       expect(
-        suggestCompileFix("! LaTeX Error: There's no line here to end.", "engine"),
+        suggestCompileFix(
+          "! LaTeX Error: There's no line here to end.",
+          "engine",
+        ),
       ).toMatch(/line break|remove it/i);
     });
 
@@ -90,9 +93,9 @@ l.9 \bottomrule`;
     });
 
     it("falls back to a category hint when nothing matches", () => {
-      expect(suggestCompileFix("something unrecognized", "missing-file")).toMatch(
-        /file path/i,
-      );
+      expect(
+        suggestCompileFix("something unrecognized", "missing-file"),
+      ).toMatch(/file path/i);
       expect(suggestCompileFix("something unrecognized", "busy")).toMatch(
         /retry/i,
       );

@@ -149,7 +149,10 @@ export function friendlyLatexDiagnostic(message: string): string {
  * Rules are ordered most-specific first; the first match wins. `category` is a
  * fallback signal when the raw text doesn't match a known pattern.
  */
-export function suggestCompileFix(rawOutput: string, category?: string): string {
+export function suggestCompileFix(
+  rawOutput: string,
+  category?: string,
+): string {
   const rules: Array<[RegExp, string]> = [
     [
       /missing \$ inserted/i,
