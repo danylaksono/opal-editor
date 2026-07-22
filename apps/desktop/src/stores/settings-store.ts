@@ -21,6 +21,11 @@ export function clampEditorFontSize(size: number): number {
 interface SettingsState {
   compilerBackend: CompilerBackend;
   setCompilerBackend: (backend: CompilerBackend) => void;
+  /** Auto-compile: recompile automatically ~2s after the last edit (Overleaf-style).
+   *  Off by default — every rebuild is a full LaTeX pass, which can be heavy
+   *  on large projects. */
+  autoCompile: boolean;
+  setAutoCompile: (enabled: boolean) => void;
   vimMode: boolean;
   setVimMode: (enabled: boolean) => void;
   lensExperimental: boolean;
@@ -55,6 +60,8 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       compilerBackend: "tectonic",
       setCompilerBackend: (backend) => set({ compilerBackend: backend }),
+      autoCompile: false,
+      setAutoCompile: (enabled) => set({ autoCompile: enabled }),
       vimMode: false,
       setVimMode: (enabled) => set({ vimMode: enabled }),
       lensExperimental: false,
@@ -103,6 +110,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (s && typeof s.languageToolPicky !== "boolean") {
           s.languageToolPicky = false;
+        }
+        if (s && typeof s.autoCompile !== "boolean") {
+          s.autoCompile = false;
         }
         return s as SettingsState;
       },

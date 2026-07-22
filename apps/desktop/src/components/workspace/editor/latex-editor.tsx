@@ -467,6 +467,14 @@ export function LatexEditor() {
   const compileRef = useRef<(opts?: { skipIfUnchanged?: boolean }) => void>(
     () => {},
   );
+  // One-shot timer for an implicit compile deferred by the cooldown.
+  const deferredCompileRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (deferredCompileRef.current) clearTimeout(deferredCompileRef.current);
+    },
+    [],
+  );
   const isSearchOpenRef = useRef(false);
   const themeCompartmentRef = useRef(new Compartment());
   const fontSizeCompartmentRef = useRef(new Compartment());
@@ -1106,13 +1114,32 @@ export function LatexEditor() {
       return;
     }
     const { rootId, targetPath } = resolved;
-    // Save-triggered compiles bail when nothing changed since the last
-    // successful compile of this root; explicit compiles always run.
-    if (
-      skipIfUnchanged &&
-      state.lastCompiledGenerations.get(rootId) === state.contentGeneration
-    ) {
-      return;
+    // Implicit compiles (save-triggered, auto mode, queued follow-ups) bail
+    // when nothing changed since the last successful compile of this root,
+    // and defer while the post-build cooldown is active — 1.5× the last
+    // build's duration (capped at 5 min), so slow projects are not compiled
+    // back-to-back. Explicit compiles (Ctrl+Enter, buttons) always run now.
+    if (skipIfUnchanged) {
+      if (
+        state.lastCompiledGenerations.get(rootId) === state.contentGeneration
+      ) {
+        return;
+      }
+      const stats = state.lastCompileStats;
+      const cooldownUntil = stats
+        ? stats.endedAt + Math.min(stats.durationMs * 1.5, 300_000)
+        : 0;
+      const wait = cooldownUntil - Date.now();
+      if (wait > 0) {
+        // Defer rather than drop: the build still happens once the project
+        // has had breathing room. A single timer absorbs repeated requests.
+        if (deferredCompileRef.current) clearTimeout(deferredCompileRef.current);
+        deferredCompileRef.current = setTimeout(() => {
+          deferredCompileRef.current = null;
+          compileRef.current({ skipIfUnchanged: true });
+        }, wait);
+        return;
+      }
     }
     useHistoryStore.getState().stopReview();
     setIsCompiling(true);
@@ -1134,14 +1161,17 @@ export function LatexEditor() {
     } finally {
       // Ensure the spinner is visible for at least 500ms for visual feedback
       const elapsed = Date.now() - compileStart;
+      state.setLastCompileStats({ endedAt: Date.now(), durationMs: elapsed });
       if (elapsed < 500) {
         await new Promise((r) => setTimeout(r, 500 - elapsed));
       }
       setIsCompiling(false);
-      // If a recompile was requested while we were compiling, trigger it now
-      // Use setTimeout to avoid unbounded recursion on the call stack
+      // If a recompile was requested while we were compiling, trigger it as an
+      // implicit compile: skipIfUnchanged routes it through the cooldown so a
+      // slow project gets breathing room instead of building back-to-back.
+      // Use setTimeout to avoid unbounded recursion on the call stack.
       if (useDocumentStore.getState().pendingRecompile) {
-        setTimeout(() => compileRef.current?.(), 0);
+        setTimeout(() => compileRef.current?.({ skipIfUnchanged: true }), 0);
       }
     }
   };
@@ -1152,6 +1182,21 @@ export function LatexEditor() {
     window.addEventListener("trigger-compile", handler);
     return () => window.removeEventListener("trigger-compile", handler);
   }, []);
+
+  // Auto-compile mode: recompile ~2s after the last edit anywhere in the
+  // project. Every keystroke bumps contentGeneration and resets the timer;
+  // skipIfUnchanged makes redundant firings no-ops, edits that land
+  // mid-compile are absorbed by the pendingRecompile queue, and the
+  // post-build cooldown inside compileRef paces slow projects.
+  const autoCompile = useSettingsStore((s) => s.autoCompile);
+  const contentGeneration = useDocumentStore((s) => s.contentGeneration);
+  useEffect(() => {
+    if (!autoCompile) return;
+    const timer = setTimeout(() => {
+      compileRef.current({ skipIfUnchanged: true });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [autoCompile, contentGeneration]);
 
   useEffect(() => {
     if (!containerRef.current || !isTextFile) return;

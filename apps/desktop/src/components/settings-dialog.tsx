@@ -85,6 +85,8 @@ function EditorSection() {
   const setVimMode = useSettingsStore((s) => s.setVimMode);
   const lensExperimental = useSettingsStore((s) => s.lensExperimental);
   const setLensExperimental = useSettingsStore((s) => s.setLensExperimental);
+  const autoCompile = useSettingsStore((s) => s.autoCompile);
+  const setAutoCompile = useSettingsStore((s) => s.setAutoCompile);
   const inlineEditorsOnClick = useSettingsStore((s) => s.inlineEditorsOnClick);
   const setInlineEditorsOnClick = useSettingsStore(
     (s) => s.setInlineEditorsOnClick,
@@ -164,6 +166,22 @@ function EditorSection() {
           type="checkbox"
           checked={lensExperimental}
           onChange={(event) => setLensExperimental(event.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Auto-compile (experimental)</div>
+          <div className="text-muted-foreground text-xs">
+            Rebuild automatically after you stop typing, paced by how long the
+            last build took. Not recommended for large projects with slow
+            builds — Ctrl+S and Compile always work regardless.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={autoCompile}
+          onChange={(event) => setAutoCompile(event.target.checked)}
           className="size-4 accent-primary"
         />
       </label>

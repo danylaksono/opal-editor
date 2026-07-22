@@ -270,6 +270,37 @@ export function PdfPreview() {
   const pdfRevision = useDocumentStore((s) => s.pdfRevision);
   const compileError = useDocumentStore((s) => s.compileError);
   const isCompiling = useDocumentStore((s) => s.isCompiling);
+
+  // Estimated compile progress. LaTeX gives no true progress signal, so this
+  // is elapsed time vs. the previous build's duration, capped at 99% — shown
+  // only when the last build was slow enough for an estimate to be useful.
+  const [compileProgress, setCompileProgress] = useState<{
+    percent: number;
+    remainingSec: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!isCompiling) {
+      setCompileProgress(null);
+      return;
+    }
+    const expected =
+      useDocumentStore.getState().lastCompileStats?.durationMs ?? 0;
+    if (expected < 3000) return; // fast builds: the spinner alone is fine
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      setCompileProgress({
+        percent: Math.min(99, Math.round((elapsed / expected) * 100)),
+        remainingSec: Math.max(0, Math.ceil((expected - elapsed) / 1000)),
+      });
+    };
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => {
+      clearInterval(timer);
+      setCompileProgress(null);
+    };
+  }, [isCompiling]);
   const isSaving = useDocumentStore((s) => s.isSaving);
   const contentGeneration = useDocumentStore((s) => s.contentGeneration);
   const setPdfData = useDocumentStore((s) => s.setPdfData);
@@ -986,6 +1017,7 @@ export function PdfPreview() {
     } finally {
       // Ensure the spinner is visible for at least 500ms for visual feedback
       const elapsed = Date.now() - compileStart;
+      state.setLastCompileStats({ endedAt: Date.now(), durationMs: elapsed });
       if (elapsed < 500) {
         await new Promise((r) => setTimeout(r, 500 - elapsed));
       }
@@ -1125,6 +1157,21 @@ export function PdfPreview() {
           <p className="max-w-sm text-center text-muted-foreground text-sm">
             Compiling {rootFileName} with {compilerBackend}.
           </p>
+          {compileProgress && (
+            <div className="mt-4 w-56">
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${compileProgress.percent}%` }}
+                />
+              </div>
+              <div className="mt-1.5 text-center text-muted-foreground text-xs">
+                {compileProgress.remainingSec > 0
+                  ? `~${compileProgress.remainingSec}s left (estimated from the previous build)`
+                  : "Taking longer than the previous build — almost there…"}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -1316,11 +1363,17 @@ export function PdfPreview() {
           {!isSaving && isCompiling && (
             <div
               className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
-              title="Compiling..."
+              title={
+                compileProgress
+                  ? `Compiling — about ${compileProgress.percent}% (estimated from the previous build)`
+                  : "Compiling..."
+              }
             >
               <LoaderIcon className="size-3.5 animate-spin text-muted-foreground" />
               <span className="@[34rem]/pv:inline hidden font-medium text-muted-foreground text-xs">
-                Compiling...
+                {compileProgress
+                  ? `Compiling… ${compileProgress.percent}%`
+                  : "Compiling..."}
               </span>
             </div>
           )}

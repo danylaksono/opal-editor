@@ -124,6 +124,10 @@ interface DocumentState {
   ) => void;
   setIsCompiling: (isCompiling: boolean) => void;
   setPendingRecompile: (pending: boolean) => void;
+  /** When and how long the last compile ran — drives auto-compile backoff
+   *  so long builds (large projects) are not compiled back-to-back. */
+  lastCompileStats: { endedAt: number; durationMs: number } | null;
+  setLastCompileStats: (stats: { endedAt: number; durationMs: number }) => void;
   setIsSaving: (isSaving: boolean) => void;
   insertAtCursor: (text: string) => void;
   replaceSelection: (start: number, end: number, text: string) => void;
@@ -316,6 +320,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   compileError: null,
   isCompiling: false,
   pendingRecompile: false,
+  lastCompileStats: null,
   isSaving: false,
   initialized: false,
   contentGeneration: 0,
@@ -754,6 +759,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
 
   setIsCompiling: (isCompiling) => set({ isCompiling }),
   setPendingRecompile: (pending) => set({ pendingRecompile: pending }),
+  setLastCompileStats: (stats) => set({ lastCompileStats: stats }),
 
   setIsSaving: (isSaving) => set({ isSaving }),
 
