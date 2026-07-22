@@ -23,8 +23,12 @@ import {
   PanelTopIcon,
   FileIcon,
   FileSpreadsheetIcon,
+  FolderOpenIcon,
+  CopyIcon,
+  ExternalLinkIcon,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { join } from "@tauri-apps/api/path";
 import {
   DndContext,
   DragOverlay,
@@ -83,6 +87,35 @@ import { TutorialGuide } from "@/components/workspace/tutorial-guide";
 import { ProjectSearchPanel } from "@/components/workspace/project-search-panel";
 
 const log = createLogger("sidebar");
+
+// ─── System file manager integration ───
+
+/** Platform-appropriate name for the OS file manager, used in menu labels. */
+const FILE_MANAGER_NAME = navigator.platform.startsWith("Mac")
+  ? "Finder"
+  : navigator.platform.startsWith("Win")
+    ? "File Explorer"
+    : "File Manager";
+
+/** Show a file selected (or a folder opened) in the OS file manager. */
+function revealInFileManager(absolutePath: string) {
+  invoke("reveal_in_file_manager", { path: absolutePath }).catch((err) =>
+    log.warn(`Reveal in ${FILE_MANAGER_NAME} failed: ${String(err)}`),
+  );
+}
+
+/** Open a file with its OS default application. */
+function openWithDefaultApp(absolutePath: string) {
+  invoke("open_with_default_app", { path: absolutePath }).catch((err) =>
+    log.warn(`Open with default app failed: ${String(err)}`),
+  );
+}
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).catch((err) =>
+    log.warn(`Clipboard write failed: ${String(err)}`),
+  );
+}
 
 // ─── Document Outline ───
 
@@ -665,6 +698,19 @@ export function Sidebar({ activePanel }: SidebarProps) {
     [files, folders, isCaseInsensitiveFs],
   );
 
+  // Reveal a folder (or the project root, for `null`) in the OS file manager.
+  // Files carry their own absolutePath; folders only exist as relative paths.
+  const revealRelative = useCallback(
+    async (relativePath: string | null) => {
+      if (!projectRoot) return;
+      const abs = relativePath
+        ? await join(projectRoot, relativePath)
+        : projectRoot;
+      revealInFileManager(abs);
+    },
+    [projectRoot],
+  );
+
   // Handlers
   const [nameError, setNameError] = useState("");
 
@@ -892,6 +938,7 @@ export function Sidebar({ activePanel }: SidebarProps) {
                         onRename={openRenameDialog}
                         onDelete={deleteFile}
                         onDeleteFolder={deleteFolder}
+                        onReveal={revealRelative}
                         fileCount={files.length}
                         nativeDragOver={nativeDragOver}
                       />
@@ -911,6 +958,11 @@ export function Sidebar({ activePanel }: SidebarProps) {
                   <ContextMenuItem onClick={() => handleImport()}>
                     <UploadIcon className="mr-2 size-4" />
                     Import File
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => revealRelative(null)}>
+                    <FolderOpenIcon className="mr-2 size-4" />
+                    Reveal Project in {FILE_MANAGER_NAME}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -1261,6 +1313,8 @@ interface FileTreeNodeProps {
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   onDeleteFolder: (folderPath: string) => void;
+  /** Reveal a folder (`null` = project root) in the OS file manager. */
+  onReveal: (relativePath: string | null) => void;
   fileCount: number;
   nativeDragOver?: string | null;
 }
@@ -1279,6 +1333,7 @@ function FileTreeNode({
   onRename,
   onDelete,
   onDeleteFolder,
+  onReveal,
   fileCount,
   nativeDragOver,
 }: FileTreeNodeProps) {
@@ -1326,6 +1381,17 @@ function FileTreeNode({
                 Import File Here
               </ContextMenuItem>
               <ContextMenuSeparator />
+              <ContextMenuItem onClick={() => onReveal(node.relativePath)}>
+                <FolderOpenIcon className="mr-2 size-4" />
+                Reveal in {FILE_MANAGER_NAME}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => copyToClipboard(node.relativePath)}
+              >
+                <CopyIcon className="mr-2 size-4" />
+                Copy Relative Path
+              </ContextMenuItem>
+              <ContextMenuSeparator />
               <ContextMenuItem
                 onClick={() => onRename(node.relativePath, node.name)}
               >
@@ -1359,6 +1425,7 @@ function FileTreeNode({
               onRename={onRename}
               onDelete={onDelete}
               onDeleteFolder={onDeleteFolder}
+              onReveal={onReveal}
               fileCount={fileCount}
               nativeDragOver={nativeDragOver}
             />
@@ -1404,6 +1471,23 @@ function FileTreeNode({
           <ContextMenuItem onClick={() => onOpenInTab(file.id)}>
             <PanelTopIcon className="mr-2 size-4" />
             Open in New Tab
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => openWithDefaultApp(file.absolutePath)}>
+            <ExternalLinkIcon className="mr-2 size-4" />
+            Open in Default App
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={() => revealInFileManager(file.absolutePath)}>
+            <FolderOpenIcon className="mr-2 size-4" />
+            Reveal in {FILE_MANAGER_NAME}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => copyToClipboard(file.absolutePath)}>
+            <CopyIcon className="mr-2 size-4" />
+            Copy Path
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => copyToClipboard(file.relativePath)}>
+            <CopyIcon className="mr-2 size-4" />
+            Copy Relative Path
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={() => onRename(file.id, file.name)}>

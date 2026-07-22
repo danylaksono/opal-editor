@@ -128,6 +128,99 @@ fn open_in_editor(
     Ok(())
 }
 
+/// Reveal a file or folder in the OS file manager (Explorer / Finder / etc.).
+/// Files are shown selected inside their parent folder; directories open directly.
+#[tauri::command]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+    let is_dir = p.is_dir();
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("explorer");
+        if is_dir {
+            cmd.arg(&p);
+        } else {
+            // `/select,"<path>"` must be a single raw argument — the default
+            // quoting splits it and Explorer opens the Documents folder instead.
+            cmd.raw_arg(format!("/select,\"{}\"", p.display()));
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open File Explorer: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut cmd = std::process::Command::new("open");
+        if is_dir {
+            cmd.arg(&p);
+        } else {
+            cmd.arg("-R").arg(&p);
+        }
+        cmd.spawn()
+            .map_err(|e| format!("Failed to open Finder: {}", e))?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // xdg-open cannot select a file, so open the containing directory.
+        let target = if is_dir {
+            p.clone()
+        } else {
+            p.parent().map(Path::to_path_buf).unwrap_or_else(|| p.clone())
+        };
+        std::process::Command::new("xdg-open")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// Open a file with the OS default application (system PDF viewer, image viewer, …).
+#[tauri::command]
+fn open_with_default_app(path: String) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .creation_flags(CREATE_NO_WINDOW)
+            .args(["/C", "start", ""])
+            .arg(&p)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&p)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&p)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+
+    Ok(())
+}
+
 /// Resolve an editor CLI command to its full path.
 /// On macOS, GUI apps lack the user's shell PATH, so we ask the login shell.
 fn resolve_editor_cli(cli: &str) -> Result<String, String> {
@@ -633,6 +726,8 @@ pub fn run() {
             allow_project_directory,
             detect_editors,
             open_in_editor,
+            reveal_in_file_manager,
+            open_with_default_app,
             js_log,
             read_clipboard_file_paths,
             latex::compile_latex,
