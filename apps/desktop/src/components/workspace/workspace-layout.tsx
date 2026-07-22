@@ -19,8 +19,10 @@ import {
   PanelRightOpenIcon,
   SearchIcon,
   SettingsIcon,
+  CircleHelpIcon,
   StethoscopeIcon,
 } from "lucide-react";
+import { open } from "@tauri-apps/plugin-shell";
 import { Sidebar } from "./sidebar";
 import { AppearancePopover } from "./appearance-popover";
 import { StatusBar } from "./status-bar";
@@ -56,6 +58,8 @@ const sidePanelItems: Array<{
   { id: "grammar", label: "Grammar", icon: BookTypeIcon },
   { id: "health", label: "Project health", icon: StethoscopeIcon },
 ];
+
+const DOCUMENTATION_URL = "https://opal-latex.pages.dev/documentation.html";
 
 function ActivityRail() {
   const sidePanelOpen = useWorkspaceLayoutStore((s) => s.sidePanelOpen);
@@ -139,6 +143,16 @@ function ActivityRail() {
       </div>
 
       <div className="flex shrink-0 flex-col items-center gap-1 px-1 py-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => void open(DOCUMENTATION_URL)}
+          title="Help & documentation"
+          aria-label="Help & documentation"
+        >
+          <CircleHelpIcon className="size-4" />
+        </Button>
         <AppearancePopover />
         <Button
           variant="ghost"

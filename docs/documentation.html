@@ -1,0 +1,1514 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description"
+    content="Learn how to use Opal: navigate the interface, edit and compile LaTeX, configure optional AI, manage references, and troubleshoot common issues." />
+  <meta name="theme-color" content="#f5f2e9" />
+  <meta property="og:title" content="Opal Documentation" />
+  <meta property="og:description" content="A practical guide to the Opal LaTeX editor." />
+  <meta property="og:type" content="website" />
+  <title>Documentation — Opal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,650&family=Public+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(0.965 0.012 88);
+      --paper-raised: oklch(0.989 0.007 88);
+      --paper-deep: oklch(0.93 0.018 88);
+      --ink: oklch(0.23 0.028 258);
+      --ink-soft: oklch(0.48 0.025 258);
+      --line: oklch(0.84 0.018 88);
+      --blue: oklch(0.49 0.15 257);
+      --blue-soft: oklch(0.92 0.038 257);
+      --green: oklch(0.48 0.09 145);
+      --green-soft: oklch(0.93 0.035 145);
+      --shadow: 0 20px 60px oklch(0.25 0.03 258 / 0.13);
+      --sidebar-width: 17rem;
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 0.75rem;
+      --space-lg: 1rem;
+      --space-xl: 1.5rem;
+      --space-2xl: 2rem;
+      --space-3xl: 3rem;
+      --space-4xl: 4rem;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 85% 3%, oklch(0.91 0.05 257 / 0.55), transparent 24rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: "Public Sans", sans-serif;
+      font-size: 1rem;
+      line-height: 1.68;
+      text-rendering: optimizeLegibility;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    :focus-visible {
+      outline: 3px solid oklch(0.58 0.14 257 / 0.45);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: var(--space-md);
+      left: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 0.5rem;
+      background: var(--ink);
+      color: var(--paper-raised);
+      text-decoration: none;
+      transform: translateY(-180%);
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .site-header {
+      display: flex;
+      min-height: 4rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-xl);
+      padding: 0.75rem clamp(1rem, 3vw, 2.5rem);
+      border-bottom: 1px solid var(--line);
+      background: oklch(0.975 0.01 88 / 0.92);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-md);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 2rem;
+      height: 2rem;
+      place-items: center;
+      border-radius: 0.55rem;
+      background: var(--ink);
+      box-shadow: 0 7px 16px oklch(0.25 0.03 258 / 0.18);
+    }
+
+    .brand-mark svg {
+      width: 1.45rem;
+      height: 1.45rem;
+    }
+
+    .brand-context {
+      color: var(--ink-soft);
+      font-weight: 500;
+    }
+
+    .header-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xl);
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .header-links a {
+      text-decoration: none;
+    }
+
+    .header-links a:hover {
+      color: var(--ink);
+    }
+
+    .docs-shell {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: calc(100vh - 4rem);
+    }
+
+    .docs-sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
+      padding: var(--space-xl);
+      border-right: 1px solid var(--line);
+      background: oklch(0.95 0.015 88 / 0.82);
+    }
+
+    .search-label {
+      display: block;
+      margin-bottom: var(--space-sm);
+      color: var(--ink-soft);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      top: 50%;
+      left: var(--space-md);
+      width: 1rem;
+      transform: translateY(-50%);
+      color: var(--ink-soft);
+      pointer-events: none;
+    }
+
+    #docs-search {
+      width: 100%;
+      min-height: 2.65rem;
+      padding: 0.65rem 2.4rem 0.65rem 2.25rem;
+      border: 1px solid var(--line);
+      border-radius: 0.72rem;
+      background: var(--paper-raised);
+      color: var(--ink);
+      box-shadow: 0 1px 0 oklch(1 0 0 / 0.7) inset;
+    }
+
+    #docs-search::placeholder {
+      color: oklch(0.58 0.02 258);
+    }
+
+    .search-shortcut {
+      position: absolute;
+      top: 50%;
+      right: var(--space-sm);
+      padding: 0.08rem 0.38rem;
+      border: 1px solid var(--line);
+      border-radius: 0.35rem;
+      background: var(--paper);
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+      line-height: 1.35;
+      transform: translateY(-50%);
+    }
+
+    .docs-nav {
+      display: grid;
+      gap: var(--space-xs);
+      margin-top: var(--space-xl);
+    }
+
+    .nav-group {
+      margin: var(--space-xl) 0 var(--space-sm);
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .nav-link {
+      display: block;
+      padding: 0.45rem 0.65rem;
+      border-radius: 0.5rem;
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      font-weight: 500;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      background: var(--blue-soft);
+      color: oklch(0.35 0.12 257);
+    }
+
+    .sidebar-note {
+      margin-top: var(--space-2xl);
+      padding-top: var(--space-lg);
+      border-top: 1px solid var(--line);
+      color: var(--ink-soft);
+      font-size: 0.76rem;
+      line-height: 1.55;
+    }
+
+    .docs-content {
+      width: min(100%, 76rem);
+      margin-inline: auto;
+      padding: clamp(3rem, 7vw, 6rem) clamp(1.25rem, 6vw, 6rem) 7rem;
+    }
+
+    .docs-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.45fr);
+      align-items: end;
+      gap: var(--space-3xl);
+      padding-bottom: var(--space-4xl);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin: 0 0 var(--space-lg);
+      color: var(--blue);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      width: 1.75rem;
+      height: 1px;
+      background: currentColor;
+      content: "";
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1,
+    h2 {
+      font-family: "Literata", serif;
+    }
+
+    h1 {
+      max-width: 12ch;
+      margin-bottom: var(--space-xl);
+      font-size: clamp(3rem, 7vw, 5.5rem);
+      font-weight: 500;
+      letter-spacing: -0.055em;
+      line-height: 0.98;
+    }
+
+    .hero-copy {
+      max-width: 62ch;
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: clamp(1.05rem, 1.7vw, 1.25rem);
+      line-height: 1.65;
+    }
+
+    .hero-aside {
+      display: grid;
+      gap: var(--space-md);
+      padding: var(--space-xl) 0 0 var(--space-xl);
+      border-top: 1px solid var(--ink);
+    }
+
+    .hero-aside strong {
+      font-family: "Literata", serif;
+      font-size: 1.05rem;
+      font-weight: 650;
+    }
+
+    .hero-aside span {
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+    }
+
+    .quick-paths {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-xl);
+      padding-block: var(--space-3xl) var(--space-4xl);
+    }
+
+    .quick-path {
+      display: grid;
+      align-content: start;
+      gap: var(--space-md);
+      min-height: 11rem;
+      padding: var(--space-xl);
+      border: 1px solid var(--line);
+      border-radius: 0.85rem;
+      background: oklch(0.985 0.007 88 / 0.65);
+      text-decoration: none;
+      transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms ease;
+    }
+
+    .quick-path:hover {
+      border-color: oklch(0.67 0.09 257);
+      transform: translateY(-3px);
+    }
+
+    .quick-path-number {
+      color: var(--blue);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .quick-path strong {
+      font-family: "Literata", serif;
+      font-size: 1.16rem;
+      line-height: 1.25;
+    }
+
+    .quick-path span:last-child {
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      line-height: 1.55;
+    }
+
+    .doc-section {
+      max-width: 66rem;
+      padding-block: var(--space-4xl);
+      border-top: 1px solid var(--line);
+    }
+
+    .quick-paths + .doc-section {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: 3.25rem minmax(0, 1fr);
+      gap: var(--space-xl);
+      margin-bottom: var(--space-2xl);
+    }
+
+    .section-number {
+      padding-top: 0.35rem;
+      color: var(--blue);
+      font-size: 0.77rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    h2 {
+      margin-bottom: var(--space-md);
+      font-size: clamp(2rem, 4vw, 3.15rem);
+      font-weight: 500;
+      letter-spacing: -0.04em;
+      line-height: 1.08;
+    }
+
+    .section-intro {
+      max-width: 65ch;
+      margin-bottom: 0;
+      color: var(--ink-soft);
+      font-size: 1.02rem;
+    }
+
+    .prose {
+      display: flow-root;
+      max-width: 74ch;
+      margin-left: calc(3.25rem + var(--space-xl));
+    }
+
+    .prose h3 {
+      margin: var(--space-3xl) 0 var(--space-md);
+      font-size: 1.1rem;
+      line-height: 1.35;
+    }
+
+    .prose p,
+    .prose li {
+      color: oklch(0.36 0.025 258);
+    }
+
+    .prose a {
+      color: oklch(0.4 0.14 257);
+      font-weight: 600;
+      text-underline-offset: 0.2em;
+    }
+
+    .steps {
+      display: grid;
+      gap: var(--space-lg);
+      margin: var(--space-xl) 0;
+      padding: 0;
+      counter-reset: guide-step;
+      list-style: none;
+    }
+
+    .steps li {
+      display: grid;
+      grid-template-columns: 1.9rem minmax(0, 1fr);
+      gap: var(--space-md);
+      align-items: start;
+      counter-increment: guide-step;
+    }
+
+    .steps li::before {
+      display: grid;
+      width: 1.75rem;
+      height: 1.75rem;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      color: oklch(0.36 0.14 257);
+      content: counter(guide-step);
+      font-size: 0.73rem;
+      font-weight: 700;
+    }
+
+    .interface-figure {
+      margin: var(--space-3xl) 0 var(--space-xl);
+    }
+
+    .screenshot-frame {
+      overflow: hidden;
+      border: 1px solid oklch(0.76 0.025 258);
+      border-radius: 1rem;
+      background: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .screenshot-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .screenshot-frame.placeholder {
+      display: grid;
+      min-height: 15rem;
+      place-items: center;
+      padding: var(--space-2xl);
+      border: 2px dashed oklch(0.72 0.03 258);
+      background: var(--paper-deep);
+      box-shadow: none;
+    }
+
+    .screenshot-frame.placeholder span {
+      max-width: 38ch;
+      color: var(--ink-soft);
+      font-size: 0.84rem;
+      line-height: 1.55;
+      text-align: center;
+    }
+
+    figcaption {
+      margin-top: var(--space-md);
+      color: var(--ink-soft);
+      font-size: 0.78rem;
+      line-height: 1.55;
+    }
+
+    .interface-key {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      margin-top: var(--space-xl);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .interface-key div {
+      display: grid;
+      grid-template-columns: 1.65rem minmax(0, 1fr);
+      gap: var(--space-md);
+      padding: var(--space-lg) var(--space-xl) var(--space-lg) 0;
+    }
+
+    .interface-key span {
+      display: grid;
+      width: 1.55rem;
+      height: 1.55rem;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--ink);
+      color: var(--paper-raised);
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    .interface-key strong {
+      display: block;
+      margin-bottom: 0.15rem;
+      font-size: 0.82rem;
+    }
+
+    .interface-key small {
+      display: block;
+      color: var(--ink-soft);
+      font-size: 0.74rem;
+      line-height: 1.45;
+    }
+
+    .note {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--space-md);
+      margin: var(--space-2xl) 0;
+      padding: var(--space-lg);
+      border: 1px solid oklch(0.78 0.05 145);
+      border-radius: 0.75rem;
+      background: var(--green-soft);
+    }
+
+    .note svg {
+      width: 1.15rem;
+      color: var(--green);
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      font-size: 0.85rem;
+    }
+
+    .note p {
+      margin-bottom: 0;
+      color: oklch(0.35 0.04 145);
+      font-size: 0.82rem;
+    }
+
+    code,
+    kbd {
+      border: 1px solid var(--line);
+      border-radius: 0.35rem;
+      background: var(--paper-raised);
+      color: var(--ink);
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.82em;
+    }
+
+    code {
+      padding: 0.08rem 0.3rem;
+    }
+
+    kbd {
+      display: inline-block;
+      min-width: 1.7rem;
+      padding: 0.13rem 0.38rem;
+      box-shadow: 0 1px 0 var(--line);
+      text-align: center;
+    }
+
+    .shortcut-list {
+      display: grid;
+      margin-top: var(--space-xl);
+      border-top: 1px solid var(--line);
+    }
+
+    .shortcut-row {
+      display: grid;
+      grid-template-columns: minmax(10rem, 1fr) auto;
+      gap: var(--space-xl);
+      align-items: center;
+      padding-block: var(--space-md);
+      border-bottom: 1px solid var(--line);
+      color: oklch(0.36 0.025 258);
+      font-size: 0.86rem;
+    }
+
+    .faq-list {
+      border-top: 1px solid var(--line);
+    }
+
+    details {
+      border-bottom: 1px solid var(--line);
+    }
+
+    summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-xl);
+      padding: var(--space-xl) 0;
+      cursor: pointer;
+      font-weight: 650;
+      list-style: none;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    summary::after {
+      color: var(--blue);
+      content: "+";
+      font-size: 1.3rem;
+      font-weight: 400;
+    }
+
+    details[open] summary::after {
+      content: "−";
+    }
+
+    details p {
+      max-width: 68ch;
+      padding-bottom: var(--space-xl);
+      color: var(--ink-soft);
+    }
+
+    .no-results {
+      display: none;
+      margin-top: var(--space-3xl);
+      padding: var(--space-2xl);
+      border: 1px solid var(--line);
+      border-radius: 0.85rem;
+      background: var(--paper-raised);
+    }
+
+    .no-results.visible {
+      display: block;
+    }
+
+    .no-results h2 {
+      font-size: 1.6rem;
+    }
+
+    .hidden-by-search {
+      display: none;
+    }
+
+    .docs-footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: var(--space-xl);
+      padding-top: var(--space-3xl);
+      border-top: 1px solid var(--line);
+      color: var(--ink-soft);
+      font-size: 0.8rem;
+    }
+
+    .docs-footer nav {
+      display: flex;
+      gap: var(--space-xl);
+    }
+
+    /* Tufte-style sidenotes: on wide screens, notes inside prose move into
+       the otherwise-empty right margin and drop their card styling. */
+    @media (min-width: 1460px) {
+      .prose .note {
+        float: right;
+        clear: right;
+        width: 16rem;
+        margin: 0.3rem calc(-16rem - var(--space-3xl)) var(--space-xl) var(--space-xl);
+        padding: var(--space-md) 0 0;
+        border: 0;
+        border-top: 1px solid oklch(0.55 0.07 145);
+        border-radius: 0;
+        background: transparent;
+      }
+
+      .prose .note svg {
+        width: 1rem;
+      }
+
+      .prose .note strong {
+        font-size: 0.8rem;
+      }
+
+      .prose .note p {
+        font-size: 0.78rem;
+        line-height: 1.55;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .docs-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .docs-sidebar {
+        position: relative;
+        z-index: 10;
+        height: auto;
+        padding: var(--space-lg);
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .docs-nav,
+      .sidebar-note,
+      .search-label {
+        display: none;
+      }
+
+      .docs-content {
+        margin-inline: auto;
+        padding-top: var(--space-4xl);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .site-header {
+        min-height: 3.5rem;
+      }
+
+      .brand-context,
+      .header-links a:first-child {
+        display: none;
+      }
+
+      .docs-hero,
+      .quick-paths {
+        grid-template-columns: 1fr;
+      }
+
+      .docs-hero {
+        gap: var(--space-xl);
+      }
+
+      .quick-path {
+        min-height: auto;
+      }
+
+      .section-heading {
+        grid-template-columns: 1fr;
+        gap: var(--space-sm);
+      }
+
+      .section-number {
+        padding-top: 0;
+      }
+
+      .prose {
+        margin-left: 0;
+      }
+
+      .interface-key {
+        grid-template-columns: 1fr;
+      }
+
+      .interface-key div {
+        padding-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .interface-key div:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .quick-path {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Skip to documentation</a>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Opal home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64">
+          <path d="M20 18h24l9 11-21 24L11 29z" fill="#67e8f9" />
+          <path d="M11 29h42L32 53z" fill="#8b5cf6" />
+          <path d="M20 18h24l-7 11H27z" fill="#fffefb" />
+        </svg>
+      </span>
+      <span>Opal <span class="brand-context">/ Documentation</span></span>
+    </a>
+    <nav class="header-links" aria-label="Site links">
+      <a href="index.html">Product website</a>
+      <a href="https://github.com/danylaksono/tectonic-editor">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-shell">
+    <aside class="docs-sidebar" aria-label="Documentation navigation">
+      <label class="search-label" for="docs-search">Search documentation</label>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input id="docs-search" type="search" placeholder="Search topics…" autocomplete="off" />
+        <span class="search-shortcut" aria-hidden="true">/</span>
+      </div>
+
+      <nav class="docs-nav">
+        <p class="nav-group">Start here</p>
+        <a class="nav-link" href="#interface">Meet the interface</a>
+        <a class="nav-link" href="#projects">Open a project</a>
+        <a class="nav-link" href="#new-document">Start a new document</a>
+        <a class="nav-link" href="#editing">Edit and compile</a>
+        <p class="nav-group">Workflows</p>
+        <a class="nav-link" href="#interactivity">Interactive editing</a>
+        <a class="nav-link" href="#navigation">Find your way around</a>
+        <a class="nav-link" href="#references">References and citations</a>
+        <a class="nav-link" href="#zotero">Reference libraries</a>
+        <p class="nav-group">AI assistance</p>
+        <a class="nav-link" href="#ai-setup">Set up optional AI</a>
+        <a class="nav-link" href="#ai-capabilities">What else AI can do</a>
+        <a class="nav-link" href="#ai-review">Review AI changes</a>
+        <p class="nav-group">Review and checking</p>
+        <a class="nav-link" href="#review-mode">Review the PDF</a>
+        <a class="nav-link" href="#grammar">Check grammar and style</a>
+        <a class="nav-link" href="#health">Project health</a>
+        <a class="nav-link" href="#history">Version history</a>
+        <p class="nav-group">Preferences and help</p>
+        <a class="nav-link" href="#appearance">Appearance and focus</a>
+        <a class="nav-link" href="#shortcuts">Keyboard shortcuts</a>
+        <a class="nav-link" href="#faq">Troubleshooting and FAQs</a>
+      </nav>
+
+      <p class="sidebar-note">
+        This guide explains Opal itself. If you are learning LaTeX for the first time, open the separate
+        <strong>New to LaTeX</strong> guide from the home screen.
+      </p>
+    </aside>
+
+    <main class="docs-content" id="main">
+      <section class="docs-hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Opal user guide</p>
+          <h1 id="page-title">Write with confidence.</h1>
+          <p class="hero-copy">
+            Find your way around the workspace, compile a project, control interactive editing, and add AI only when
+            you want it. This guide is about the application; it assumes you already have a LaTeX project or template.
+          </p>
+        </div>
+        <div class="hero-aside">
+          <strong>Need one setting?</strong>
+          <span>Press <kbd>/</kbd> to search this page, or use <kbd>Ctrl</kbd> <kbd>K</kbd> inside Opal to find an app command.</span>
+        </div>
+      </section>
+
+      <nav class="quick-paths" aria-label="Quick paths">
+        <a class="quick-path" href="#interface">
+          <span class="quick-path-number">01</span>
+          <strong>I just opened Opal</strong>
+          <span>Understand the workspace and get a first project compiling.</span>
+        </a>
+        <a class="quick-path" href="#interactivity">
+          <span class="quick-path-number">02</span>
+          <strong>I want fewer pop-up editors</strong>
+          <span>Switch between interactive and source-only editing.</span>
+        </a>
+        <a class="quick-path" href="#ai-setup">
+          <span class="quick-path-number">03</span>
+          <strong>I want to configure AI</strong>
+          <span>Choose a provider, add your key, and test the connection.</span>
+        </a>
+      </nav>
+
+      <section class="doc-section" id="interface" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">01 / Interface</span>
+          <div>
+            <h2>Meet the workspace</h2>
+            <p class="section-intro">Opal keeps project navigation, source, and the compiled PDF in one continuous workspace.</p>
+          </div>
+        </div>
+
+        <figure class="interface-figure">
+          <div class="screenshot-frame">
+            <img src="assets/opal-elsevier-workspace.png"
+              alt="Opal displaying the Elsevier sample project with the activity rail, file tree, LaTeX editor, and PDF preview visible" />
+          </div>
+          <figcaption>
+            The Elsevier sample project is used throughout these examples. Project source:
+            <a href="https://github.com/iagoac/elsevier">iagoac/elsevier</a>.
+          </figcaption>
+        </figure>
+
+        <div class="interface-key" aria-label="Workspace areas">
+          <div><span>1</span><p><strong>Activity rail</strong><small>Open Files, Search, Outline, References, Grammar, and Project health.</small></p></div>
+          <div><span>2</span><p><strong>Project panel</strong><small>Browse files and folders or inspect the selected rail tool.</small></p></div>
+          <div><span>3</span><p><strong>Source editor</strong><small>Edit LaTeX, BibTeX, Markdown, and other project text files.</small></p></div>
+          <div><span>4</span><p><strong>Editor toolbar</strong><small>Insert structures, citations, figures, and tables; choose how clicks behave.</small></p></div>
+          <div><span>5</span><p><strong>PDF preview</strong><small>Compile, navigate pages, zoom, export, and jump back to source.</small></p></div>
+          <div><span>6</span><p><strong>Help and settings</strong><small>Open this guide, change appearance, or configure the editor and optional AI.</small></p></div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="projects" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">02 / Projects</span>
+          <div>
+            <h2>Open a project</h2>
+            <p class="section-intro">A project is a folder containing your LaTeX sources, bibliography, images, and supporting files.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <ol class="steps">
+            <li><span>From the home screen, choose <strong>Open folder</strong>, a recent project, or a template.</span></li>
+            <li><span>To bring work from elsewhere, import a LaTeX ZIP or the default branch of a public GitHub repository.</span></li>
+            <li><span>Open the file that contains <code>\documentclass</code>. Opal normally detects it as the root file used for compilation.</span></li>
+            <li><span>Choose <strong>Compile</strong> in the PDF toolbar. The output appears on the right.</span></li>
+          </ol>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5m0-8h.01" /></svg>
+            <div><strong>Your project stays a normal folder.</strong><p>Opal works directly with local files. You can keep using Git, another editor, or your existing backup system.</p></div>
+          </div>
+          <h3>How Opal chooses the root file</h3>
+          <p>Compilation starts from the root file — the one containing <code>\documentclass</code>. Opal checks, in order: a <code>% !TEX root = main.tex</code> magic comment near the top of the active file, the active file itself, a <code>main.tex</code> or <code>document.tex</code> with <code>\documentclass</code>, then any other candidate in the project. In multi-file projects, add the magic comment to chapter files so compiling from a chapter still builds the whole document.</p>
+          <h3>Return home or switch projects</h3>
+          <p>Use the Home icon near the top of the activity rail. Open projects also appear in <kbd>Ctrl</kbd> <kbd>K</kbd>, so you can switch without returning to the home screen.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="new-document" data-doc-section
+        data-search="template gallery guided setup blank thesis ieee acm beamer poster cv letter report book newsletter tutorial recent">
+        <div class="section-heading">
+          <span class="section-number">03 / Templates</span>
+          <div>
+            <h2>Start a new document</h2>
+            <p class="section-intro">The home screen offers templates, a blank start, imports, your recent work, and a beginner tutorial.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the Opal home screen">
+              <span>Screenshot placeholder — home screen with New document, Open project, Import, the tutorial card, and the Recent work list.</span>
+            </div>
+            <figcaption>The home screen is also where the <strong>New to LaTeX</strong> tutorial starts.</figcaption>
+          </figure>
+          <h3>Guided setup or blank document</h3>
+          <p>Choose <strong>New document</strong>, then either <strong>Guided Setup</strong> — pick from the template gallery and, with AI configured, describe your document to get a tailored starting point — or <strong>Blank Document</strong> for an empty LaTeX file.</p>
+          <h3>Templates</h3>
+          <p>The gallery covers common academic documents: research paper, IEEE and ACM conference formats, thesis, technical and scientific reports, book, Beamer presentation, academic poster, CV, formal letter, and newsletter. Each template arrives with the packages its layout needs already declared, so it compiles immediately.</p>
+          <h3>Recent work</h3>
+          <p>Recent projects are listed on the home screen; hover a row to remove it from the list without touching the folder on disk. Inside the workspace, <kbd>Ctrl</kbd> <kbd>K</kbd> reaches the same projects.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="editing" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">04 / Daily writing</span>
+          <div>
+            <h2>Edit and compile</h2>
+            <p class="section-intro">Work in source, inspect the PDF, and move between them without losing your place.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Save and build</h3>
+          <p>Use <kbd>Ctrl</kbd> <kbd>S</kbd> to save the active file. Choose <strong>Compile</strong> or press <kbd>Ctrl</kbd> <kbd>Enter</kbd> for an explicit build. Compile errors appear near the preview and in the Problems area.</p>
+          <h3>Work with tabs</h3>
+          <p>Opening a file shows it in a preview tab, which the next opened file reuses. Double-click the tab, edit the file, or choose <strong>Open in New Tab</strong> to pin it; pinned tabs stay until you close them. This keeps quick look-ups from crowding out the files you are actually editing.</p>
+          <h3>Move between source and PDF</h3>
+          <p>Click a location in the PDF to jump to the corresponding source line. Use the editor and preview controls to return to a matching location. This SyncTeX connection is most precise after a successful compile.</p>
+          <h3>Control the split</h3>
+          <p>Drag the divider to give source or preview more space. Toggle the PDF with <kbd>Ctrl</kbd> <kbd>\</kbd>, or use focus mode when you want one uncluttered writing surface.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="interactivity" data-doc-section
+        data-search="interactivity pop-up popup visual editor click behaviour behavior toggle off on">
+        <div class="section-heading">
+          <span class="section-number">05 / Editor behaviour</span>
+          <div>
+            <h2>Choose how the editor responds</h2>
+            <p class="section-intro">Interactive editing is useful for structured content; source-only mode keeps every click in the code.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Interactive mode</h3>
+          <p>When the toolbar button says <strong>Interactive</strong>, clicking a table, citation, figure, equation, or supported LaTeX structure opens its focused editor. Changes still update the underlying source.</p>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of a contextual structured editor">
+              <span>Screenshot placeholder — a table or equation in the source with its contextual structured editor open over the code.</span>
+            </div>
+            <figcaption>Structured editors edit the underlying LaTeX; nothing is stored outside your source files.</figcaption>
+          </figure>
+          <h3>Source-only mode</h3>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+            <div><strong>Use a structured editor only when you need it.</strong><p>In source-only mode, place the cursor inside the element and press <kbd>Alt</kbd> <kbd>Enter</kbd>. The relevant editor opens without changing your default click behaviour.</p></div>
+          </div>
+          <p>Click the same toolbar button until it says <strong>Source only</strong>. Clicks now place the cursor normally and do not open a structured editor.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="navigation" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">06 / Navigation</span>
+          <div>
+            <h2>Find your way around</h2>
+            <p class="section-intro">The activity rail changes the left panel without covering your document.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Files and project search</h3>
+          <p>Files shows the project tree and open documents. Search scans the whole project; press <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> to open it directly and use case, whole-word, or regular-expression filters.</p>
+          <h3>Outline</h3>
+          <p>Outline groups sections, figures, and tables found in your LaTeX source. Select an item to jump to it. If the outline is empty, compile or add supported structures such as <code>\section</code>.</p>
+          <h3>Grammar and project health</h3>
+          <p>Grammar runs LanguageTool on the open file and lists targeted spelling, grammar, and style suggestions. Project health looks for broader project issues such as missing assets, bibliography concerns, and structural problems. See <a href="#grammar">Check grammar and style</a> for the full workflow.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="references" data-doc-section
+        data-search="bibliography bibtex tidy format normalise normalize duplicate keys merge rename missing unused cited zotero citedrive doi crossref arxiv issues">
+        <div class="section-heading">
+          <span class="section-number">07 / Sources</span>
+          <div>
+            <h2>Manage references and citations</h2>
+            <p class="section-intro">Keep bibliography records visible while you write, insert valid citation keys without memorising them, and fix citation problems before they reach the PDF.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <p>Open <strong>References</strong> from the activity rail to search the project bibliography, filter issues, add records, and connect supported external sources. When a project contains several <code>.bib</code> files, switch the scope between the files the current document actually uses and every bibliography file in the project.</p>
+
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the References panel">
+              <span>Screenshot placeholder — References panel with the search field, the All / Cited / Unused / Issues filters, and a list of bibliography records.</span>
+            </div>
+            <figcaption>The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected bibliography scope.</figcaption>
+          </figure>
+
+          <h3>Insert citations while writing</h3>
+          <ol class="steps">
+            <li><span>Add a record by identifier, import BibTeX, or connect Zotero, CiteDrive, or another bibliography file.</span></li>
+            <li><span>Put the cursor where the citation belongs and choose <strong>Cite</strong> in the editor toolbar.</span></li>
+            <li><span>Search, select a citation style, and insert. Opal writes the corresponding LaTeX command into the source.</span></li>
+          </ol>
+          <p>Metadata lookups can use Crossref, arXiv, or Open Library. External services require a network connection; local bibliography editing does not.</p>
+
+          <h3>Find citation problems</h3>
+          <p>The filter row counts references by state so problems are visible at a glance:</p>
+          <ul>
+            <li><strong>Cited / Unused</strong> — which records the document actually cites, and which sit unused in the bibliography.</li>
+            <li><strong>Issues → Missing</strong> — citation keys used in the document that have no bibliography record. Open one to see where it is cited, then add the record by identifier or, with AI configured, ask Opal to investigate likely candidates.</li>
+            <li><strong>Issues → Duplicate keys</strong> — the same key defined more than once, possibly across different <code>.bib</code> files, which makes the citation ambiguous at compile time.</li>
+          </ul>
+
+          <h3>Resolve duplicate keys</h3>
+          <p>Choose <strong>Review / bulk fix duplicate keys</strong> to open the resolution dialog. For each duplicated key, compare the copies — title, authors, year, and source file are shown — then pick the fix that matches the situation:</p>
+          <ol class="steps">
+            <li><span><strong>Keep this; remove others</strong> — when the copies describe the same source, keep one record and delete the redundant ones.</span></li>
+            <li><span><strong>Rename this copy</strong> — when different works ended up sharing a key, give one copy a new key. Existing <code>\cite</code> commands are not rewritten, because Opal cannot know which record each citation intended.</span></li>
+            <li><span><strong>Bulk fix</strong> — the first copy of every duplicated key keeps its original key; the remaining copies receive new keys. No records are deleted.</span></li>
+          </ol>
+
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the duplicate bibliography key dialog">
+              <span>Screenshot placeholder — “Fix duplicate bibliography keys” dialog showing two copies of one key with the Rename and Keep actions.</span>
+            </div>
+            <figcaption>The duplicate dialog groups copies by key and searches across keys, titles, authors, years, and files.</figcaption>
+          </figure>
+
+          <h3>Tidy BibTeX files</h3>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 15 4 4L20 7" /></svg>
+            <div><strong>Tidy is formatting, not deduplication.</strong><p>Tidy normalises how records are written; it does not remove duplicate records. Use the duplicate-key dialog above to merge or rename copies.</p></div>
+          </div>
+          <p>With a <code>.bib</code> file open, choose <strong>Tidy file</strong> in the editor toolbar to reformat every record: consistent braces, field order, casing, and indentation, with empty and repeated fields removed. Entries are cleaned in place — never reordered or merged — so the diff stays reviewable. To clean a single record, right-click inside it and choose <strong>Tidy this reference</strong>.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="zotero" data-doc-section
+        data-search="zotero desktop cloud oauth api key collections sync import jabref citedrive external library connect disconnect">
+        <div class="section-heading">
+          <span class="section-number">08 / Libraries</span>
+          <div>
+            <h2>Connect reference libraries</h2>
+            <p class="section-intro">Pull bibliographies from Zotero, CiteDrive, or a JabRef-managed file, and keep them in sync as normal <code>.bib</code> files in your project.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Zotero</h3>
+          <p>In the References panel, connect to Zotero one of two ways:</p>
+          <ol class="steps">
+            <li><span><strong>Zotero Desktop</strong> — talks to the Zotero application on this computer. Works offline and needs no API key; keep Zotero running while you connect.</span></li>
+            <li><span><strong>Zotero Cloud</strong> — signs in to your online library through Zotero's authorisation page, or connect manually with an API key created at <a href="https://www.zotero.org/settings/keys">zotero.org/settings/keys</a>.</span></li>
+          </ol>
+          <p>Once connected, Opal lists <strong>My Library</strong> and your collections, including nested ones. Import a collection to write it into the project as a <code>.bib</code> file; the row then shows the file it feeds. Use <strong>Sync</strong> on a row to pull the latest records from Zotero, or stop syncing when the project should keep its own copy. Records added in Zotero flow in on the next sync — citations you have already inserted keep working because the <code>.bib</code> file stays in the project.</p>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the Zotero collections view">
+              <span>Screenshot placeholder — connected Zotero library showing My Library and nested collections, one synced to a .bib file.</span>
+            </div>
+            <figcaption>Synced collections show which bibliography file they update; the connection can be switched between Desktop and Cloud at any time.</figcaption>
+          </figure>
+          <h3>CiteDrive</h3>
+          <p>In CiteDrive, open <strong>Connect Project</strong> and copy the dynamic <code>.bib</code> URL, then paste it into <strong>Connect CiteDrive</strong> in the References panel. Opal fetches the bibliography into a project file and can refresh it from the same URL later.</p>
+          <h3>JabRef or any external .bib file</h3>
+          <p>Link a bibliography file managed outside the project — for example one JabRef maintains — and Opal copies it in and tracks the original. When the source changes, refresh to update the project copy; if both copies changed, Opal reports the conflict instead of overwriting your edits.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="ai-setup" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">09 / Optional AI</span>
+          <div>
+            <h2>Set up an AI provider</h2>
+            <p class="section-intro">Opal works without AI. Connecting a provider adds chat, proofreading, completion, explanation, and review-based editing tools.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <ol class="steps">
+            <li><span>Choose the <strong>Settings</strong> gear at the bottom of the activity rail.</span></li>
+            <li><span>Under <strong>AI Provider</strong>, select Anthropic or OpenAI. Leave <strong>None</strong> selected to keep AI features off.</span></li>
+            <li><span>Choose <strong>Set API key</strong>, enter the key from your provider, and save it.</span></li>
+            <li><span>For an OpenAI-compatible service such as Ollama, DeepSeek, or OpenRouter, set the optional Base URL.</span></li>
+            <li><span>Run <strong>Test connection</strong>. A successful authenticated response confirms the setup.</span></li>
+          </ol>
+          <figure class="interface-figure">
+            <div class="screenshot-frame">
+              <img src="assets/opal-elsevier-settings.png"
+                alt="Opal Settings over the Elsevier sample project, showing AI provider selection, a configured API key, a custom base URL, and the Test connection button" />
+            </div>
+            <figcaption>Settings keeps provider choice, key status, compatible endpoints, and the connection test together. API key values are never shown in the guide.</figcaption>
+          </figure>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
+            <div><strong>You remain the author.</strong><p>AI is bring-your-own-key and disabled by default. Suggested document edits wait for your approval before they become part of the source.</p></div>
+          </div>
+          <h3>Turn AI off again</h3>
+          <p>Return to Settings and select <strong>None</strong>. The AI chat and AI-only actions disappear; editing and local compilation continue normally. You can also remove a saved key from the provider section.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="ai-capabilities" data-doc-section
+        data-search="paraphrase rewrite proofread complete explain compile errors references citations validate verify lookup search missing duplicate bibliography capture ask">
+        <div class="section-heading">
+          <span class="section-number">10 / AI workflows</span>
+          <div>
+            <h2>What else AI can do</h2>
+            <p class="section-intro">Use the built-in actions for common jobs, or describe a precise task in chat. Opal sends only the scope and attachments you choose.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Improve prose without surrendering your voice</h3>
+          <p>Select a passage and choose <strong>Proofread</strong> to check language and propose fixes. In Chat, ask for a paraphrase, a shorter version, a change of tone, clearer transitions, or an explanation of what is unclear. State what must remain unchanged — terminology, claims, citations, LaTeX commands, or word count — and use the smallest useful scope.</p>
+
+          <h3>Continue, explain, and repair</h3>
+          <p><strong>Complete</strong> continues from the selected context; <strong>Explain</strong> can unpack LaTeX, equations, or unfamiliar project code; and <strong>Fix</strong> focuses on errors. From a compile failure, ask AI to explain the log or prepare a reviewable fix. You can also select text in the PDF for proofreading or use <kbd>Ctrl</kbd> <kbd>X</kbd> to capture a region and ask about it.</p>
+
+          <h3>Search and validate references</h3>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" /></svg>
+            <div><strong>Reference search provides candidates, not proof by itself.</strong><p>Confirm the title, authors, venue, year, DOI, and relevance to your claim. Resolver-verified additions are labelled; unverified bibliography entries must be reviewed individually.</p></div>
+          </div>
+          <p>The References panel identifies missing citation keys and can ask AI to investigate one. Opal searches publication services for candidates, verifies a candidate’s metadata through its DOI or source record, and presents the evidence and confidence before offering a bibliography entry. It can also check missing or duplicate keys and help review duplicate records.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="ai-review" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">11 / Change control</span>
+          <div>
+            <h2>Review AI changes</h2>
+            <p class="section-intro">Choose what context to send, then accept or reject every proposed edit.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <h3>Choose a sensible scope</h3>
+          <p>Use a selection for a focused rewrite, a file for local context, a chapter for longer reasoning, or the project only when the request genuinely depends on multiple files. Smaller scopes are easier to review.</p>
+          <h3>Inspect before accepting</h3>
+          <p>Proposed changes appear as a review queue in the editor. Use <kbd>F8</kbd> and <kbd>Shift</kbd> <kbd>F8</kbd> to move between changes, then accept or reject each one. Check citations, numerical claims, and LaTeX structure yourself.</p>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the AI change review queue">
+              <span>Screenshot placeholder — the editor showing a proposed AI edit as an inline diff with Accept and Reject controls.</span>
+            </div>
+            <figcaption>Every AI edit waits in the review queue; nothing reaches the source until you accept it.</figcaption>
+          </figure>
+          <p>Opal makes a version-history snapshot before AI edits, giving you another recovery point if you need to compare or restore.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="review-mode" data-doc-section
+        data-search="review mode pdf comments annotations feedback resolve reopen source synctex">
+        <div class="section-heading">
+          <span class="section-number">12 / Review mode</span>
+          <div>
+            <h2>Review the finished PDF</h2>
+            <p class="section-intro">Review mode turns the compiled document into a focused commenting surface without changing the LaTeX source.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <ol class="steps">
+            <li><span>Choose <strong>Review</strong> in the PDF toolbar. Opal expands the PDF and opens the Review comments panel.</span></li>
+            <li><span>Select PDF text and choose <strong>Add review comment</strong>, or right-click any PDF location and add a point comment.</span></li>
+            <li><span>Write what should be changed or checked. The comment is anchored to that page and, when SyncTeX can resolve it, to the matching source location.</span></li>
+            <li><span>Select a comment to return to its PDF annotation. Choose <strong>Source</strong> to leave Review mode and open the associated LaTeX.</span></li>
+            <li><span>Resolve finished comments, reopen them when needed, or delete them. Use <strong>Show resolved</strong> to include completed feedback.</span></li>
+          </ol>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of Review mode">
+              <span>Screenshot placeholder — Review mode with a highlighted PDF passage, its anchored comment, and the Review comments panel.</span>
+            </div>
+            <figcaption>Comments anchor to the page and, when SyncTeX resolves, to the matching source location.</figcaption>
+          </figure>
+          <p>Review comments are saved with the project in <code>.tectonic-editor/review-comments.json</code>. They are separate from AI proposed changes and do not alter the PDF or source until you make an edit.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="grammar" data-doc-section
+        data-search="grammar checked check spelling style typography languagetool picky language offline local server replacement dismiss">
+        <div class="section-heading">
+          <span class="section-number">13 / Grammar</span>
+          <div>
+            <h2>Check grammar and style</h2>
+            <p class="section-intro">LanguageTool checks the prose in the open file while leaving LaTeX commands, mathematics, and citations alone.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <ol class="steps">
+            <li><span>Open <strong>Grammar</strong> from the activity rail and choose <strong>Check</strong>. The result applies to the file that was open when the check started.</span></li>
+            <li><span>Select an issue to jump to the affected text. Spelling, grammar, and style or typography suggestions use distinct colours.</span></li>
+            <li><span>Choose a suggested replacement to apply it, or dismiss a suggestion that does not fit the document.</span></li>
+          </ol>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the Grammar panel">
+              <span>Screenshot placeholder — Grammar panel listing spelling, grammar, and style suggestions with one issue highlighted in the editor.</span>
+            </div>
+            <figcaption>Suggestion categories use distinct colours in both the panel and the editor.</figcaption>
+          </figure>
+          <h3>Configure LanguageTool</h3>
+          <div class="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 15 4 4L20 7" /></svg>
+            <div><strong>Grammar checking and AI proofreading are different.</strong><p>LanguageTool reports targeted rule-based suggestions. AI proofreading can make broader rewrites, so its proposed edits should be reviewed for meaning, terminology, and factual accuracy.</p></div>
+          </div>
+          <p>In Settings, choose automatic detection or a specific language and enable <strong>Picky mode</strong> for stricter style and typography rules. The default public LanguageTool service requires internet and is rate-limited; point Opal to a local LanguageTool server for offline or private checking.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="health" data-doc-section
+        data-search="project health labels references broken duplicate missing assets figures tables captions packages usepackage undefined">
+        <div class="section-heading">
+          <span class="section-number">14 / Project health</span>
+          <div>
+            <h2>Check project health</h2>
+            <p class="section-intro">One panel surfaces the cross-file problems that otherwise only show up at compile time — or in a reviewer's report.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <p>Open <strong>Project health</strong> from the activity rail. Opal analyses the whole project and groups findings by category, each marked as an error, warning, or informational note. Select an issue to jump to the offending location.</p>
+          <ul>
+            <li><strong>Labels</strong> — duplicate <code>\label</code> keys, <code>\ref</code> commands with no matching label, and labels nothing references.</li>
+            <li><strong>Citations</strong> — duplicate bibliography keys, cited keys with no record, and records never cited. These mirror the Issues filters in the References panel.</li>
+            <li><strong>Assets</strong> — figures pointing at image files that do not exist, and image files no figure uses.</li>
+            <li><strong>Figures and tables</strong> — floats missing a caption or a label, which breaks numbering and cross-references.</li>
+            <li><strong>Packages</strong> — features your source uses whose package is not declared (with a one-click fix that adds the <code>\usepackage</code> line), packages declared twice, and packages that appear unused.</li>
+          </ul>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the Project health panel">
+              <span>Screenshot placeholder — Project health panel with categorised issues and a missing-package fix button.</span>
+            </div>
+            <figcaption>Errors block or corrupt output; warnings and notes are judgement calls you can act on or ignore.</figcaption>
+          </figure>
+          <p>A useful pre-submission habit: run through Project health, then the References panel's Issues filter, then a final compile — in that order, so structural fixes land before the last build.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="history" data-doc-section
+        data-search="version history snapshot restore recover undo checkpoint diff label backup">
+        <div class="section-heading">
+          <span class="section-number">15 / Safety net</span>
+          <div>
+            <h2>Use version history</h2>
+            <p class="section-intro">Opal records project snapshots at natural checkpoints so an earlier state is always within reach.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <p>Choose <strong>History</strong> in the PDF toolbar to open the snapshot list. Snapshots are taken when you save, before a compile, and before AI applies edits — so a recovery point already exists by the time you need one.</p>
+          <ol class="steps">
+            <li><span>Select a snapshot to review its differences against the previous state directly in the editor.</span></li>
+            <li><span>Label a snapshot you may want to find again, such as <em>submitted draft</em>.</span></li>
+            <li><span>Choose <strong>Restore</strong> to return the project files to that snapshot.</span></li>
+          </ol>
+          <figure class="interface-figure">
+            <div class="screenshot-frame placeholder" role="img"
+              aria-label="Placeholder for a screenshot of the version history panel">
+              <span>Screenshot placeholder — History panel with a list of snapshots, one labelled, and its diff shown in the editor.</span>
+            </div>
+            <figcaption>Snapshot history lives inside the project and works alongside Git or any other version control you already use.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="doc-section" id="appearance" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">16 / Preferences</span>
+          <div>
+            <h2>Adjust appearance and focus</h2>
+            <p class="section-intro">The palette button above Settings controls how the workspace looks without mixing display options into general settings.</p>
+          </div>
+        </div>
+        <div class="prose">
+          <p>Choose light, dark, or system mode; select a workspace colour palette; change editor text size; and set the code-highlighting theme. Click the displayed text size to reset it.</p>
+          <p><kbd>Ctrl</kbd> plus scroll changes only the editor text size. <kbd>Ctrl</kbd> <kbd>+</kbd>, <kbd>Ctrl</kbd> <kbd>−</kbd>, and <kbd>Ctrl</kbd> <kbd>0</kbd> zoom the entire application.</p>
+          <p>Focus mode hides surrounding panels when you need a cleaner writing surface. Toggle it from the workspace controls or with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd>.</p>
+        </div>
+      </section>
+
+      <section class="doc-section" id="shortcuts" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">17 / Shortcuts</span>
+          <div>
+            <h2>Useful keyboard shortcuts</h2>
+            <p class="section-intro">Use Command instead of Control for the equivalent shortcuts on macOS.</p>
+          </div>
+        </div>
+        <div class="prose shortcut-list" role="list">
+          <div class="shortcut-row" role="listitem"><span>Open command palette</span><span><kbd>Ctrl</kbd> <kbd>K</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Save active file</span><span><kbd>Ctrl</kbd> <kbd>S</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Compile document</span><span><kbd>Ctrl</kbd> <kbd>Enter</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Search current file</span><span><kbd>Ctrl</kbd> <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Search whole project</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Toggle PDF preview</span><span><kbd>Ctrl</kbd> <kbd>\</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Toggle focus mode</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Open contextual editor</span><span><kbd>Alt</kbd> <kbd>Enter</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Next / previous proposed change</span><span><kbd>F8</kbd> / <kbd>Shift</kbd> <kbd>F8</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Capture a PDF region and ask</span><span><kbd>Ctrl</kbd> <kbd>X</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>New Opal window</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd></span></div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="faq" data-doc-section>
+        <div class="section-heading">
+          <span class="section-number">18 / Help</span>
+          <div>
+            <h2>Troubleshooting and FAQs</h2>
+            <p class="section-intro">Start with the smallest check that can explain the problem.</p>
+          </div>
+        </div>
+        <div class="prose faq-list">
+          <details>
+            <summary>The PDF is not updating. What should I check?</summary>
+            <p>Save the file and run an explicit Compile. Check the error message and Problems area, confirm that Opal detected the correct root file, and make sure any referenced images or bibliography files exist at the paths used by your source.</p>
+          </details>
+          <details>
+            <summary>Where is the full compile log?</summary>
+            <p>Opal keeps build artefacts in the project's hidden <code>.tectonic-editor/build/</code> folder; the engine log is stored there next to the output as <code>&lt;root&gt;.log</code>. The Problems area summarises errors, but the raw log is the place to check warnings such as overfull boxes or undefined references. With AI configured, you can also ask chat to read and explain the build log.</p>
+          </details>
+          <details>
+            <summary>I accepted a change I regret. Can I get the old version back?</summary>
+            <p>Yes. Open <strong>History</strong> in the PDF toolbar and restore the snapshot taken before the change. Opal snapshots the project when you save, before compiles, and before AI edits are applied. See <a href="#history">Use version history</a>.</p>
+          </details>
+          <details>
+            <summary>Why does clicking LaTeX open another editor?</summary>
+            <p>Interactive editing is enabled. Choose <strong>Interactive</strong> in the editor toolbar to switch it to <strong>Source only</strong>. You can still open a contextual editor with <kbd>Alt</kbd> <kbd>Enter</kbd>.</p>
+          </details>
+          <details>
+            <summary>Why can’t I see the AI chat?</summary>
+            <p>AI chat is hidden while the provider is set to None. Open Settings, choose a provider, configure its key or endpoint, and run the connection test.</p>
+          </details>
+          <details>
+            <summary>Does Opal require an account or internet connection?</summary>
+            <p>No account is required, and editing plus compilation are local. The first use of some LaTeX packages may download them. AI providers, metadata lookups, Zotero Cloud, public GitHub imports, and grammar services may require a network connection.</p>
+          </details>
+          <details>
+            <summary>Where is the beginner LaTeX tutorial?</summary>
+            <p>The <strong>New to LaTeX</strong> guide is separate from this application documentation. Start it from the home screen; its graduation-cap icon appears in the activity rail while the tutorial project is open.</p>
+          </details>
+          <details>
+            <summary>How do I report a bug?</summary>
+            <p>Open the project on GitHub and create an issue with the Opal version, operating system, steps to reproduce, and any useful compile error. Remove API keys and private document content before attaching logs or screenshots.</p>
+          </details>
+        </div>
+      </section>
+
+      <div class="no-results" id="no-results" role="status">
+        <h2>No matching topic</h2>
+        <p>Try a broader word such as “AI”, “compile”, “references”, “interactive”, or “appearance”.</p>
+      </div>
+
+      <footer class="docs-footer">
+        <span>Opal documentation · Updated for v1.4</span>
+        <nav aria-label="Footer links">
+          <a href="index.html">Product website</a>
+          <a href="https://github.com/danylaksono/tectonic-editor/issues">Report an issue</a>
+        </nav>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const searchInput = document.querySelector("#docs-search");
+    const sections = Array.from(document.querySelectorAll("[data-doc-section]"));
+    const navLinks = Array.from(document.querySelectorAll(".nav-link"));
+    const noResults = document.querySelector("#no-results");
+
+    const normalise = (value) => value.toLocaleLowerCase().trim();
+
+    function filterDocumentation() {
+      const query = normalise(searchInput.value);
+      let visibleCount = 0;
+
+      sections.forEach((section) => {
+        const searchableText = `${section.textContent} ${section.dataset.search ?? ""}`;
+        const matches = !query || normalise(searchableText).includes(query);
+        section.classList.toggle("hidden-by-search", !matches);
+        const link = document.querySelector(`.nav-link[href="#${section.id}"]`);
+        link?.classList.toggle("hidden-by-search", !matches);
+        if (matches) visibleCount += 1;
+      });
+
+      document.querySelector(".quick-paths")?.classList.toggle("hidden-by-search", Boolean(query));
+      noResults.classList.toggle("visible", visibleCount === 0);
+    }
+
+    searchInput.addEventListener("input", filterDocumentation);
+    searchInput.addEventListener("search", filterDocumentation);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "/" && document.activeElement !== searchInput) {
+        event.preventDefault();
+        searchInput.focus();
+      }
+
+      if (event.key === "Escape" && document.activeElement === searchInput) {
+        searchInput.value = "";
+        filterDocumentation();
+        searchInput.blur();
+      }
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (!visible) return;
+        navLinks.forEach((link) => link.classList.toggle("active", link.hash === `#${visible.target.id}`));
+      },
+      { rootMargin: "-18% 0px -68%", threshold: 0 },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+  </script>
+</body>
+
+</html>
