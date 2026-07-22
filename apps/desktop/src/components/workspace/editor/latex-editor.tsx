@@ -464,7 +464,9 @@ export function LatexEditor() {
   const setProblemDiagnostics = useProblemsStore((s) => s.setDiagnostics);
   const clearProblemDiagnostics = useProblemsStore((s) => s.clearDiagnostics);
 
-  const compileRef = useRef<() => void>(() => {});
+  const compileRef = useRef<(opts?: { skipIfUnchanged?: boolean }) => void>(
+    () => {},
+  );
   const isSearchOpenRef = useRef(false);
   const themeCompartmentRef = useRef(new Compartment());
   const fontSizeCompartmentRef = useRef(new Compartment());
@@ -1084,7 +1086,7 @@ export function LatexEditor() {
   };
 
   // Compile: save all files first, then compile via Tauri command
-  compileRef.current = async () => {
+  compileRef.current = async ({ skipIfUnchanged = false } = {}) => {
     const state = useDocumentStore.getState();
     if (!projectRoot || activeFile?.type !== "tex") return;
     if (state.isCompiling) {
@@ -1102,6 +1104,14 @@ export function LatexEditor() {
       return;
     }
     const { rootId, targetPath } = resolved;
+    // Save-triggered compiles bail when nothing changed since the last
+    // successful compile of this root; explicit compiles always run.
+    if (
+      skipIfUnchanged &&
+      state.lastCompiledGenerations.get(rootId) === state.contentGeneration
+    ) {
+      return;
+    }
     useHistoryStore.getState().stopReview();
     setIsCompiling(true);
     state.setPendingRecompile(false);
@@ -1298,6 +1308,12 @@ export function LatexEditor() {
             state.setIsSaving(true);
             state
               .saveCurrentFile()
+              .then(() => {
+                // Overleaf-style save-and-compile: rebuild the detected root
+                // document (which may be another file that \input's this one).
+                // Fire-and-forget so the saving indicator clears independently.
+                compileRef.current({ skipIfUnchanged: true });
+              })
               .finally(() => setTimeout(() => state.setIsSaving(false), 500));
             return true;
           },

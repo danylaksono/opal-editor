@@ -1135,7 +1135,8 @@ export function PdfPreview() {
             PDF Preview
           </h2>
           <p className="mb-4 text-center text-muted-foreground text-sm">
-            Compile {rootFileName} to inspect the PDF.
+            Save (Ctrl+S) or click Compile to build {rootFileName} — this works
+            from any file in the project.
           </p>
           {isTexActive && (
             <Button
