@@ -9,7 +9,7 @@ const CACHE_SECONDS: u64 = 30 * 24 * 60 * 60;
 const USER_AGENT: &str = concat!(
     "Opal/",
     env!("CARGO_PKG_VERSION"),
-    " (bibliography import; https://github.com/danylaksono/tectonic-editor)"
+    " (bibliography import; https://github.com/danylaksono/opal-editor)"
 );
 static OPEN_LIBRARY_LAST_REQUEST: OnceLock<tokio::sync::Mutex<Option<Instant>>> = OnceLock::new();
 

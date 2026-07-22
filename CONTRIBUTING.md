@@ -37,7 +37,7 @@ vcpkg install harfbuzz[graphite2]:x64-windows freetype:x64-windows icu:x64-windo
 ### Setup
 
 ```bash
-git clone https://github.com/danylaksono/tectonic-editor.git
+git clone https://github.com/danylaksono/opal-editor.git
 cd tectonic-editor
 pnpm install
 ```

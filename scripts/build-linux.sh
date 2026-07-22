@@ -71,7 +71,7 @@ if [ -n "$APPIMAGE_PATH" ] && [ -n "$APPIMAGE_SIG" ]; then
       const data = JSON.parse(fs.readFileSync('$LATEST_JSON', 'utf8'));
       data.platforms['linux-x86_64'] = {
         signature: \`$SIGNATURE\`,
-        url: 'https://github.com/danylaksono/tectonic-editor/releases/download/$TAG/Opal-Linux.AppImage'
+        url: 'https://github.com/danylaksono/opal-editor/releases/download/$TAG/Opal-Linux.AppImage'
       };
       fs.writeFileSync('$LATEST_JSON', JSON.stringify(data, null, 2));
     "
@@ -84,7 +84,7 @@ if [ -n "$APPIMAGE_PATH" ] && [ -n "$APPIMAGE_SIG" ]; then
   "platforms": {
     "linux-x86_64": {
       "signature": "$SIGNATURE",
-      "url": "https://github.com/danylaksono/tectonic-editor/releases/download/$TAG/Opal-Linux.AppImage"
+      "url": "https://github.com/danylaksono/opal-editor/releases/download/$TAG/Opal-Linux.AppImage"
     }
   }
 }
@@ -98,11 +98,11 @@ fi
 
 # Upload to GitHub Release
 echo "==> Uploading to GitHub Release $TAG"
-gh release view "$TAG" --repo danylaksono/tectonic-editor >/dev/null 2>&1 || \
-  gh release create "$TAG" --repo danylaksono/tectonic-editor --title "Opal $TAG" --generate-notes
+gh release view "$TAG" --repo danylaksono/opal-editor >/dev/null 2>&1 || \
+  gh release create "$TAG" --repo danylaksono/opal-editor --title "Opal $TAG" --generate-notes
 
 gh release upload "$TAG" \
-  --repo danylaksono/tectonic-editor \
+  --repo danylaksono/opal-editor \
   --clobber \
   "${ASSETS[@]}"
 

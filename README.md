@@ -57,7 +57,7 @@ The editor is designed for **researchers, scientists, and academics** who want a
 
 ## Install
 
-Download from [GitHub Releases](https://github.com/danylaksono/tectonic-editor/releases).
+Download from [GitHub Releases](https://github.com/danylaksono/opal-editor/releases).
 
 ## Develop
 

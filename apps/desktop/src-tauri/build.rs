@@ -10,7 +10,7 @@ fn main() {
     // On Linux, apply a version script to hide statically linked ICU/HarfBuzz/
     // FreeType/Fontconfig symbols from the dynamic symbol table.  This prevents
     // symbol collisions with the system copies loaded by WebKit2GTK (segfault).
-    // See: https://github.com/danylaksono/tectonic-editor/issues/100
+    // See: https://github.com/danylaksono/opal-editor/issues/100
     #[cfg(target_os = "linux")]
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         println!(
