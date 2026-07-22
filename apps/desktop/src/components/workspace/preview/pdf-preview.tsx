@@ -18,6 +18,7 @@ import {
   MessageSquareTextIcon,
   Minimize2Icon,
   HighlighterIcon,
+  CheckIcon,
   SparklesIcon,
   GaugeIcon,
 } from "lucide-react";
@@ -107,6 +108,10 @@ import {
 import { MarkdownRenderer } from "@/components/ai-chat/markdown-renderer";
 import { suggestCompileFix } from "@/lib/latex-guidance";
 import { zoomCache, type FitMode } from "./zoom-cache";
+import {
+  REVIEW_HIGHLIGHT_COLORS,
+  resolveReviewHighlightColor,
+} from "@/lib/review-colors";
 
 const log = createLogger("pdf-preview");
 
@@ -377,6 +382,12 @@ export function PdfPreview() {
   const [reviewDraft, setReviewDraft] = useState<ReviewCommentDraft | null>(
     null,
   );
+  const reviewHighlightColor = useSettingsStore(
+    (state) => state.reviewHighlightColor,
+  );
+  const setReviewHighlightColor = useSettingsStore(
+    (state) => state.setReviewHighlightColor,
+  );
   // Armed tool while review mode is on: drag-a-box highlighter or
   // click-to-pin comments. "none" leaves the PDF in plain browse mode.
   const [reviewTool, setReviewTool] = useState<
@@ -496,6 +507,7 @@ export function PdfPreview() {
         kind: comment.anchor.kind,
         annotationKind: comment.kind,
         status: comment.status,
+        color: comment.color,
       })),
     [documentReviewComments],
   );
@@ -639,6 +651,7 @@ export function PdfPreview() {
       const comment = addReviewComment({
         documentRoot: rootFileName,
         kind: "highlight",
+        color: useSettingsStore.getState().reviewHighlightColor,
         body: "",
         anchor: {
           kind: target.kind,
@@ -1424,6 +1437,7 @@ export function PdfPreview() {
                   onPlaceHighlight={
                     isActive ? createHighlightAnnotation : undefined
                   }
+                  highlightColor={reviewHighlightColor}
                 />
               </div>
             </ErrorBoundary>
@@ -1640,6 +1654,39 @@ export function PdfPreview() {
               >
                 <HighlighterIcon className="size-3.5" />
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    title="Highlight colour"
+                    aria-label="Highlight colour"
+                  >
+                    <span
+                      className={`size-3 rounded-full ${resolveReviewHighlightColor(reviewHighlightColor).swatch}`}
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-36">
+                  {REVIEW_HIGHLIGHT_COLORS.map((color) => (
+                    <DropdownMenuItem
+                      key={color.id}
+                      onClick={() => {
+                        setReviewHighlightColor(color.id);
+                        // Picking a colour arms the highlighter too.
+                        setReviewTool("highlight");
+                      }}
+                    >
+                      <span className={`size-3 rounded-full ${color.swatch}`} />
+                      {color.label}
+                      {reviewHighlightColor === color.id && (
+                        <CheckIcon className="ml-auto size-3.5" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant={reviewTool === "comment" ? "secondary" : "ghost"}
                 size="icon"

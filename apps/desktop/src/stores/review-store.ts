@@ -49,6 +49,9 @@ export interface ReviewComment {
   body: string;
   status: "open" | "resolved";
   anchor: ReviewAnchor;
+  /** Highlight colour token (see REVIEW_HIGHLIGHT_COLORS); absent for
+   *  comments and for highlights saved before colours existed. */
+  color?: string;
   replies: ReviewReply[];
   createdAt: string;
   updatedAt: string;
@@ -74,6 +77,7 @@ interface AddReviewCommentInput {
   body: string;
   anchor: ReviewAnchor;
   kind?: ReviewAnnotationKind;
+  color?: string;
 }
 
 interface ReviewState {
@@ -157,6 +161,7 @@ function isReviewComment(value: unknown): value is ReviewComment {
     typeof comment.author === "string" &&
     typeof comment.body === "string" &&
     (comment.status === "open" || comment.status === "resolved") &&
+    (comment.color === undefined || typeof comment.color === "string") &&
     typeof comment.createdAt === "string" &&
     typeof comment.updatedAt === "string" &&
     Array.isArray(comment.replies) &&
@@ -329,6 +334,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       body: input.body.trim(),
       status: "open",
       anchor: input.anchor,
+      color: input.color,
       replies: [],
       createdAt: now,
       updatedAt: now,

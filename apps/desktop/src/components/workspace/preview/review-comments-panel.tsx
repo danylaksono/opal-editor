@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { resolveReviewHighlightColor } from "@/lib/review-colors";
 
 interface ReviewCommentsPanelProps {
   comments: ReviewComment[];
@@ -187,7 +188,12 @@ export function ReviewCommentsPanel({
                     {comment.status === "resolved" ? (
                       <CheckCircle2Icon className="size-3.5 text-emerald-600" />
                     ) : comment.kind === "highlight" ? (
-                      <HighlighterIcon className="size-3.5 text-yellow-600" />
+                      <HighlighterIcon
+                        className={cn(
+                          "size-3.5",
+                          resolveReviewHighlightColor(comment.color).accent,
+                        )}
+                      />
                     ) : (
                       <CircleIcon className="size-3.5" />
                     )}
@@ -204,7 +210,7 @@ export function ReviewCommentsPanel({
                       className={cn(
                         "mb-2 line-clamp-3 border-l-2 pl-2 text-muted-foreground text-xs",
                         comment.kind === "highlight"
-                          ? "border-yellow-500/60"
+                          ? resolveReviewHighlightColor(comment.color).border
                           : "border-muted-foreground/30",
                       )}
                     >

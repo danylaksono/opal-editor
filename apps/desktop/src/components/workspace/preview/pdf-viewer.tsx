@@ -16,6 +16,7 @@ import {
 } from "@/lib/mupdf/pdf-doc-cache";
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
 import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
+import { resolveReviewHighlightColor } from "@/lib/review-colors";
 import { createLogger } from "@/lib/debug/logger";
 import { scrollBehavior } from "@/lib/utils";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
@@ -120,6 +121,8 @@ interface PdfViewerProps {
    *  equations, and tables. */
   highlightPlacementMode?: boolean;
   onPlaceHighlight?: (target: PdfReviewTarget) => void;
+  /** Colour token for the highlight drag preview. */
+  highlightColor?: string;
 }
 
 export function PdfViewer({
@@ -150,6 +153,7 @@ export function PdfViewer({
   onPlacePointComment,
   highlightPlacementMode = false,
   onPlaceHighlight,
+  highlightColor,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1025,7 +1029,7 @@ export function PdfViewer({
             <div
               className={
                 dragMode === "highlight"
-                  ? "pointer-events-none fixed rounded-sm bg-yellow-300/40 ring-1 ring-yellow-500/60"
+                  ? `pointer-events-none fixed rounded-sm ring-1 ${resolveReviewHighlightColor(highlightColor).preview}`
                   : "pointer-events-none fixed border-2 border-primary bg-primary/10"
               }
               style={selRect}

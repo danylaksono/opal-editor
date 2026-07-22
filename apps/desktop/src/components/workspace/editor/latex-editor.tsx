@@ -142,6 +142,7 @@ import { createLogger } from "@/lib/debug/logger";
 import { toast } from "sonner";
 import { semanticCompletionSource } from "@/lib/semantic/completion-source";
 import { latexTabCompletion } from "@/lib/latex-inline-completion";
+import { applyFormattedText, formatLatexSource } from "@/lib/latex-format";
 import { sourceLensExtension } from "@/lib/source-lens";
 import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
 import { usePreviewStore } from "@/stores/preview-store";
@@ -1366,11 +1367,37 @@ export function LatexEditor() {
         },
         {
           key: "Mod-s",
-          run: () => {
+          run: (view) => {
             const state = useDocumentStore.getState();
             state.setIsSaving(true);
-            state
-              .saveCurrentFile()
+            // Auto-format .tex files before writing to disk (like a
+            // prettier-on-save). Never blocks the save: formatting failures
+            // (e.g. unbalanced environments mid-edit) are logged and skipped.
+            const maybeFormat = async () => {
+              const active = state.files.find(
+                (f) => f.id === state.activeFileId,
+              );
+              if (
+                active?.type !== "tex" ||
+                !useSettingsStore.getState().formatLatexOnSave
+              ) {
+                return;
+              }
+              const before = view.state.doc.toString();
+              try {
+                const formatted = await formatLatexSource(before);
+                // Skip if the user kept typing while the formatter ran.
+                if (view.state.doc.toString() === before) {
+                  applyFormattedText(view, formatted);
+                }
+              } catch (error) {
+                log.warn("Skipping LaTeX auto-format", {
+                  error: String(error),
+                });
+              }
+            };
+            maybeFormat()
+              .then(() => state.saveCurrentFile())
               .then(() => {
                 // Overleaf-style save-and-compile: rebuild the detected root
                 // document (which may be another file that \input's this one).

@@ -57,6 +57,14 @@ interface SettingsState {
    *  "resolve automatically" (git user.name, then OS username). */
   reviewerName: string;
   setReviewerName: (name: string) => void;
+  /** Run tex-fmt on the active .tex file when saving with Ctrl+S. */
+  formatLatexOnSave: boolean;
+  setFormatLatexOnSave: (enabled: boolean) => void;
+  /** Last-used PDF review highlighter colour (token, not hex — see
+   *  REVIEW_HIGHLIGHT_COLORS). Each annotation stores its own colour; this is
+   *  just the default for the next highlight. */
+  reviewHighlightColor: string;
+  setReviewHighlightColor: (color: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -92,6 +100,10 @@ export const useSettingsStore = create<SettingsState>()(
       setLanguageToolPicky: (picky) => set({ languageToolPicky: picky }),
       reviewerName: "",
       setReviewerName: (name) => set({ reviewerName: name.trim() }),
+      formatLatexOnSave: true,
+      setFormatLatexOnSave: (enabled) => set({ formatLatexOnSave: enabled }),
+      reviewHighlightColor: "yellow",
+      setReviewHighlightColor: (color) => set({ reviewHighlightColor: color }),
     }),
     {
       name: "tectonic-editor-settings",
@@ -122,6 +134,12 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (s && typeof s.reviewerName !== "string") {
           s.reviewerName = "";
+        }
+        if (s && typeof s.formatLatexOnSave !== "boolean") {
+          s.formatLatexOnSave = true;
+        }
+        if (s && typeof s.reviewHighlightColor !== "string") {
+          s.reviewHighlightColor = "yellow";
         }
         return s as SettingsState;
       },

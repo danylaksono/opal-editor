@@ -5,6 +5,7 @@ import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { StructuredTextData, LinkData } from "@/lib/mupdf/types";
 import { MessageSquareIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveReviewHighlightColor } from "@/lib/review-colors";
 
 const log = createLogger("mupdf-page");
 
@@ -19,6 +20,8 @@ export interface MupdfReviewAnnotation {
   /** Highlights render as a clickable wash without the comment bubble. */
   annotationKind: "comment" | "highlight";
   status: "open" | "resolved";
+  /** Highlight colour token; falls back to yellow. */
+  color?: string;
 }
 
 interface MupdfPageProps {
@@ -239,7 +242,7 @@ export const MupdfPage = memo(function MupdfPage({
                   "absolute z-[3] cursor-pointer rounded-sm",
                   annotation.status === "resolved"
                     ? "bg-slate-300/25 hover:bg-slate-300/40"
-                    : "bg-yellow-300/40 hover:bg-yellow-300/55",
+                    : resolveReviewHighlightColor(annotation.color).wash,
                   selectedReviewAnnotationId === annotation.id &&
                     "ring-2 ring-blue-500/60",
                 )}

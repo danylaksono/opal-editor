@@ -6,6 +6,7 @@ mod latex;
 mod metadata;
 mod project_import;
 mod reference_sources;
+mod texfmt;
 mod uv;
 mod zotero;
 
@@ -746,6 +747,7 @@ pub fn run() {
             project_import::import_github_project,
             export::export_project_zip,
             export::get_default_reviewer_name,
+            texfmt::format_latex,
             reference_sources::read_external_bibliography,
             reference_sources::fetch_citedrive_bibliography,
             // Unified AI provider commands

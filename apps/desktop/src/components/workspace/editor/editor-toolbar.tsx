@@ -22,6 +22,7 @@ import {
   BoxesIcon,
   ChevronDownIcon,
   MoreHorizontalIcon,
+  TextQuoteIcon,
   MousePointerClickIcon,
   RadicalIcon,
   SigmaIcon,
@@ -67,6 +68,7 @@ import { defaultWorkspaceMode, useLensStore } from "@/stores/lens-store";
 import type { TableModel } from "@/lib/latex-tables";
 import type { MathNode } from "@/lib/latex-math";
 import { tidyBibFileSource } from "@/lib/bibtex-entries";
+import { applyFormattedText, formatLatexSource } from "@/lib/latex-format";
 
 interface EditorInfo {
   id: string;
@@ -213,6 +215,28 @@ export function EditorToolbar({
   const wrapSelection = (wrapper: string) => {
     insertText(wrapper, wrapper);
   };
+
+  const formatDocument = useCallback(() => {
+    const view = editorView.current;
+    if (!view) return;
+    const source = view.state.doc.toString();
+    formatLatexSource(source)
+      .then((formatted) => {
+        // Skip if the user kept typing while the formatter ran.
+        if (view.state.doc.toString() !== source) return;
+        if (applyFormattedText(view, formatted)) {
+          toast.success("Document formatted");
+        } else {
+          toast.info("Document is already formatted");
+        }
+        view.focus();
+      })
+      .catch((error) => {
+        toast.error("Could not format document", {
+          description: String(error),
+        });
+      });
+  }, [editorView]);
 
   const tidyWholeFile = useCallback(() => {
     const view = editorView.current;
@@ -664,6 +688,10 @@ export function EditorToolbar({
               Cross-reference
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={formatDocument}>
+              <TextQuoteIcon className="size-4" />
+              Format document
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setVimMode(!vimMode)}>
               <CodeIcon className="size-4" />
               Vim mode

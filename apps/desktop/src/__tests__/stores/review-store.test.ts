@@ -186,11 +186,13 @@ describe("useReviewStore", () => {
     const highlight = useReviewStore.getState().addComment({
       documentRoot: "main.tex",
       kind: "highlight",
+      color: "green",
       body: "",
       anchor: savedComment.anchor,
     });
     expect(highlight.kind).toBe("highlight");
     expect(highlight.body).toBe("");
+    expect(highlight.color).toBe("green");
   });
 
   it("appends replies to the parent annotation and persists its author's file", async () => {

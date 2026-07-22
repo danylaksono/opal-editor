@@ -93,6 +93,8 @@ function EditorSection() {
   const setInlineEditorsOnClick = useSettingsStore(
     (s) => s.setInlineEditorsOnClick,
   );
+  const formatLatexOnSave = useSettingsStore((s) => s.formatLatexOnSave);
+  const setFormatLatexOnSave = useSettingsStore((s) => s.setFormatLatexOnSave);
 
   return (
     <div className="space-y-3">
@@ -154,6 +156,22 @@ function EditorSection() {
           type="checkbox"
           checked={inlineEditorsOnClick}
           onChange={(event) => setInlineEditorsOnClick(event.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Format LaTeX on save</div>
+          <div className="text-muted-foreground text-xs">
+            Tidy indentation and environment layout with tex-fmt when saving a
+            .tex file (Ctrl+S). Never re-wraps your prose. "Format document" in
+            the editor's More menu works regardless.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={formatLatexOnSave}
+          onChange={(event) => setFormatLatexOnSave(event.target.checked)}
           className="size-4 accent-primary"
         />
       </label>
