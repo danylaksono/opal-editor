@@ -17,12 +17,16 @@ import {
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  PackageIcon,
   SearchIcon,
   SettingsIcon,
   CircleHelpIcon,
   StethoscopeIcon,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
+import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { Sidebar } from "./sidebar";
 import { AppearancePopover } from "./appearance-popover";
 import { StatusBar } from "./status-bar";
@@ -70,6 +74,37 @@ function ActivityRail() {
   const closeProject = useDocumentStore((s) => s.closeProject);
   const tutorialProject = useOnboardingStore((s) => s.tutorialProject);
   const [showSettings, setShowSettings] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Pack sources + review/ + compiled PDF into a zip for sharing with peers.
+  const handleExportProject = async () => {
+    if (!projectRoot || exporting) return;
+    const projectName =
+      projectRoot
+        .replace(/[\\/]+$/, "")
+        .split(/[\\/]/)
+        .pop() || "project";
+    const destination = await save({
+      title: "Export project",
+      defaultPath: `${projectName}.zip`,
+      filters: [{ name: "Zip archive", extensions: ["zip"] }],
+    });
+    if (!destination) return;
+    setExporting(true);
+    try {
+      const result = await invoke<{ fileCount: number; zipPath: string }>(
+        "export_project_zip",
+        { projectRoot, destination },
+      );
+      toast.success("Project exported", {
+        description: `${result.fileCount} files packed into ${result.zipPath}`,
+      });
+    } catch (error) {
+      toast.error("Export failed", { description: String(error) });
+    } finally {
+      setExporting(false);
+    }
+  };
   const visiblePanelItems =
     projectRoot && projectRoot === tutorialProject
       ? [
@@ -153,6 +188,21 @@ function ActivityRail() {
         >
           <CircleHelpIcon className="size-4" />
         </Button>
+        {projectRoot && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => void handleExportProject()}
+            disabled={exporting}
+            title="Export project as zip (sources, review annotations, PDF)"
+            aria-label="Export project as zip"
+          >
+            <PackageIcon
+              className={cn("size-4", exporting && "animate-pulse")}
+            />
+          </Button>
+        )}
         <AppearancePopover />
         <Button
           variant="ghost"

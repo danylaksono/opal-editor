@@ -9,6 +9,7 @@ import {
   CheckCircle2Icon,
   CircleIcon,
   InfoIcon,
+  MessageSquareTextIcon,
 } from "lucide-react";
 import { DEFAULT_LANGUAGETOOL_URL } from "@/lib/language-tool";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -46,6 +47,7 @@ export function SettingsDialog({
 
         <div className="space-y-6 pt-2">
           <EditorSection />
+          <ReviewSection />
           <GrammarSection />
           <AiSettings />
           <PythonSection />
@@ -185,6 +187,38 @@ function EditorSection() {
           className="size-4 accent-primary"
         />
       </label>
+    </div>
+  );
+}
+
+function ReviewSection() {
+  const reviewerName = useSettingsStore((s) => s.reviewerName);
+  const setReviewerName = useSettingsStore((s) => s.setReviewerName);
+
+  return (
+    <div className="space-y-3">
+      <SectionHeading icon={MessageSquareTextIcon} title="PDF Review" />
+      <div className="space-y-1.5">
+        <label
+          htmlFor="reviewer-name"
+          className="text-muted-foreground text-xs"
+        >
+          Reviewer name
+        </label>
+        <input
+          id="reviewer-name"
+          type="text"
+          value={reviewerName}
+          onChange={(e) => setReviewerName(e.target.value)}
+          placeholder="Auto (git user.name or OS username)"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Stamped on PDF review comments, highlights, and replies stored in the
+          project's <span className="font-mono">review/</span> folder, so peers
+          can tell who wrote what.
+        </p>
+      </div>
     </div>
   );
 }

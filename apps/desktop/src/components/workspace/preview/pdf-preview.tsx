@@ -17,6 +17,8 @@ import {
   MessageSquarePlusIcon,
   MessageSquareTextIcon,
   Minimize2Icon,
+  HighlighterIcon,
+  MousePointer2Icon,
   SparklesIcon,
   GaugeIcon,
 } from "lucide-react";
@@ -364,6 +366,7 @@ export function PdfPreview() {
     (state) => state.setCommentStatus,
   );
   const deleteReviewComment = useReviewStore((state) => state.deleteComment);
+  const addReviewReply = useReviewStore((state) => state.addReply);
   const [pageInputValue, setPageInputValue] = useState<string>("1");
   const [isEditingPage, setIsEditingPage] = useState(false);
   const scrollToPageRef = useRef<((page: number) => void) | null>(null);
@@ -375,6 +378,14 @@ export function PdfPreview() {
   const [reviewDraft, setReviewDraft] = useState<ReviewCommentDraft | null>(
     null,
   );
+  // Active tool while review mode is on: plain selection, instant highlighter,
+  // or click-to-pin comments.
+  const [reviewTool, setReviewTool] = useState<
+    "select" | "highlight" | "comment"
+  >("select");
+  useEffect(() => {
+    if (!reviewMode) setReviewTool("select");
+  }, [reviewMode]);
   const [fitMode, setFitMode] = useState<FitMode>(null);
   const [containerSize, setContainerSize] = useState<{
     width: number;
@@ -484,6 +495,7 @@ export function PdfPreview() {
         width: comment.anchor.width,
         height: comment.anchor.height,
         kind: comment.anchor.kind,
+        annotationKind: comment.kind,
         status: comment.status,
       })),
     [documentReviewComments],
@@ -617,10 +629,58 @@ export function PdfPreview() {
     column: number;
   } | null>(null);
 
-  const handleTextSelect = useCallback((selection: PdfTextSelection | null) => {
-    setPdfSelection(selection);
-    setResolvedSource(null);
-  }, []);
+  // Instant highlight: no dialog, saved immediately with a synctex source so
+  // "go to source" works on it like any comment.
+  const createHighlightAnnotation = useCallback(
+    async (target: PdfReviewTarget) => {
+      if (!target.page) return;
+      const source = projectRoot
+        ? await synctexEdit(projectRoot, target.page, target.x, target.y)
+        : null;
+      const comment = addReviewComment({
+        documentRoot: rootFileName,
+        kind: "highlight",
+        body: "",
+        anchor: {
+          kind: target.kind,
+          page: target.page,
+          x: target.x,
+          y: target.y,
+          width: Math.max(12, target.width),
+          height: Math.max(12, target.height),
+          selectedText: target.selectedText || undefined,
+          source: source ?? undefined,
+        },
+      });
+      setSelectedReviewId(comment.id);
+    },
+    [projectRoot, rootFileName, addReviewComment],
+  );
+
+  const handleTextSelect = useCallback(
+    (selection: PdfTextSelection | null) => {
+      // Highlighter tool: releasing a selection paints it immediately instead
+      // of opening the selection toolbar.
+      if (selection && reviewMode && reviewTool === "highlight") {
+        void createHighlightAnnotation({
+          kind: "text",
+          page: selection.pageNumber,
+          x: selection.pdfX,
+          y: selection.pdfY,
+          width: selection.pdfWidth,
+          height: selection.pdfHeight,
+          selectedText: selection.text,
+        });
+        window.getSelection()?.removeAllRanges();
+        setPdfSelection(null);
+        setResolvedSource(null);
+        return;
+      }
+      setPdfSelection(selection);
+      setResolvedSource(null);
+    },
+    [reviewMode, reviewTool, createHighlightAnnotation],
+  );
 
   // When PDF selection changes, resolve source via synctex
   useEffect(() => {
@@ -743,6 +803,11 @@ export function PdfPreview() {
   const pdfToolbarActions: ToolbarAction[] = useMemo(
     () => [
       {
+        id: "highlight",
+        label: "Highlight",
+        icon: <HighlighterIcon className="size-4" />,
+      },
+      {
         id: "comment",
         label: "Add review comment",
         icon: <MessageSquarePlusIcon className="size-4" />,
@@ -784,6 +849,16 @@ export function PdfPreview() {
           height: sel.pdfHeight,
           selectedText: sel.text,
         });
+      } else if (actionId === "highlight") {
+        void createHighlightAnnotation({
+          kind: "text",
+          page: sel.pageNumber,
+          x: sel.pdfX,
+          y: sel.pdfY,
+          width: sel.pdfWidth,
+          height: sel.pdfHeight,
+          selectedText: sel.text,
+        });
       } else if (actionId === "proofread") {
         useAiChatStore
           .getState()
@@ -803,6 +878,7 @@ export function PdfPreview() {
       navigateToSource,
       buildPdfContext,
       startReviewComment,
+      createHighlightAnnotation,
     ],
   );
 
@@ -1357,6 +1433,12 @@ export function PdfPreview() {
                     isActive ? handleSelectReviewAnnotation : undefined
                   }
                   onAddReviewComment={isActive ? startReviewComment : undefined}
+                  commentPlacementMode={
+                    isActive && reviewMode && reviewTool === "comment"
+                  }
+                  onPlacePointComment={
+                    isActive ? startReviewComment : undefined
+                  }
                 />
               </div>
             </ErrorBoundary>
@@ -1710,6 +1792,46 @@ export function PdfPreview() {
           {reviewMode ? "Exit review" : "Review"}
         </Button>
       )}
+      {/* Review tool pill — only while review mode is active. Shifted left of
+          the comments panel like the exit button above. */}
+      {pdfData && !pdfError && reviewMode && (
+        <div className="absolute bottom-4 left-[calc(50%-10rem)] z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur-sm">
+          {[
+            {
+              id: "select" as const,
+              label: "Select text",
+              icon: MousePointer2Icon,
+            },
+            {
+              id: "highlight" as const,
+              label: "Highlight — select text to highlight it",
+              icon: HighlighterIcon,
+            },
+            {
+              id: "comment" as const,
+              label: "Comment — click the PDF to pin a comment",
+              icon: MessageSquarePlusIcon,
+            },
+          ].map((tool) => {
+            const Icon = tool.icon;
+            const active = reviewTool === tool.id;
+            return (
+              <Button
+                key={tool.id}
+                variant={active ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                title={tool.label}
+                aria-label={tool.label}
+                aria-pressed={active}
+                onClick={() => setReviewTool(tool.id)}
+              >
+                <Icon className="size-3.5" />
+              </Button>
+            );
+          })}
+        </div>
+      )}
       {compileFailure && pdfData && (
         <button
           type="button"
@@ -1812,6 +1934,7 @@ export function PdfPreview() {
             onSetStatus={(comment, status) =>
               setReviewCommentStatus(comment.id, status)
             }
+            onReply={(comment, body) => addReviewReply(comment.id, body)}
             onDelete={(comment) => {
               if (
                 window.confirm(

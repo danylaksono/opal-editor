@@ -1,15 +1,19 @@
 import {
   exists,
   mkdir,
+  readDir,
   readTextFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createLogger } from "@/lib/debug/logger";
+import { useSettingsStore } from "@/stores/settings-store";
 
 const log = createLogger("review");
-const REVIEW_FILE_VERSION = 1;
+const REVIEW_FILE_VERSION = 2;
+const REVIEW_DIRECTORY = "review";
 
 export interface ReviewSourceLocation {
   file: string;
@@ -28,58 +32,136 @@ export interface ReviewAnchor {
   source?: ReviewSourceLocation;
 }
 
+export interface ReviewReply {
+  id: string;
+  author: string;
+  body: string;
+  createdAt: string;
+}
+
+export type ReviewAnnotationKind = "comment" | "highlight";
+
 export interface ReviewComment {
   id: string;
+  kind: ReviewAnnotationKind;
   documentRoot: string;
+  author: string;
   body: string;
   status: "open" | "resolved";
   anchor: ReviewAnchor;
+  replies: ReviewReply[];
   createdAt: string;
   updatedAt: string;
 }
 
+/** One reviewer's file inside the project's review/ folder. Keeping each
+ *  reviewer in their own file means peer round-trips merge without conflicts:
+ *  everyone only rewrites files for authors whose annotations they touched. */
 interface ReviewFile {
   version: number;
-  comments: ReviewComment[];
+  author: string;
+  annotations: ReviewComment[];
+}
+
+/** Legacy v1 file at .tectonic-editor/review-comments.json. */
+interface LegacyReviewFile {
+  version: number;
+  comments: unknown[];
 }
 
 interface AddReviewCommentInput {
   documentRoot: string;
   body: string;
   anchor: ReviewAnchor;
+  kind?: ReviewAnnotationKind;
 }
 
 interface ReviewState {
   projectRoot: string | null;
   comments: ReviewComment[];
   loading: boolean;
+  /** Resolved author name used for new annotations and replies. */
+  reviewer: string;
   loadProject: (projectRoot: string) => Promise<void>;
   clearProject: () => void;
   addComment: (input: AddReviewCommentInput) => ReviewComment;
+  addReply: (id: string, body: string) => void;
   setCommentStatus: (id: string, status: ReviewComment["status"]) => void;
   deleteComment: (id: string) => void;
 }
 
 let writeQueue: Promise<void> = Promise.resolve();
 
-function isReviewComment(value: unknown): value is ReviewComment {
+const FALLBACK_REVIEWER = "Reviewer";
+let cachedDefaultReviewer: string | null = null;
+
+/** Reviewer identity: explicit Settings value, else git user.name / OS
+ *  username (resolved once per session by the backend), else "Reviewer". */
+async function resolveReviewerName(): Promise<string> {
+  const configured = useSettingsStore.getState().reviewerName.trim();
+  if (configured) return configured;
+  if (cachedDefaultReviewer === null) {
+    try {
+      cachedDefaultReviewer = (
+        await invoke<string>("get_default_reviewer_name")
+      ).trim();
+    } catch {
+      cachedDefaultReviewer = "";
+    }
+  }
+  return cachedDefaultReviewer || FALLBACK_REVIEWER;
+}
+
+function isReviewSourceLocation(value: unknown): value is ReviewSourceLocation {
   if (!value || typeof value !== "object") return false;
-  const comment = value as Partial<ReviewComment>;
-  const anchor = comment.anchor as Partial<ReviewAnchor> | undefined;
+  const source = value as Partial<ReviewSourceLocation>;
   return (
-    typeof comment.id === "string" &&
-    typeof comment.documentRoot === "string" &&
-    typeof comment.body === "string" &&
-    (comment.status === "open" || comment.status === "resolved") &&
-    typeof comment.createdAt === "string" &&
-    typeof comment.updatedAt === "string" &&
-    !!anchor &&
+    typeof source.file === "string" &&
+    typeof source.line === "number" &&
+    typeof source.column === "number"
+  );
+}
+
+function isReviewAnchor(value: unknown): value is ReviewAnchor {
+  if (!value || typeof value !== "object") return false;
+  const anchor = value as Partial<ReviewAnchor>;
+  return (
     (anchor.kind === "text" || anchor.kind === "point") &&
     typeof anchor.page === "number" &&
     typeof anchor.x === "number" &&
     typeof anchor.y === "number" &&
     typeof anchor.width === "number" &&
-    typeof anchor.height === "number"
+    typeof anchor.height === "number" &&
+    (anchor.source === undefined || isReviewSourceLocation(anchor.source))
+  );
+}
+
+function isReviewReply(value: unknown): value is ReviewReply {
+  if (!value || typeof value !== "object") return false;
+  const reply = value as Partial<ReviewReply>;
+  return (
+    typeof reply.id === "string" &&
+    typeof reply.author === "string" &&
+    typeof reply.body === "string" &&
+    typeof reply.createdAt === "string"
+  );
+}
+
+function isReviewComment(value: unknown): value is ReviewComment {
+  if (!value || typeof value !== "object") return false;
+  const comment = value as Partial<ReviewComment>;
+  return (
+    typeof comment.id === "string" &&
+    (comment.kind === "comment" || comment.kind === "highlight") &&
+    typeof comment.documentRoot === "string" &&
+    typeof comment.author === "string" &&
+    typeof comment.body === "string" &&
+    (comment.status === "open" || comment.status === "resolved") &&
+    typeof comment.createdAt === "string" &&
+    typeof comment.updatedAt === "string" &&
+    Array.isArray(comment.replies) &&
+    comment.replies.every(isReviewReply) &&
+    isReviewAnchor(comment.anchor)
   );
 }
 
@@ -88,41 +170,102 @@ function parseReviewFile(value: string): ReviewComment[] {
     const parsed = JSON.parse(value) as Partial<ReviewFile>;
     if (
       parsed.version !== REVIEW_FILE_VERSION ||
-      !Array.isArray(parsed.comments)
+      !Array.isArray(parsed.annotations)
     ) {
       return [];
     }
-    return parsed.comments.filter(isReviewComment);
+    return parsed.annotations.filter(isReviewComment);
   } catch {
     return [];
   }
 }
 
-async function reviewFilePath(projectRoot: string): Promise<{
-  directory: string;
-  file: string;
-}> {
-  const directory = await join(projectRoot, ".tectonic-editor");
-  return {
-    directory,
-    file: await join(directory, "review-comments.json"),
-  };
+/** Upgrade v1 comments (no kind/author/replies) to the v2 shape. */
+function parseLegacyReviewFile(value: string, author: string): ReviewComment[] {
+  try {
+    const parsed = JSON.parse(value) as Partial<LegacyReviewFile>;
+    if (parsed.version !== 1 || !Array.isArray(parsed.comments)) return [];
+    return parsed.comments
+      .map((entry): unknown => ({
+        kind: "comment",
+        author,
+        replies: [],
+        ...(entry as object),
+      }))
+      .filter(isReviewComment);
+  } catch {
+    return [];
+  }
 }
 
-function persistComments(projectRoot: string, comments: ReviewComment[]): void {
-  const snapshot: ReviewFile = {
-    version: REVIEW_FILE_VERSION,
-    comments,
-  };
+async function reviewDirectoryPath(projectRoot: string): Promise<string> {
+  return join(projectRoot, REVIEW_DIRECTORY);
+}
+
+async function legacyReviewFilePath(projectRoot: string): Promise<string> {
+  return join(projectRoot, ".tectonic-editor", "review-comments.json");
+}
+
+/** File name for one reviewer's annotations, e.g. review/dany-laksono.json. */
+function reviewerFileName(author: string): string {
+  const slug = author
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${slug || "reviewer"}.json`;
+}
+
+async function loadReviewDirectory(
+  projectRoot: string,
+): Promise<ReviewComment[]> {
+  const directory = await reviewDirectoryPath(projectRoot);
+  if (!(await exists(directory))) return [];
+  const entries = await readDir(directory);
+  const comments: ReviewComment[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile || !entry.name.endsWith(".json")) continue;
+    try {
+      const content = await readTextFile(await join(directory, entry.name));
+      comments.push(...parseReviewFile(content));
+    } catch (error) {
+      log.error("Failed to read review file", {
+        file: entry.name,
+        error: String(error),
+      });
+    }
+  }
+  return comments;
+}
+
+/** Rewrite the review files of the given authors from the current state.
+ *  Serialized through a queue so rapid edits never interleave writes. */
+function persistAuthors(
+  projectRoot: string,
+  comments: ReviewComment[],
+  authors: Iterable<string>,
+): void {
+  const authorSet = new Set(authors);
   writeQueue = writeQueue
     .catch(() => {})
     .then(async () => {
-      const path = await reviewFilePath(projectRoot);
-      await mkdir(path.directory, { recursive: true });
-      await writeTextFile(path.file, JSON.stringify(snapshot, null, 2));
+      const directory = await reviewDirectoryPath(projectRoot);
+      await mkdir(directory, { recursive: true });
+      for (const author of authorSet) {
+        const snapshot: ReviewFile = {
+          version: REVIEW_FILE_VERSION,
+          author,
+          annotations: comments.filter((comment) => comment.author === author),
+        };
+        await writeTextFile(
+          await join(directory, reviewerFileName(author)),
+          JSON.stringify(snapshot, null, 2),
+        );
+      }
     })
     .catch((error) => {
-      log.error("Failed to save review comments", { error: String(error) });
+      log.error("Failed to save review annotations", {
+        error: String(error),
+      });
     });
 }
 
@@ -134,19 +277,40 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   projectRoot: null,
   comments: [],
   loading: false,
+  reviewer: FALLBACK_REVIEWER,
 
   loadProject: async (projectRoot) => {
     set({ projectRoot, comments: [], loading: true });
     try {
-      const path = await reviewFilePath(projectRoot);
-      const comments = (await exists(path.file))
-        ? parseReviewFile(await readTextFile(path.file))
-        : [];
+      const reviewer = await resolveReviewerName();
+      let comments = await loadReviewDirectory(projectRoot);
+
+      // One-time migration: projects saved before the review/ folder existed
+      // kept a single hidden file under .tectonic-editor.
+      if (comments.length === 0) {
+        const legacyPath = await legacyReviewFilePath(projectRoot);
+        if (await exists(legacyPath)) {
+          const migrated = parseLegacyReviewFile(
+            await readTextFile(legacyPath),
+            reviewer,
+          );
+          if (migrated.length > 0) {
+            comments = migrated;
+            persistAuthors(projectRoot, comments, [reviewer]);
+            log.info("Migrated legacy review comments", {
+              count: migrated.length,
+            });
+          }
+        }
+      }
+
       if (get().projectRoot === projectRoot) {
-        set({ comments, loading: false });
+        set({ comments, loading: false, reviewer });
       }
     } catch (error) {
-      log.error("Failed to load review comments", { error: String(error) });
+      log.error("Failed to load review annotations", {
+        error: String(error),
+      });
       if (get().projectRoot === projectRoot) {
         set({ comments: [], loading: false });
       }
@@ -159,35 +323,69 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
     const now = new Date().toISOString();
     const comment: ReviewComment = {
       id: createCommentId(),
+      kind: input.kind ?? "comment",
       documentRoot: input.documentRoot,
+      author: get().reviewer,
       body: input.body.trim(),
       status: "open",
       anchor: input.anchor,
+      replies: [],
       createdAt: now,
       updatedAt: now,
     };
     const comments = [...get().comments, comment];
     set({ comments });
     const projectRoot = get().projectRoot;
-    if (projectRoot) persistComments(projectRoot, comments);
+    if (projectRoot) persistAuthors(projectRoot, comments, [comment.author]);
     return comment;
   },
 
-  setCommentStatus: (id, status) => {
-    const comments = get().comments.map((comment) =>
-      comment.id === id
-        ? { ...comment, status, updatedAt: new Date().toISOString() }
-        : comment,
-    );
+  addReply: (id, body) => {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    const reply: ReviewReply = {
+      id: createCommentId(),
+      author: get().reviewer,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+    };
+    let touchedAuthor: string | null = null;
+    const comments = get().comments.map((comment) => {
+      if (comment.id !== id) return comment;
+      touchedAuthor = comment.author;
+      return {
+        ...comment,
+        replies: [...comment.replies, reply],
+        updatedAt: reply.createdAt,
+      };
+    });
+    if (!touchedAuthor) return;
     set({ comments });
     const projectRoot = get().projectRoot;
-    if (projectRoot) persistComments(projectRoot, comments);
+    // Replies live on the parent annotation, so the parent author's file is
+    // the one that changes.
+    if (projectRoot) persistAuthors(projectRoot, comments, [touchedAuthor]);
+  },
+
+  setCommentStatus: (id, status) => {
+    let touchedAuthor: string | null = null;
+    const comments = get().comments.map((comment) => {
+      if (comment.id !== id) return comment;
+      touchedAuthor = comment.author;
+      return { ...comment, status, updatedAt: new Date().toISOString() };
+    });
+    if (!touchedAuthor) return;
+    set({ comments });
+    const projectRoot = get().projectRoot;
+    if (projectRoot) persistAuthors(projectRoot, comments, [touchedAuthor]);
   },
 
   deleteComment: (id) => {
+    const target = get().comments.find((comment) => comment.id === id);
+    if (!target) return;
     const comments = get().comments.filter((comment) => comment.id !== id);
     set({ comments });
     const projectRoot = get().projectRoot;
-    if (projectRoot) persistComments(projectRoot, comments);
+    if (projectRoot) persistAuthors(projectRoot, comments, [target.author]);
   },
 }));

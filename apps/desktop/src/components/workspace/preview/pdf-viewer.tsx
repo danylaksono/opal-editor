@@ -111,6 +111,10 @@ interface PdfViewerProps {
   selectedReviewAnnotationId?: string | null;
   onSelectReviewAnnotation?: (id: string) => void;
   onAddReviewComment?: (target: PdfReviewTarget) => void;
+  /** Review "comment pin" tool: clicks place a point comment instead of
+   *  interacting with the text layer. */
+  commentPlacementMode?: boolean;
+  onPlacePointComment?: (target: PdfReviewTarget) => void;
 }
 
 export function PdfViewer({
@@ -137,6 +141,8 @@ export function PdfViewer({
   selectedReviewAnnotationId,
   onSelectReviewAnnotation,
   onAddReviewComment,
+  commentPlacementMode = false,
+  onPlacePointComment,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -818,9 +824,35 @@ export function PdfViewer({
     [captureMode, dragStart, dragPageNum, onCapture],
   );
 
-  // Text layer click for onTextClick
+  // Text layer click for onTextClick; in comment-placement mode the click
+  // instead drops a point comment at the clicked PDF location.
   const handleTextLayerClick = useCallback(
     (e: React.MouseEvent) => {
+      if (commentPlacementMode && onPlacePointComment) {
+        // A drag-selection also ends in a click on the ancestor — selecting
+        // text should open the selection toolbar, not drop a pin.
+        if (window.getSelection()?.toString().trim()) return;
+        const target = e.target as HTMLElement;
+        const pageEl = target.closest(".mupdf-page") as HTMLElement | null;
+        if (!pageEl) return;
+        const page = parseInt(
+          pageEl.getAttribute("data-page-number") || "0",
+          10,
+        );
+        if (!page) return;
+        const pageRect = pageEl.getBoundingClientRect();
+        const currentScale = scaleRef.current;
+        onPlacePointComment({
+          kind: "point",
+          page,
+          x: (e.clientX - pageRect.left) / currentScale,
+          y: (e.clientY - pageRect.top) / currentScale,
+          width: 12,
+          height: 12,
+          selectedText: "",
+        });
+        return;
+      }
       if (!onTextClick) return;
       const target = e.target as HTMLElement;
       if (target.tagName === "text" && target.closest(".mupdf-text-layer")) {
@@ -830,7 +862,7 @@ export function PdfViewer({
         }
       }
     },
-    [onTextClick],
+    [onTextClick, commentPlacementMode, onPlacePointComment],
   );
 
   const selRect =
@@ -908,7 +940,10 @@ export function PdfViewer({
           tabIndex={-1}
           {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
           className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
-          style={{ cursor: captureMode ? "crosshair" : undefined }}
+          style={{
+            cursor:
+              captureMode || commentPlacementMode ? "crosshair" : undefined,
+          }}
           onContextMenu={handleContextMenu}
           onMouseDownCapture={() => containerRef.current?.focus()}
           onMouseDown={handleCaptureMouseDown}

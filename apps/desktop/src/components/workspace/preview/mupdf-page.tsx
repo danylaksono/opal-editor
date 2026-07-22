@@ -16,6 +16,8 @@ export interface MupdfReviewAnnotation {
   width: number;
   height: number;
   kind: "text" | "point";
+  /** Highlights render as a clickable wash without the comment bubble. */
+  annotationKind: "comment" | "highlight";
   status: "open" | "resolved";
 }
 
@@ -228,50 +230,77 @@ export const MupdfPage = memo(function MupdfPage({
 
       {reviewAnnotations.map((annotation) => (
         <div key={annotation.id}>
-          {annotation.kind === "text" && (
-            <div
+          {annotation.kind === "text" &&
+            (annotation.annotationKind === "highlight" ? (
+              // Highlights are directly clickable — there is no bubble marker.
+              <button
+                type="button"
+                className={cn(
+                  "absolute z-[3] cursor-pointer rounded-sm",
+                  annotation.status === "resolved"
+                    ? "bg-slate-300/25 hover:bg-slate-300/40"
+                    : "bg-yellow-300/40 hover:bg-yellow-300/55",
+                  selectedReviewAnnotationId === annotation.id &&
+                    "ring-2 ring-blue-500/60",
+                )}
+                style={{
+                  left: annotation.x * scale,
+                  top: annotation.y * scale,
+                  width: Math.max(10, annotation.width * scale),
+                  height: Math.max(10, annotation.height * scale),
+                }}
+                aria-label={`Open highlight on page ${annotation.page}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelectReviewAnnotation?.(annotation.id);
+                }}
+              />
+            ) : (
+              <div
+                className={cn(
+                  "pointer-events-none absolute z-[3] rounded-sm border",
+                  annotation.status === "resolved"
+                    ? "border-slate-400/50 bg-slate-300/15"
+                    : "border-amber-500/50 bg-amber-300/25",
+                  selectedReviewAnnotationId === annotation.id &&
+                    "ring-2 ring-blue-500/60",
+                )}
+                style={{
+                  left: annotation.x * scale,
+                  top: annotation.y * scale,
+                  width: Math.max(10, annotation.width * scale),
+                  height: Math.max(10, annotation.height * scale),
+                }}
+                aria-hidden="true"
+              />
+            ))}
+          {annotation.annotationKind === "comment" && (
+            <button
+              type="button"
               className={cn(
-                "pointer-events-none absolute z-[3] rounded-sm border",
+                "absolute z-[4] flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-transform hover:scale-110",
                 annotation.status === "resolved"
-                  ? "border-slate-400/50 bg-slate-300/15"
-                  : "border-amber-500/50 bg-amber-300/25",
+                  ? "border-slate-400 bg-slate-100 text-slate-500"
+                  : "border-amber-500 bg-amber-300 text-amber-950",
                 selectedReviewAnnotationId === annotation.id &&
-                  "ring-2 ring-blue-500/60",
+                  "ring-2 ring-blue-500 ring-offset-1",
               )}
               style={{
-                left: annotation.x * scale,
+                left:
+                  (annotation.x +
+                    (annotation.kind === "text" ? annotation.width : 0)) *
+                  scale,
                 top: annotation.y * scale,
-                width: Math.max(10, annotation.width * scale),
-                height: Math.max(10, annotation.height * scale),
               }}
-              aria-hidden="true"
-            />
+              aria-label={`Open review comment on page ${annotation.page}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectReviewAnnotation?.(annotation.id);
+              }}
+            >
+              <MessageSquareIcon className="size-3" />
+            </button>
           )}
-          <button
-            type="button"
-            className={cn(
-              "absolute z-[4] flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-transform hover:scale-110",
-              annotation.status === "resolved"
-                ? "border-slate-400 bg-slate-100 text-slate-500"
-                : "border-amber-500 bg-amber-300 text-amber-950",
-              selectedReviewAnnotationId === annotation.id &&
-                "ring-2 ring-blue-500 ring-offset-1",
-            )}
-            style={{
-              left:
-                (annotation.x +
-                  (annotation.kind === "text" ? annotation.width : 0)) *
-                scale,
-              top: annotation.y * scale,
-            }}
-            aria-label={`Open review comment on page ${annotation.page}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelectReviewAnnotation?.(annotation.id);
-            }}
-          >
-            <MessageSquareIcon className="size-3" />
-          </button>
         </div>
       ))}
     </div>

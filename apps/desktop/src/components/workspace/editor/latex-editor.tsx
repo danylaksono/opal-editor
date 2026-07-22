@@ -21,6 +21,7 @@ import {
   historyKeymap,
   indentMore,
   indentLess,
+  insertNewlineKeepIndent,
   toggleComment,
   undo,
   redo,
@@ -1558,6 +1559,15 @@ export function LatexEditor() {
             key: "Tab",
             run: (view) => latexTabCompletion(view) || indentMore(view),
             shift: indentLess,
+          },
+          // The default Enter binding (insertNewlineAndIndent) picks up the
+          // LaTeX language's indent rules, which add a unit of indentation for
+          // anything inside an environment — i.e. every line of prose inside
+          // \begin{document}. Keep the previous line's indentation instead.
+          {
+            key: "Enter",
+            run: insertNewlineKeepIndent,
+            shift: insertNewlineKeepIndent,
           },
           ...defaultKeymap,
           ...historyKeymap,

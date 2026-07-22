@@ -1,6 +1,7 @@
 import {
   exists,
   mkdir,
+  readDir,
   readTextFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
@@ -9,7 +10,9 @@ import { type ReviewComment, useReviewStore } from "@/stores/review-store";
 
 const savedComment: ReviewComment = {
   id: "review-1",
+  kind: "comment",
   documentRoot: "main.tex",
+  author: "Dany",
   body: "Clarify this sentence.",
   status: "open",
   anchor: {
@@ -26,9 +29,30 @@ const savedComment: ReviewComment = {
       column: 4,
     },
   },
+  replies: [],
   createdAt: "2026-07-18T10:00:00.000Z",
   updatedAt: "2026-07-18T10:00:00.000Z",
 };
+
+function mockReviewDirectory(files: Record<string, unknown>) {
+  vi.mocked(exists).mockImplementation(async (path) =>
+    String(path).endsWith("/review"),
+  );
+  vi.mocked(readDir).mockResolvedValue(
+    Object.keys(files).map((name) => ({
+      name,
+      isFile: true,
+      isDirectory: false,
+      isSymlink: false,
+    })),
+  );
+  vi.mocked(readTextFile).mockImplementation(async (path) => {
+    const name = String(path).split("/").pop() ?? "";
+    const content = files[name];
+    if (content === undefined) throw new Error(`unexpected read: ${path}`);
+    return typeof content === "string" ? content : JSON.stringify(content);
+  });
+}
 
 describe("useReviewStore", () => {
   beforeEach(() => {
@@ -37,45 +61,92 @@ describe("useReviewStore", () => {
       projectRoot: null,
       comments: [],
       loading: false,
+      reviewer: "Reviewer",
     });
   });
 
-  it("loads valid project comments from the metadata file", async () => {
-    vi.mocked(exists).mockResolvedValue(true);
-    vi.mocked(readTextFile).mockResolvedValue(
-      JSON.stringify({ version: 1, comments: [savedComment] }),
-    );
+  it("loads annotations from every reviewer file in review/", async () => {
+    const peerComment: ReviewComment = {
+      ...savedComment,
+      id: "review-2",
+      author: "Peer",
+      kind: "highlight",
+      body: "",
+    };
+    mockReviewDirectory({
+      "dany.json": { version: 2, author: "Dany", annotations: [savedComment] },
+      "peer.json": { version: 2, author: "Peer", annotations: [peerComment] },
+      "notes.txt": "ignored",
+    });
+    vi.mocked(readDir).mockResolvedValue([
+      { name: "dany.json", isFile: true, isDirectory: false, isSymlink: false },
+      { name: "peer.json", isFile: true, isDirectory: false, isSymlink: false },
+      { name: "notes.txt", isFile: true, isDirectory: false, isSymlink: false },
+    ]);
 
     await useReviewStore.getState().loadProject("/project");
 
-    expect(readTextFile).toHaveBeenCalledWith(
-      "/project/.tectonic-editor/review-comments.json",
+    expect(useReviewStore.getState().comments).toEqual([
+      savedComment,
+      peerComment,
+    ]);
+    expect(useReviewStore.getState().loading).toBe(false);
+  });
+
+  it("migrates a legacy v1 file into the review/ folder", async () => {
+    const legacy = {
+      id: savedComment.id,
+      documentRoot: savedComment.documentRoot,
+      body: savedComment.body,
+      status: savedComment.status,
+      anchor: savedComment.anchor,
+      createdAt: savedComment.createdAt,
+      updatedAt: savedComment.updatedAt,
+    };
+    vi.mocked(exists).mockImplementation(async (path) =>
+      String(path).endsWith("review-comments.json"),
     );
-    expect(useReviewStore.getState()).toMatchObject({
-      projectRoot: "/project",
-      comments: [savedComment],
-      loading: false,
+    vi.mocked(readTextFile).mockResolvedValue(
+      JSON.stringify({ version: 1, comments: [legacy] }),
+    );
+    vi.mocked(mkdir).mockResolvedValue(undefined);
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+
+    await useReviewStore.getState().loadProject("/project");
+
+    const migrated = useReviewStore.getState().comments;
+    expect(migrated).toHaveLength(1);
+    expect(migrated[0]).toMatchObject({
+      id: "review-1",
+      kind: "comment",
+      author: "Reviewer",
+      replies: [],
+      body: "Clarify this sentence.",
+    });
+    await vi.waitFor(() => {
+      expect(writeTextFile).toHaveBeenCalledWith(
+        "/project/review/reviewer.json",
+        expect.stringContaining('"version": 2'),
+      );
     });
   });
 
-  it("treats missing or malformed metadata as an empty review", async () => {
-    vi.mocked(exists).mockResolvedValueOnce(false);
-
+  it("treats missing or malformed files as an empty review", async () => {
+    vi.mocked(exists).mockResolvedValue(false);
     await useReviewStore.getState().loadProject("/empty");
     expect(useReviewStore.getState().comments).toEqual([]);
 
-    vi.mocked(exists).mockResolvedValueOnce(true);
-    vi.mocked(readTextFile).mockResolvedValueOnce("{not json");
-
+    mockReviewDirectory({ "broken.json": "{not json" });
     await useReviewStore.getState().loadProject("/malformed");
     expect(useReviewStore.getState().comments).toEqual([]);
   });
 
-  it("persists add, resolve, and delete operations in order", async () => {
+  it("persists annotations into the current reviewer's file", async () => {
     vi.mocked(exists).mockResolvedValue(false);
     vi.mocked(mkdir).mockResolvedValue(undefined);
     vi.mocked(writeTextFile).mockResolvedValue(undefined);
     await useReviewStore.getState().loadProject("/project");
+    useReviewStore.setState({ reviewer: "Dany Laksono" });
 
     const comment = useReviewStore.getState().addComment({
       documentRoot: "main.tex",
@@ -83,7 +154,8 @@ describe("useReviewStore", () => {
       anchor: savedComment.anchor,
     });
     expect(comment.body).toBe("Rework this paragraph.");
-    expect(comment.status).toBe("open");
+    expect(comment.author).toBe("Dany Laksono");
+    expect(comment.kind).toBe("comment");
 
     useReviewStore.getState().setCommentStatus(comment.id, "resolved");
     expect(useReviewStore.getState().comments[0]?.status).toBe("resolved");
@@ -94,13 +166,57 @@ describe("useReviewStore", () => {
     await vi.waitFor(() => {
       expect(writeTextFile).toHaveBeenCalledTimes(3);
     });
-
-    expect(mkdir).toHaveBeenCalledWith("/project/.tectonic-editor", {
-      recursive: true,
-    });
+    expect(mkdir).toHaveBeenCalledWith("/project/review", { recursive: true });
     expect(writeTextFile).toHaveBeenLastCalledWith(
-      "/project/.tectonic-editor/review-comments.json",
-      JSON.stringify({ version: 1, comments: [] }, null, 2),
+      "/project/review/dany-laksono.json",
+      JSON.stringify(
+        { version: 2, author: "Dany Laksono", annotations: [] },
+        null,
+        2,
+      ),
     );
+  });
+
+  it("stores highlights with an empty body", async () => {
+    vi.mocked(exists).mockResolvedValue(false);
+    vi.mocked(mkdir).mockResolvedValue(undefined);
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+    await useReviewStore.getState().loadProject("/project");
+
+    const highlight = useReviewStore.getState().addComment({
+      documentRoot: "main.tex",
+      kind: "highlight",
+      body: "",
+      anchor: savedComment.anchor,
+    });
+    expect(highlight.kind).toBe("highlight");
+    expect(highlight.body).toBe("");
+  });
+
+  it("appends replies to the parent annotation and persists its author's file", async () => {
+    mockReviewDirectory({
+      "dany.json": { version: 2, author: "Dany", annotations: [savedComment] },
+    });
+    vi.mocked(mkdir).mockResolvedValue(undefined);
+    vi.mocked(writeTextFile).mockResolvedValue(undefined);
+    await useReviewStore.getState().loadProject("/project");
+    useReviewStore.setState({ reviewer: "Peer" });
+
+    useReviewStore.getState().addReply("review-1", "  Agreed, will fix.  ");
+
+    const [comment] = useReviewStore.getState().comments;
+    expect(comment.replies).toHaveLength(1);
+    expect(comment.replies[0]).toMatchObject({
+      author: "Peer",
+      body: "Agreed, will fix.",
+    });
+
+    await vi.waitFor(() => {
+      // The parent comment belongs to Dany, so Dany's file is rewritten.
+      expect(writeTextFile).toHaveBeenCalledWith(
+        "/project/review/dany.json",
+        expect.stringContaining("Agreed, will fix."),
+      );
+    });
   });
 });

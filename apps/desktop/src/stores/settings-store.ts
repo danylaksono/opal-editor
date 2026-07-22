@@ -53,6 +53,10 @@ interface SettingsState {
   /** Enable LanguageTool's stricter "picky" rules. */
   languageToolPicky: boolean;
   setLanguageToolPicky: (picky: boolean) => void;
+  /** Author name stamped on PDF review comments and replies. Empty means
+   *  "resolve automatically" (git user.name, then OS username). */
+  reviewerName: string;
+  setReviewerName: (name: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -86,6 +90,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ languageToolLanguage: language }),
       languageToolPicky: false,
       setLanguageToolPicky: (picky) => set({ languageToolPicky: picky }),
+      reviewerName: "",
+      setReviewerName: (name) => set({ reviewerName: name.trim() }),
     }),
     {
       name: "tectonic-editor-settings",
@@ -113,6 +119,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (s && typeof s.autoCompile !== "boolean") {
           s.autoCompile = false;
+        }
+        if (s && typeof s.reviewerName !== "string") {
+          s.reviewerName = "";
         }
         return s as SettingsState;
       },

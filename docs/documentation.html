@@ -393,7 +393,7 @@
       border-top: 1px solid var(--line);
     }
 
-    .quick-paths + .doc-section {
+    .quick-paths+.doc-section {
       border-top: 0;
       padding-top: 0;
     }
@@ -901,7 +901,8 @@
         </div>
         <div class="hero-aside">
           <strong>Need one setting?</strong>
-          <span>Press <kbd>/</kbd> to search this page, or use <kbd>Ctrl</kbd> <kbd>K</kbd> inside Opal to find an app command.</span>
+          <span>Press <kbd>/</kbd> to search this page, or use <kbd>Ctrl</kbd> <kbd>K</kbd> inside Opal to find an app
+            command.</span>
         </div>
       </section>
 
@@ -928,7 +929,8 @@
           <span class="section-number">01 / Interface</span>
           <div>
             <h2>Meet the workspace</h2>
-            <p class="section-intro">Opal keeps project navigation, source, and the compiled PDF in one continuous workspace.</p>
+            <p class="section-intro">Opal keeps project navigation, source, and the compiled PDF in one continuous
+              workspace.</p>
           </div>
         </div>
 
@@ -944,12 +946,29 @@
         </figure>
 
         <div class="interface-key" aria-label="Workspace areas">
-          <div><span>1</span><p><strong>Activity rail</strong><small>Open Files, Search, Outline, References, Grammar, and Project health.</small></p></div>
-          <div><span>2</span><p><strong>Project panel</strong><small>Browse files and folders or inspect the selected rail tool.</small></p></div>
-          <div><span>3</span><p><strong>Source editor</strong><small>Edit LaTeX, BibTeX, Markdown, and other project text files.</small></p></div>
-          <div><span>4</span><p><strong>Editor toolbar</strong><small>Insert structures, citations, figures, and tables; choose how clicks behave.</small></p></div>
-          <div><span>5</span><p><strong>PDF preview</strong><small>Compile, navigate pages, zoom, export, and jump back to source.</small></p></div>
-          <div><span>6</span><p><strong>Help and settings</strong><small>Open this guide, change appearance, or configure the editor and optional AI.</small></p></div>
+          <div><span>1</span>
+            <p><strong>Activity rail</strong><small>Open Files, Search, Outline, References, Grammar, and Project
+                health.</small></p>
+          </div>
+          <div><span>2</span>
+            <p><strong>Project panel</strong><small>Browse files and folders or inspect the selected rail tool.</small>
+            </p>
+          </div>
+          <div><span>3</span>
+            <p><strong>Source editor</strong><small>Edit LaTeX, BibTeX, Markdown, and other project text files.</small>
+            </p>
+          </div>
+          <div><span>4</span>
+            <p><strong>Editor toolbar</strong><small>Insert structures, citations, figures, and tables; choose how
+                clicks behave.</small></p>
+          </div>
+          <div><span>5</span>
+            <p><strong>PDF preview</strong><small>Compile, navigate pages, zoom, export, and jump back to
+                source.</small></p>
+          </div>
+          <div><span>6</span>
+            <p><strong>Chat with AI</strong><small>When you need assistance with your LaTeX document.</small></p>
+          </div>
         </div>
       </section>
 
@@ -958,24 +977,40 @@
           <span class="section-number">02 / Projects</span>
           <div>
             <h2>Open a project</h2>
-            <p class="section-intro">A project is a folder containing your LaTeX sources, bibliography, images, and supporting files.</p>
+            <p class="section-intro">A project is a folder containing your LaTeX sources, bibliography, images, and
+              supporting files.</p>
           </div>
         </div>
         <div class="prose">
           <ol class="steps">
-            <li><span>From the home screen, choose <strong>Open folder</strong>, a recent project, or a template.</span></li>
-            <li><span>To bring work from elsewhere, import a LaTeX ZIP or the default branch of a public GitHub repository.</span></li>
-            <li><span>Open the file that contains <code>\documentclass</code>. Opal normally detects it as the root file used for compilation.</span></li>
+            <li><span>From the home screen, choose <strong>Open folder</strong>, a recent project, or a template.</span>
+            </li>
+            <li><span>To bring work from elsewhere, import a LaTeX ZIP or the default branch of a public GitHub
+                repository.</span></li>
+            <li><span>Open the file that contains <code>\documentclass</code>. Opal normally detects it as the root file
+                used for compilation.</span></li>
             <li><span>Choose <strong>Compile</strong> in the PDF toolbar. The output appears on the right.</span></li>
           </ol>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5m0-8h.01" /></svg>
-            <div><strong>Your project stays a normal folder.</strong><p>Opal works directly with local files. You can keep using Git, another editor, or your existing backup system.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5m0-8h.01" />
+            </svg>
+            <div><strong>Your project stays a normal folder.</strong>
+              <p>Opal works directly with local files. You can keep using Git, another editor, or your existing backup
+                system.</p>
+            </div>
           </div>
           <h3>How Opal chooses the root file</h3>
-          <p>Compilation starts from the root file — the one containing <code>\documentclass</code>. Opal checks, in order: a <code>% !TEX root = main.tex</code> magic comment near the top of the active file, the active file itself, a <code>main.tex</code> or <code>document.tex</code> with <code>\documentclass</code>, then any other candidate in the project. In multi-file projects, add the magic comment to chapter files so compiling from a chapter still builds the whole document.</p>
+          <p>Compilation starts from the root file — the one containing <code>\documentclass</code>. Opal checks, in
+            order: a <code>% !TEX root = main.tex</code> magic comment near the top of the active file, the active file
+            itself, a <code>main.tex</code> or <code>document.tex</code> with <code>\documentclass</code>, then any
+            other candidate in the project. In multi-file projects, add the magic comment to chapter files so compiling
+            from a chapter still builds the whole document.</p>
           <h3>Return home or switch projects</h3>
-          <p>Use the Home icon near the top of the activity rail. Open projects also appear in <kbd>Ctrl</kbd> <kbd>K</kbd>, so you can switch without returning to the home screen.</p>
+          <p>Use the Home icon near the top of the activity rail. Open projects also appear in <kbd>Ctrl</kbd>
+            <kbd>K</kbd>, so you can switch without returning to the home screen.
+          </p>
         </div>
       </section>
 
@@ -985,23 +1020,29 @@
           <span class="section-number">03 / Templates</span>
           <div>
             <h2>Start a new document</h2>
-            <p class="section-intro">The home screen offers templates, a blank start, imports, your recent work, and a beginner tutorial.</p>
+            <p class="section-intro">The home screen offers templates, a blank start, imports, your recent work, and a
+              beginner tutorial.</p>
           </div>
         </div>
         <div class="prose">
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the Opal home screen">
-              <span>Screenshot placeholder — home screen with New document, Open project, Import, the tutorial card, and the Recent work list.</span>
+            <div class="screenshot-frame">
+              <img src="assets/home-screen.png" alt="Opal home screen with template options and recent projects" />
             </div>
             <figcaption>The home screen is also where the <strong>New to LaTeX</strong> tutorial starts.</figcaption>
           </figure>
           <h3>Guided setup or blank document</h3>
-          <p>Choose <strong>New document</strong>, then either <strong>Guided Setup</strong> — pick from the template gallery and, with AI configured, describe your document to get a tailored starting point — or <strong>Blank Document</strong> for an empty LaTeX file.</p>
+          <p>Choose <strong>New document</strong>, then either <strong>Guided Setup</strong> — pick from the template
+            gallery and, with AI configured, describe your document to get a tailored starting point — or <strong>Blank
+              Document</strong> for an empty LaTeX file.</p>
           <h3>Templates</h3>
-          <p>The gallery covers common academic documents: research paper, IEEE and ACM conference formats, thesis, technical and scientific reports, book, Beamer presentation, academic poster, CV, formal letter, and newsletter. Each template arrives with the packages its layout needs already declared, so it compiles immediately.</p>
+          <p>The gallery covers common academic documents: research paper, IEEE and ACM conference formats, thesis,
+            technical and scientific reports, book, Beamer presentation, academic poster, CV, formal letter, and
+            newsletter. Each template arrives with the packages its layout needs already declared, so it compiles
+            immediately.</p>
           <h3>Recent work</h3>
-          <p>Recent projects are listed on the home screen; hover a row to remove it from the list without touching the folder on disk. Inside the workspace, <kbd>Ctrl</kbd> <kbd>K</kbd> reaches the same projects.</p>
+          <p>Recent projects are listed on the home screen; hover a row to remove it from the list without touching the
+            folder on disk. Inside the workspace, <kbd>Ctrl</kbd> <kbd>K</kbd> reaches the same projects.</p>
         </div>
       </section>
 
@@ -1010,18 +1051,26 @@
           <span class="section-number">04 / Daily writing</span>
           <div>
             <h2>Edit and compile</h2>
-            <p class="section-intro">Work in source, inspect the PDF, and move between them without losing your place.</p>
+            <p class="section-intro">Work in source, inspect the PDF, and move between them without losing your place.
+            </p>
           </div>
         </div>
         <div class="prose">
           <h3>Save and build</h3>
-          <p>Use <kbd>Ctrl</kbd> <kbd>S</kbd> to save the active file. Choose <strong>Compile</strong> or press <kbd>Ctrl</kbd> <kbd>Enter</kbd> for an explicit build. Compile errors appear near the preview and in the Problems area.</p>
+          <p>Use <kbd>Ctrl</kbd> <kbd>S</kbd> to save the active file. Choose <strong>Compile</strong> or press
+            <kbd>Ctrl</kbd> <kbd>Enter</kbd> for an explicit build. Compile errors appear near the preview and in the
+            Problems area.
+          </p>
           <h3>Work with tabs</h3>
-          <p>Opening a file shows it in a preview tab, which the next opened file reuses. Double-click the tab, edit the file, or choose <strong>Open in New Tab</strong> to pin it; pinned tabs stay until you close them. This keeps quick look-ups from crowding out the files you are actually editing.</p>
+          <p>Opening a file shows it in a preview tab, which the next opened file reuses. Double-click the tab, edit the
+            file, or choose <strong>Open in New Tab</strong> to pin it; pinned tabs stay until you close them. This
+            keeps quick look-ups from crowding out the files you are actually editing.</p>
           <h3>Move between source and PDF</h3>
-          <p>Click a location in the PDF to jump to the corresponding source line. Use the editor and preview controls to return to a matching location. This SyncTeX connection is most precise after a successful compile.</p>
+          <p>Click a location in the PDF to jump to the corresponding source line. Use the editor and preview controls
+            to return to a matching location. This SyncTeX connection is most precise after a successful compile.</p>
           <h3>Control the split</h3>
-          <p>Drag the divider to give source or preview more space. Toggle the PDF with <kbd>Ctrl</kbd> <kbd>\</kbd>, or use focus mode when you want one uncluttered writing surface.</p>
+          <p>Drag the divider to give source or preview more space. Toggle the PDF with <kbd>Ctrl</kbd> <kbd>\</kbd>, or
+            use focus mode when you want one uncluttered writing surface.</p>
         </div>
       </section>
 
@@ -1031,25 +1080,33 @@
           <span class="section-number">05 / Editor behaviour</span>
           <div>
             <h2>Choose how the editor responds</h2>
-            <p class="section-intro">Interactive editing is useful for structured content; source-only mode keeps every click in the code.</p>
+            <p class="section-intro">Interactive editing is useful for structured content; source-only mode keeps every
+              click in the code.</p>
           </div>
         </div>
         <div class="prose">
           <h3>Interactive mode</h3>
-          <p>When the toolbar button says <strong>Interactive</strong>, clicking a table, citation, figure, equation, or supported LaTeX structure opens its focused editor. Changes still update the underlying source.</p>
+          <p>When the toolbar button says <strong>Interactive</strong>, clicking a table, citation, figure, equation, or
+            supported LaTeX structure opens its focused editor. Changes still update the underlying source.</p>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of a contextual structured editor">
-              <span>Screenshot placeholder — a table or equation in the source with its contextual structured editor open over the code.</span>
+            <div class="screenshot-frame">
+              <img src="assets/interactive-table.png" alt="Interactive table editor" />
             </div>
-            <figcaption>Structured editors edit the underlying LaTeX; nothing is stored outside your source files.</figcaption>
+            <figcaption>Structured editors edit the underlying LaTeX; nothing is stored outside your source files.
+            </figcaption>
           </figure>
           <h3>Source-only mode</h3>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
-            <div><strong>Use a structured editor only when you need it.</strong><p>In source-only mode, place the cursor inside the element and press <kbd>Alt</kbd> <kbd>Enter</kbd>. The relevant editor opens without changing your default click behaviour.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+            <div><strong>Use a structured editor only when you need it.</strong>
+              <p>In source-only mode, place the cursor inside the element and press <kbd>Alt</kbd> <kbd>Enter</kbd>. The
+                relevant editor opens without changing your default click behaviour.</p>
+            </div>
           </div>
-          <p>Click the same toolbar button until it says <strong>Source only</strong>. Clicks now place the cursor normally and do not open a structured editor.</p>
+          <p>Click the same toolbar button until it says <strong>Source only</strong>. Clicks now place the cursor
+            normally and do not open a structured editor.</p>
         </div>
       </section>
 
@@ -1063,11 +1120,16 @@
         </div>
         <div class="prose">
           <h3>Files and project search</h3>
-          <p>Files shows the project tree and open documents. Search scans the whole project; press <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> to open it directly and use case, whole-word, or regular-expression filters.</p>
+          <p>Files shows the project tree and open documents. Search scans the whole project; press <kbd>Ctrl</kbd>
+            <kbd>Shift</kbd> <kbd>F</kbd> to open it directly and use case, whole-word, or regular-expression filters.
+          </p>
           <h3>Outline</h3>
-          <p>Outline groups sections, figures, and tables found in your LaTeX source. Select an item to jump to it. If the outline is empty, compile or add supported structures such as <code>\section</code>.</p>
+          <p>Outline groups sections, figures, and tables found in your LaTeX source. Select an item to jump to it. If
+            the outline is empty, compile or add supported structures such as <code>\section</code>.</p>
           <h3>Grammar and project health</h3>
-          <p>Grammar runs LanguageTool on the open file and lists targeted spelling, grammar, and style suggestions. Project health looks for broader project issues such as missing assets, bibliography concerns, and structural problems. See <a href="#grammar">Check grammar and style</a> for the full workflow.</p>
+          <p>Grammar runs LanguageTool on the open file and lists targeted spelling, grammar, and style suggestions.
+            Project health looks for broader project issues such as missing assets, bibliography concerns, and
+            structural problems. See <a href="#grammar">Check grammar and style</a> for the full workflow.</p>
         </div>
       </section>
 
@@ -1077,58 +1139,85 @@
           <span class="section-number">07 / Sources</span>
           <div>
             <h2>Manage references and citations</h2>
-            <p class="section-intro">Keep bibliography records visible while you write, insert valid citation keys without memorising them, and fix citation problems before they reach the PDF.</p>
+            <p class="section-intro">Keep bibliography records visible while you write, insert valid citation keys
+              without memorising them, and fix citation problems before they reach the PDF.</p>
           </div>
         </div>
         <div class="prose">
-          <p>Open <strong>References</strong> from the activity rail to search the project bibliography, filter issues, add records, and connect supported external sources. When a project contains several <code>.bib</code> files, switch the scope between the files the current document actually uses and every bibliography file in the project.</p>
+          <p>Open <strong>References</strong> from the activity rail to search the project bibliography, filter issues,
+            add records, and connect supported external sources. When a project contains several <code>.bib</code>
+            files, switch the scope between the files the current document actually uses and every bibliography file in
+            the project.</p>
 
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the References panel">
-              <span>Screenshot placeholder — References panel with the search field, the All / Cited / Unused / Issues filters, and a list of bibliography records.</span>
+            <div class="screenshot-frame">
+              <img src="assets/reference-panel.png"
+                alt="The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected bibliography scope." />
             </div>
-            <figcaption>The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected bibliography scope.</figcaption>
+            <figcaption>The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected
+              bibliography scope.</figcaption>
           </figure>
 
           <h3>Insert citations while writing</h3>
           <ol class="steps">
-            <li><span>Add a record by identifier, import BibTeX, or connect Zotero, CiteDrive, or another bibliography file.</span></li>
-            <li><span>Put the cursor where the citation belongs and choose <strong>Cite</strong> in the editor toolbar.</span></li>
-            <li><span>Search, select a citation style, and insert. Opal writes the corresponding LaTeX command into the source.</span></li>
+            <li><span>Add a record by identifier, import BibTeX, or connect Zotero, CiteDrive, or another bibliography
+                file.</span></li>
+            <li><span>Put the cursor where the citation belongs and choose <strong>Cite</strong> in the editor
+                toolbar.</span></li>
+            <li><span>Search, select a citation style, and insert. Opal writes the corresponding LaTeX command into the
+                source.</span></li>
           </ol>
-          <p>Metadata lookups can use Crossref, arXiv, or Open Library. External services require a network connection; local bibliography editing does not.</p>
+          <p>Metadata lookups can use Crossref, arXiv, or Open Library. External services require a network connection;
+            local bibliography editing does not.</p>
 
           <h3>Find citation problems</h3>
           <p>The filter row counts references by state so problems are visible at a glance:</p>
           <ul>
-            <li><strong>Cited / Unused</strong> — which records the document actually cites, and which sit unused in the bibliography.</li>
-            <li><strong>Issues → Missing</strong> — citation keys used in the document that have no bibliography record. Open one to see where it is cited, then add the record by identifier or, with AI configured, ask Opal to investigate likely candidates.</li>
-            <li><strong>Issues → Duplicate keys</strong> — the same key defined more than once, possibly across different <code>.bib</code> files, which makes the citation ambiguous at compile time.</li>
+            <li><strong>Cited / Unused</strong> — which records the document actually cites, and which sit unused in the
+              bibliography.</li>
+            <li><strong>Issues → Missing</strong> — citation keys used in the document that have no bibliography record.
+              Open one to see where it is cited, then add the record by identifier or, with AI configured, ask Opal to
+              investigate likely candidates.</li>
+            <li><strong>Issues → Duplicate keys</strong> — the same key defined more than once, possibly across
+              different <code>.bib</code> files, which makes the citation ambiguous at compile time.</li>
           </ul>
 
           <h3>Resolve duplicate keys</h3>
-          <p>Choose <strong>Review / bulk fix duplicate keys</strong> to open the resolution dialog. For each duplicated key, compare the copies — title, authors, year, and source file are shown — then pick the fix that matches the situation:</p>
+          <p>Choose <strong>Review / bulk fix duplicate keys</strong> to open the resolution dialog. For each duplicated
+            key, compare the copies — title, authors, year, and source file are shown — then pick the fix that matches
+            the situation:</p>
           <ol class="steps">
-            <li><span><strong>Keep this; remove others</strong> — when the copies describe the same source, keep one record and delete the redundant ones.</span></li>
-            <li><span><strong>Rename this copy</strong> — when different works ended up sharing a key, give one copy a new key. Existing <code>\cite</code> commands are not rewritten, because Opal cannot know which record each citation intended.</span></li>
-            <li><span><strong>Bulk fix</strong> — the first copy of every duplicated key keeps its original key; the remaining copies receive new keys. No records are deleted.</span></li>
+            <li><span><strong>Keep this; remove others</strong> — when the copies describe the same source, keep one
+                record and delete the redundant ones.</span></li>
+            <li><span><strong>Rename this copy</strong> — when different works ended up sharing a key, give one copy a
+                new key. Existing <code>\cite</code> commands are not rewritten, because Opal cannot know which record
+                each citation intended.</span></li>
+            <li><span><strong>Bulk fix</strong> — the first copy of every duplicated key keeps its original key; the
+                remaining copies receive new keys. No records are deleted.</span></li>
           </ol>
 
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the duplicate bibliography key dialog">
-              <span>Screenshot placeholder — “Fix duplicate bibliography keys” dialog showing two copies of one key with the Rename and Keep actions.</span>
+            <div class="screenshot-frame">
+              <img src="assets/fix-duplicate-key.png" alt="Fix duplicate bibliography keys dialog" />
             </div>
-            <figcaption>The duplicate dialog groups copies by key and searches across keys, titles, authors, years, and files.</figcaption>
+            <figcaption>The duplicate dialog groups copies by key and searches across keys, titles, authors, years, and
+              files.</figcaption>
           </figure>
 
           <h3>Tidy BibTeX files</h3>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 15 4 4L20 7" /></svg>
-            <div><strong>Tidy is formatting, not deduplication.</strong><p>Tidy normalises how records are written; it does not remove duplicate records. Use the duplicate-key dialog above to merge or rename copies.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m4 15 4 4L20 7" />
+            </svg>
+            <div><strong>Tidy is formatting, not deduplication.</strong>
+              <p>Tidy normalises how records are written; it does not remove duplicate records. Use the duplicate-key
+                dialog above to merge or rename copies.</p>
+            </div>
           </div>
-          <p>With a <code>.bib</code> file open, choose <strong>Tidy file</strong> in the editor toolbar to reformat every record: consistent braces, field order, casing, and indentation, with empty and repeated fields removed. Entries are cleaned in place — never reordered or merged — so the diff stays reviewable. To clean a single record, right-click inside it and choose <strong>Tidy this reference</strong>.</p>
+          <p>With a <code>.bib</code> file open, choose <strong>Tidy file</strong> in the editor toolbar to reformat
+            every record: consistent braces, field order, casing, and indentation, with empty and repeated fields
+            removed. Entries are cleaned in place — never reordered or merged — so the diff stays reviewable. To clean a
+            single record, right-click inside it and choose <strong>Tidy this reference</strong>.</p>
         </div>
       </section>
 
@@ -1138,28 +1227,40 @@
           <span class="section-number">08 / Libraries</span>
           <div>
             <h2>Connect reference libraries</h2>
-            <p class="section-intro">Pull bibliographies from Zotero, CiteDrive, or a JabRef-managed file, and keep them in sync as normal <code>.bib</code> files in your project.</p>
+            <p class="section-intro">Pull bibliographies from Zotero, CiteDrive, or a JabRef-managed file, and keep them
+              in sync as normal <code>.bib</code> files in your project.</p>
           </div>
         </div>
         <div class="prose">
           <h3>Zotero</h3>
           <p>In the References panel, connect to Zotero one of two ways:</p>
           <ol class="steps">
-            <li><span><strong>Zotero Desktop</strong> — talks to the Zotero application on this computer. Works offline and needs no API key; keep Zotero running while you connect.</span></li>
-            <li><span><strong>Zotero Cloud</strong> — signs in to your online library through Zotero's authorisation page, or connect manually with an API key created at <a href="https://www.zotero.org/settings/keys">zotero.org/settings/keys</a>.</span></li>
+            <li><span><strong>Zotero Desktop</strong> — talks to the Zotero application on this computer. Works offline
+                and needs no API key; keep Zotero running while you connect.</span></li>
+            <li><span><strong>Zotero Cloud</strong> — signs in to your online library through Zotero's authorisation
+                page, or connect manually with an API key created at <a
+                  href="https://www.zotero.org/settings/keys">zotero.org/settings/keys</a>.</span></li>
           </ol>
-          <p>Once connected, Opal lists <strong>My Library</strong> and your collections, including nested ones. Import a collection to write it into the project as a <code>.bib</code> file; the row then shows the file it feeds. Use <strong>Sync</strong> on a row to pull the latest records from Zotero, or stop syncing when the project should keep its own copy. Records added in Zotero flow in on the next sync — citations you have already inserted keep working because the <code>.bib</code> file stays in the project.</p>
+          <p>Once connected, Opal lists <strong>My Library</strong> and your collections, including nested ones. Import
+            a collection to write it into the project as a <code>.bib</code> file; the row then shows the file it feeds.
+            Use <strong>Sync</strong> on a row to pull the latest records from Zotero, or stop syncing when the project
+            should keep its own copy. Records added in Zotero flow in on the next sync — citations you have already
+            inserted keep working because the <code>.bib</code> file stays in the project.</p>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the Zotero collections view">
-              <span>Screenshot placeholder — connected Zotero library showing My Library and nested collections, one synced to a .bib file.</span>
+            <div class="screenshot-frame">
+              <img src="assets/zotero.png" alt="Zotero collections view" />
             </div>
-            <figcaption>Synced collections show which bibliography file they update; the connection can be switched between Desktop and Cloud at any time.</figcaption>
+            <figcaption>Synced collections show which bibliography file they update; the connection can be switched
+              between Desktop and Cloud at any time.</figcaption>
           </figure>
           <h3>CiteDrive</h3>
-          <p>In CiteDrive, open <strong>Connect Project</strong> and copy the dynamic <code>.bib</code> URL, then paste it into <strong>Connect CiteDrive</strong> in the References panel. Opal fetches the bibliography into a project file and can refresh it from the same URL later.</p>
+          <p>In CiteDrive, open <strong>Connect Project</strong> and copy the dynamic <code>.bib</code> URL, then paste
+            it into <strong>Connect CiteDrive</strong> in the References panel. Opal fetches the bibliography into a
+            project file and can refresh it from the same URL later.</p>
           <h3>JabRef or any external .bib file</h3>
-          <p>Link a bibliography file managed outside the project — for example one JabRef maintains — and Opal copies it in and tracks the original. When the source changes, refresh to update the project copy; if both copies changed, Opal reports the conflict instead of overwriting your edits.</p>
+          <p>Link a bibliography file managed outside the project — for example one JabRef maintains — and Opal copies
+            it in and tracks the original. When the source changes, refresh to update the project copy; if both copies
+            changed, Opal reports the conflict instead of overwriting your edits.</p>
         </div>
       </section>
 
@@ -1168,30 +1269,42 @@
           <span class="section-number">09 / Optional AI</span>
           <div>
             <h2>Set up an AI provider</h2>
-            <p class="section-intro">Opal works without AI. Connecting a provider adds chat, proofreading, completion, explanation, and review-based editing tools.</p>
+            <p class="section-intro">Opal works without AI. Connecting a provider adds chat, proofreading, completion,
+              explanation, and review-based editing tools.</p>
           </div>
         </div>
         <div class="prose">
           <ol class="steps">
             <li><span>Choose the <strong>Settings</strong> gear at the bottom of the activity rail.</span></li>
-            <li><span>Under <strong>AI Provider</strong>, select Anthropic or OpenAI. Leave <strong>None</strong> selected to keep AI features off.</span></li>
+            <li><span>Under <strong>AI Provider</strong>, select Anthropic or OpenAI. Leave <strong>None</strong>
+                selected to keep AI features off.</span></li>
             <li><span>Choose <strong>Set API key</strong>, enter the key from your provider, and save it.</span></li>
-            <li><span>For an OpenAI-compatible service such as Ollama, DeepSeek, or OpenRouter, set the optional Base URL.</span></li>
-            <li><span>Run <strong>Test connection</strong>. A successful authenticated response confirms the setup.</span></li>
+            <li><span>For an OpenAI-compatible service such as Ollama, DeepSeek, or OpenRouter, set the optional Base
+                URL.</span></li>
+            <li><span>Run <strong>Test connection</strong>. A successful authenticated response confirms the
+                setup.</span></li>
           </ol>
           <figure class="interface-figure">
             <div class="screenshot-frame">
               <img src="assets/opal-elsevier-settings.png"
                 alt="Opal Settings over the Elsevier sample project, showing AI provider selection, a configured API key, a custom base URL, and the Test connection button" />
             </div>
-            <figcaption>Settings keeps provider choice, key status, compatible endpoints, and the connection test together. API key values are never shown in the guide.</figcaption>
+            <figcaption>Settings keeps provider choice, key status, compatible endpoints, and the connection test
+              together. API key values are never shown in the guide.</figcaption>
           </figure>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
-            <div><strong>You remain the author.</strong><p>AI is bring-your-own-key and disabled by default. Suggested document edits wait for your approval before they become part of the source.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+            <div><strong>You remain the author.</strong>
+              <p>AI is bring-your-own-key and disabled by default. Suggested document edits wait for your approval
+                before they become part of the source.</p>
+            </div>
           </div>
           <h3>Turn AI off again</h3>
-          <p>Return to Settings and select <strong>None</strong>. The AI chat and AI-only actions disappear; editing and local compilation continue normally. You can also remove a saved key from the provider section.</p>
+          <p>Return to Settings and select <strong>None</strong>. The AI chat and AI-only actions disappear; editing and
+            local compilation continue normally. You can also remove a saved key from the provider section.</p>
         </div>
       </section>
 
@@ -1201,22 +1314,38 @@
           <span class="section-number">10 / AI workflows</span>
           <div>
             <h2>What else AI can do</h2>
-            <p class="section-intro">Use the built-in actions for common jobs, or describe a precise task in chat. Opal sends only the scope and attachments you choose.</p>
+            <p class="section-intro">Use the built-in actions for common jobs, or describe a precise task in chat. Opal
+              sends only the scope and attachments you choose.</p>
           </div>
         </div>
         <div class="prose">
           <h3>Improve prose without surrendering your voice</h3>
-          <p>Select a passage and choose <strong>Proofread</strong> to check language and propose fixes. In Chat, ask for a paraphrase, a shorter version, a change of tone, clearer transitions, or an explanation of what is unclear. State what must remain unchanged — terminology, claims, citations, LaTeX commands, or word count — and use the smallest useful scope.</p>
+          <p>Select a passage and choose <strong>Proofread</strong> to check language and propose fixes. In Chat, ask
+            for a paraphrase, a shorter version, a change of tone, clearer transitions, or an explanation of what is
+            unclear. State what must remain unchanged — terminology, claims, citations, LaTeX commands, or word count —
+            and use the smallest useful scope.</p>
 
           <h3>Continue, explain, and repair</h3>
-          <p><strong>Complete</strong> continues from the selected context; <strong>Explain</strong> can unpack LaTeX, equations, or unfamiliar project code; and <strong>Fix</strong> focuses on errors. From a compile failure, ask AI to explain the log or prepare a reviewable fix. You can also select text in the PDF for proofreading or use <kbd>Ctrl</kbd> <kbd>X</kbd> to capture a region and ask about it.</p>
+          <p><strong>Complete</strong> continues from the selected context; <strong>Explain</strong> can unpack LaTeX,
+            equations, or unfamiliar project code; and <strong>Fix</strong> focuses on errors. From a compile failure,
+            ask AI to explain the log or prepare a reviewable fix. You can also select text in the PDF for proofreading
+            or use <kbd>Ctrl</kbd> <kbd>X</kbd> to capture a region and ask about it.</p>
 
           <h3>Search and validate references</h3>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" /></svg>
-            <div><strong>Reference search provides candidates, not proof by itself.</strong><p>Confirm the title, authors, venue, year, DOI, and relevance to your claim. Resolver-verified additions are labelled; unverified bibliography entries must be reviewed individually.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+              <path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
+            </svg>
+            <div><strong>Reference search provides candidates, not proof by itself.</strong>
+              <p>Confirm the title, authors, venue, year, DOI, and relevance to your claim. Resolver-verified additions
+                are labelled; unverified bibliography entries must be reviewed individually.</p>
+            </div>
           </div>
-          <p>The References panel identifies missing citation keys and can ask AI to investigate one. Opal searches publication services for candidates, verifies a candidate’s metadata through its DOI or source record, and presents the evidence and confidence before offering a bibliography entry. It can also check missing or duplicate keys and help review duplicate records.</p>
+          <p>The References panel identifies missing citation keys and can ask AI to investigate one. Opal searches
+            publication services for candidates, verifies a candidate’s metadata through its DOI or source record, and
+            presents the evidence and confidence before offering a bibliography entry. It can also check missing or
+            duplicate keys and help review duplicate records.</p>
         </div>
       </section>
 
@@ -1230,17 +1359,22 @@
         </div>
         <div class="prose">
           <h3>Choose a sensible scope</h3>
-          <p>Use a selection for a focused rewrite, a file for local context, a chapter for longer reasoning, or the project only when the request genuinely depends on multiple files. Smaller scopes are easier to review.</p>
+          <p>Use a selection for a focused rewrite, a file for local context, a chapter for longer reasoning, or the
+            project only when the request genuinely depends on multiple files. Smaller scopes are easier to review.</p>
           <h3>Inspect before accepting</h3>
-          <p>Proposed changes appear as a review queue in the editor. Use <kbd>F8</kbd> and <kbd>Shift</kbd> <kbd>F8</kbd> to move between changes, then accept or reject each one. Check citations, numerical claims, and LaTeX structure yourself.</p>
+          <p>Proposed changes appear as a review queue in the editor. Use <kbd>F8</kbd> and <kbd>Shift</kbd>
+            <kbd>F8</kbd> to move between changes, then accept or reject each one. Check citations, numerical claims,
+            and LaTeX structure yourself.
+          </p>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the AI change review queue">
-              <span>Screenshot placeholder — the editor showing a proposed AI edit as an inline diff with Accept and Reject controls.</span>
+            <div class="screenshot-frame">
+              <img src="assets/ai-edit.png" alt="AI edit review" />
             </div>
-            <figcaption>Every AI edit waits in the review queue; nothing reaches the source until you accept it.</figcaption>
+            <figcaption>Every AI edit waits in the review queue; nothing reaches the source until you accept it.
+            </figcaption>
           </figure>
-          <p>Opal makes a version-history snapshot before AI edits, giving you another recovery point if you need to compare or restore.</p>
+          <p>Opal makes a version-history snapshot before AI edits, giving you another recovery point if you need to
+            compare or restore.</p>
         </div>
       </section>
 
@@ -1250,25 +1384,34 @@
           <span class="section-number">12 / Review mode</span>
           <div>
             <h2>Review the finished PDF</h2>
-            <p class="section-intro">Review mode turns the compiled document into a focused commenting surface without changing the LaTeX source.</p>
+            <p class="section-intro">Review mode turns the compiled document into a focused commenting surface without
+              changing the LaTeX source.</p>
           </div>
         </div>
         <div class="prose">
           <ol class="steps">
-            <li><span>Choose <strong>Review</strong> in the PDF toolbar. Opal expands the PDF and opens the Review comments panel.</span></li>
-            <li><span>Select PDF text and choose <strong>Add review comment</strong>, or right-click any PDF location and add a point comment.</span></li>
-            <li><span>Write what should be changed or checked. The comment is anchored to that page and, when SyncTeX can resolve it, to the matching source location.</span></li>
-            <li><span>Select a comment to return to its PDF annotation. Choose <strong>Source</strong> to leave Review mode and open the associated LaTeX.</span></li>
-            <li><span>Resolve finished comments, reopen them when needed, or delete them. Use <strong>Show resolved</strong> to include completed feedback.</span></li>
+            <li><span>Choose <strong>Review</strong> in the PDF toolbar. Opal expands the PDF and opens the Review
+                comments panel.</span></li>
+            <li><span>Select PDF text and choose <strong>Add review comment</strong>, or right-click any PDF location
+                and add a point comment.</span></li>
+            <li><span>Write what should be changed or checked. The comment is anchored to that page and, when SyncTeX
+                can resolve it, to the matching source location.</span></li>
+            <li><span>Select a comment to return to its PDF annotation. Choose <strong>Source</strong> to leave Review
+                mode and open the associated LaTeX.</span></li>
+            <li><span>Resolve finished comments, reopen them when needed, or delete them. Use <strong>Show
+                  resolved</strong> to include completed feedback.</span></li>
           </ol>
           <figure class="interface-figure">
             <div class="screenshot-frame placeholder" role="img"
               aria-label="Placeholder for a screenshot of Review mode">
-              <span>Screenshot placeholder — Review mode with a highlighted PDF passage, its anchored comment, and the Review comments panel.</span>
+              <span>Screenshot placeholder — Review mode with a highlighted PDF passage, its anchored comment, and the
+                Review comments panel.</span>
             </div>
-            <figcaption>Comments anchor to the page and, when SyncTeX resolves, to the matching source location.</figcaption>
+            <figcaption>Comments anchor to the page and, when SyncTeX resolves, to the matching source location.
+            </figcaption>
           </figure>
-          <p>Review comments are saved with the project in <code>.tectonic-editor/review-comments.json</code>. They are separate from AI proposed changes and do not alter the PDF or source until you make an edit.</p>
+          <p>Review comments are saved with the project in <code>.tectonic-editor/review-comments.json</code>. They are
+            separate from AI proposed changes and do not alter the PDF or source until you make an edit.</p>
         </div>
       </section>
 
@@ -1278,28 +1421,40 @@
           <span class="section-number">13 / Grammar</span>
           <div>
             <h2>Check grammar and style</h2>
-            <p class="section-intro">LanguageTool checks the prose in the open file while leaving LaTeX commands, mathematics, and citations alone.</p>
+            <p class="section-intro">LanguageTool checks the prose in the open file while leaving LaTeX commands,
+              mathematics, and citations alone.</p>
           </div>
         </div>
         <div class="prose">
           <ol class="steps">
-            <li><span>Open <strong>Grammar</strong> from the activity rail and choose <strong>Check</strong>. The result applies to the file that was open when the check started.</span></li>
-            <li><span>Select an issue to jump to the affected text. Spelling, grammar, and style or typography suggestions use distinct colours.</span></li>
-            <li><span>Choose a suggested replacement to apply it, or dismiss a suggestion that does not fit the document.</span></li>
+            <li><span>Open <strong>Grammar</strong> from the activity rail and choose <strong>Check</strong>. The result
+                applies to the file that was open when the check started.</span></li>
+            <li><span>Select an issue to jump to the affected text. Spelling, grammar, and style or typography
+                suggestions use distinct colours.</span></li>
+            <li><span>Choose a suggested replacement to apply it, or dismiss a suggestion that does not fit the
+                document.</span></li>
           </ol>
           <figure class="interface-figure">
             <div class="screenshot-frame placeholder" role="img"
               aria-label="Placeholder for a screenshot of the Grammar panel">
-              <span>Screenshot placeholder — Grammar panel listing spelling, grammar, and style suggestions with one issue highlighted in the editor.</span>
+              <span>Screenshot placeholder — Grammar panel listing spelling, grammar, and style suggestions with one
+                issue highlighted in the editor.</span>
             </div>
             <figcaption>Suggestion categories use distinct colours in both the panel and the editor.</figcaption>
           </figure>
           <h3>Configure LanguageTool</h3>
           <div class="note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 15 4 4L20 7" /></svg>
-            <div><strong>Grammar checking and AI proofreading are different.</strong><p>LanguageTool reports targeted rule-based suggestions. AI proofreading can make broader rewrites, so its proposed edits should be reviewed for meaning, terminology, and factual accuracy.</p></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m4 15 4 4L20 7" />
+            </svg>
+            <div><strong>Grammar checking and AI proofreading are different.</strong>
+              <p>LanguageTool reports targeted rule-based suggestions. AI proofreading can make broader rewrites, so its
+                proposed edits should be reviewed for meaning, terminology, and factual accuracy.</p>
+            </div>
           </div>
-          <p>In Settings, choose automatic detection or a specific language and enable <strong>Picky mode</strong> for stricter style and typography rules. The default public LanguageTool service requires internet and is rate-limited; point Opal to a local LanguageTool server for offline or private checking.</p>
+          <p>In Settings, choose automatic detection or a specific language and enable <strong>Picky mode</strong> for
+            stricter style and typography rules. The default public LanguageTool service requires internet and is
+            rate-limited; point Opal to a local LanguageTool server for offline or private checking.</p>
         </div>
       </section>
 
@@ -1309,26 +1464,38 @@
           <span class="section-number">14 / Project health</span>
           <div>
             <h2>Check project health</h2>
-            <p class="section-intro">One panel surfaces the cross-file problems that otherwise only show up at compile time — or in a reviewer's report.</p>
+            <p class="section-intro">One panel surfaces the cross-file problems that otherwise only show up at compile
+              time — or in a reviewer's report.</p>
           </div>
         </div>
         <div class="prose">
-          <p>Open <strong>Project health</strong> from the activity rail. Opal analyses the whole project and groups findings by category, each marked as an error, warning, or informational note. Select an issue to jump to the offending location.</p>
+          <p>Open <strong>Project health</strong> from the activity rail. Opal analyses the whole project and groups
+            findings by category, each marked as an error, warning, or informational note. Select an issue to jump to
+            the offending location.</p>
           <ul>
-            <li><strong>Labels</strong> — duplicate <code>\label</code> keys, <code>\ref</code> commands with no matching label, and labels nothing references.</li>
-            <li><strong>Citations</strong> — duplicate bibliography keys, cited keys with no record, and records never cited. These mirror the Issues filters in the References panel.</li>
-            <li><strong>Assets</strong> — figures pointing at image files that do not exist, and image files no figure uses.</li>
-            <li><strong>Figures and tables</strong> — floats missing a caption or a label, which breaks numbering and cross-references.</li>
-            <li><strong>Packages</strong> — features your source uses whose package is not declared (with a one-click fix that adds the <code>\usepackage</code> line), packages declared twice, and packages that appear unused.</li>
+            <li><strong>Labels</strong> — duplicate <code>\label</code> keys, <code>\ref</code> commands with no
+              matching label, and labels nothing references.</li>
+            <li><strong>Citations</strong> — duplicate bibliography keys, cited keys with no record, and records never
+              cited. These mirror the Issues filters in the References panel.</li>
+            <li><strong>Assets</strong> — figures pointing at image files that do not exist, and image files no figure
+              uses.</li>
+            <li><strong>Figures and tables</strong> — floats missing a caption or a label, which breaks numbering and
+              cross-references.</li>
+            <li><strong>Packages</strong> — features your source uses whose package is not declared (with a one-click
+              fix that adds the <code>\usepackage</code> line), packages declared twice, and packages that appear
+              unused.</li>
           </ul>
           <figure class="interface-figure">
             <div class="screenshot-frame placeholder" role="img"
               aria-label="Placeholder for a screenshot of the Project health panel">
-              <span>Screenshot placeholder — Project health panel with categorised issues and a missing-package fix button.</span>
+              <span>Screenshot placeholder — Project health panel with categorised issues and a missing-package fix
+                button.</span>
             </div>
-            <figcaption>Errors block or corrupt output; warnings and notes are judgement calls you can act on or ignore.</figcaption>
+            <figcaption>Errors block or corrupt output; warnings and notes are judgement calls you can act on or ignore.
+            </figcaption>
           </figure>
-          <p>A useful pre-submission habit: run through Project health, then the References panel's Issues filter, then a final compile — in that order, so structural fixes land before the last build.</p>
+          <p>A useful pre-submission habit: run through Project health, then the References panel's Issues filter, then
+            a final compile — in that order, so structural fixes land before the last build.</p>
         </div>
       </section>
 
@@ -1338,22 +1505,28 @@
           <span class="section-number">15 / Safety net</span>
           <div>
             <h2>Use version history</h2>
-            <p class="section-intro">Opal records project snapshots at natural checkpoints so an earlier state is always within reach.</p>
+            <p class="section-intro">Opal records project snapshots at natural checkpoints so an earlier state is always
+              within reach.</p>
           </div>
         </div>
         <div class="prose">
-          <p>Choose <strong>History</strong> in the PDF toolbar to open the snapshot list. Snapshots are taken when you save, before a compile, and before AI applies edits — so a recovery point already exists by the time you need one.</p>
+          <p>Choose <strong>History</strong> in the PDF toolbar to open the snapshot list. Snapshots are taken when you
+            save, before a compile, and before AI applies edits — so a recovery point already exists by the time you
+            need one.</p>
           <ol class="steps">
-            <li><span>Select a snapshot to review its differences against the previous state directly in the editor.</span></li>
+            <li><span>Select a snapshot to review its differences against the previous state directly in the
+                editor.</span></li>
             <li><span>Label a snapshot you may want to find again, such as <em>submitted draft</em>.</span></li>
             <li><span>Choose <strong>Restore</strong> to return the project files to that snapshot.</span></li>
           </ol>
           <figure class="interface-figure">
             <div class="screenshot-frame placeholder" role="img"
               aria-label="Placeholder for a screenshot of the version history panel">
-              <span>Screenshot placeholder — History panel with a list of snapshots, one labelled, and its diff shown in the editor.</span>
+              <span>Screenshot placeholder — History panel with a list of snapshots, one labelled, and its diff shown in
+                the editor.</span>
             </div>
-            <figcaption>Snapshot history lives inside the project and works alongside Git or any other version control you already use.</figcaption>
+            <figcaption>Snapshot history lives inside the project and works alongside Git or any other version control
+              you already use.</figcaption>
           </figure>
         </div>
       </section>
@@ -1363,13 +1536,18 @@
           <span class="section-number">16 / Preferences</span>
           <div>
             <h2>Adjust appearance and focus</h2>
-            <p class="section-intro">The palette button above Settings controls how the workspace looks without mixing display options into general settings.</p>
+            <p class="section-intro">The palette button above Settings controls how the workspace looks without mixing
+              display options into general settings.</p>
           </div>
         </div>
         <div class="prose">
-          <p>Choose light, dark, or system mode; select a workspace colour palette; change editor text size; and set the code-highlighting theme. Click the displayed text size to reset it.</p>
-          <p><kbd>Ctrl</kbd> plus scroll changes only the editor text size. <kbd>Ctrl</kbd> <kbd>+</kbd>, <kbd>Ctrl</kbd> <kbd>−</kbd>, and <kbd>Ctrl</kbd> <kbd>0</kbd> zoom the entire application.</p>
-          <p>Focus mode hides surrounding panels when you need a cleaner writing surface. Toggle it from the workspace controls or with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd>.</p>
+          <p>Choose light, dark, or system mode; select a workspace colour palette; change editor text size; and set the
+            code-highlighting theme. Click the displayed text size to reset it.</p>
+          <p><kbd>Ctrl</kbd> plus scroll changes only the editor text size. <kbd>Ctrl</kbd> <kbd>+</kbd>,
+            <kbd>Ctrl</kbd> <kbd>−</kbd>, and <kbd>Ctrl</kbd> <kbd>0</kbd> zoom the entire application.
+          </p>
+          <p>Focus mode hides surrounding panels when you need a cleaner writing surface. Toggle it from the workspace
+            controls or with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd>.</p>
         </div>
       </section>
 
@@ -1382,17 +1560,28 @@
           </div>
         </div>
         <div class="prose shortcut-list" role="list">
-          <div class="shortcut-row" role="listitem"><span>Open command palette</span><span><kbd>Ctrl</kbd> <kbd>K</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Save active file</span><span><kbd>Ctrl</kbd> <kbd>S</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Compile document</span><span><kbd>Ctrl</kbd> <kbd>Enter</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Search current file</span><span><kbd>Ctrl</kbd> <kbd>F</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Search whole project</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Toggle PDF preview</span><span><kbd>Ctrl</kbd> <kbd>\</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Toggle focus mode</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Open contextual editor</span><span><kbd>Alt</kbd> <kbd>Enter</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Next / previous proposed change</span><span><kbd>F8</kbd> / <kbd>Shift</kbd> <kbd>F8</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>Capture a PDF region and ask</span><span><kbd>Ctrl</kbd> <kbd>X</kbd></span></div>
-          <div class="shortcut-row" role="listitem"><span>New Opal window</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Open command palette</span><span><kbd>Ctrl</kbd>
+              <kbd>K</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Save active file</span><span><kbd>Ctrl</kbd>
+              <kbd>S</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Compile document</span><span><kbd>Ctrl</kbd>
+              <kbd>Enter</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Search current file</span><span><kbd>Ctrl</kbd>
+              <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Search whole project</span><span><kbd>Ctrl</kbd>
+              <kbd>Shift</kbd> <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Toggle PDF preview</span><span><kbd>Ctrl</kbd>
+              <kbd>\</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Toggle focus mode</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd>
+              <kbd>F</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Open contextual editor</span><span><kbd>Alt</kbd>
+              <kbd>Enter</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Next / previous proposed change</span><span><kbd>F8</kbd> /
+              <kbd>Shift</kbd> <kbd>F8</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>Capture a PDF region and ask</span><span><kbd>Ctrl</kbd>
+              <kbd>X</kbd></span></div>
+          <div class="shortcut-row" role="listitem"><span>New Opal window</span><span><kbd>Ctrl</kbd> <kbd>Shift</kbd>
+              <kbd>N</kbd></span></div>
         </div>
       </section>
 
@@ -1407,35 +1596,51 @@
         <div class="prose faq-list">
           <details>
             <summary>The PDF is not updating. What should I check?</summary>
-            <p>Save the file and run an explicit Compile. Check the error message and Problems area, confirm that Opal detected the correct root file, and make sure any referenced images or bibliography files exist at the paths used by your source.</p>
+            <p>Save the file and run an explicit Compile. Check the error message and Problems area, confirm that Opal
+              detected the correct root file, and make sure any referenced images or bibliography files exist at the
+              paths used by your source.</p>
           </details>
           <details>
             <summary>Where is the full compile log?</summary>
-            <p>Opal keeps build artefacts in the project's hidden <code>.tectonic-editor/build/</code> folder; the engine log is stored there next to the output as <code>&lt;root&gt;.log</code>. The Problems area summarises errors, but the raw log is the place to check warnings such as overfull boxes or undefined references. With AI configured, you can also ask chat to read and explain the build log.</p>
+            <p>Opal keeps build artefacts in the project's hidden <code>.tectonic-editor/build/</code> folder; the
+              engine log is stored there next to the output as <code>&lt;root&gt;.log</code>. The Problems area
+              summarises errors, but the raw log is the place to check warnings such as overfull boxes or undefined
+              references. With AI configured, you can also ask chat to read and explain the build log.</p>
           </details>
           <details>
             <summary>I accepted a change I regret. Can I get the old version back?</summary>
-            <p>Yes. Open <strong>History</strong> in the PDF toolbar and restore the snapshot taken before the change. Opal snapshots the project when you save, before compiles, and before AI edits are applied. See <a href="#history">Use version history</a>.</p>
+            <p>Yes. Open <strong>History</strong> in the PDF toolbar and restore the snapshot taken before the change.
+              Opal snapshots the project when you save, before compiles, and before AI edits are applied. See <a
+                href="#history">Use version history</a>.</p>
           </details>
           <details>
             <summary>Why does clicking LaTeX open another editor?</summary>
-            <p>Interactive editing is enabled. Choose <strong>Interactive</strong> in the editor toolbar to switch it to <strong>Source only</strong>. You can still open a contextual editor with <kbd>Alt</kbd> <kbd>Enter</kbd>.</p>
+            <p>Interactive editing is enabled. Choose <strong>Interactive</strong> in the editor toolbar to switch it to
+              <strong>Source only</strong>. You can still open a contextual editor with <kbd>Alt</kbd> <kbd>Enter</kbd>.
+            </p>
           </details>
           <details>
             <summary>Why can’t I see the AI chat?</summary>
-            <p>AI chat is hidden while the provider is set to None. Open Settings, choose a provider, configure its key or endpoint, and run the connection test.</p>
+            <p>AI chat is hidden while the provider is set to None. Open Settings, choose a provider, configure its key
+              or endpoint, and run the connection test.</p>
           </details>
           <details>
             <summary>Does Opal require an account or internet connection?</summary>
-            <p>No account is required, and editing plus compilation are local. The first use of some LaTeX packages may download them. AI providers, metadata lookups, Zotero Cloud, public GitHub imports, and grammar services may require a network connection.</p>
+            <p>No account is required, and editing plus compilation are local. The first use of some LaTeX packages may
+              download them. AI providers, metadata lookups, Zotero Cloud, public GitHub imports, and grammar services
+              may require a network connection.</p>
           </details>
           <details>
             <summary>Where is the beginner LaTeX tutorial?</summary>
-            <p>The <strong>New to LaTeX</strong> guide is separate from this application documentation. Start it from the home screen; its graduation-cap icon appears in the activity rail while the tutorial project is open.</p>
+            <p>The <strong>New to LaTeX</strong> guide is separate from this application documentation. Start it from
+              the home screen; its graduation-cap icon appears in the activity rail while the tutorial project is open.
+            </p>
           </details>
           <details>
             <summary>How do I report a bug?</summary>
-            <p>Open the project on GitHub and create an issue with the Opal version, operating system, steps to reproduce, and any useful compile error. Remove API keys and private document content before attaching logs or screenshots.</p>
+            <p>Open the project on GitHub and create an issue with the Opal version, operating system, steps to
+              reproduce, and any useful compile error. Remove API keys and private document content before attaching
+              logs or screenshots.</p>
           </details>
         </div>
       </section>

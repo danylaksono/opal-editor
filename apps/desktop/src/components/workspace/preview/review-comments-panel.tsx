@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2Icon,
   CircleIcon,
+  CornerDownRightIcon,
   FileTextIcon,
+  HighlighterIcon,
   LoaderIcon,
   MessageSquareIcon,
+  ReplyIcon,
   Trash2Icon,
 } from "lucide-react";
 import type { ReviewAnchor, ReviewComment } from "@/stores/review-store";
@@ -29,7 +32,70 @@ interface ReviewCommentsPanelProps {
     comment: ReviewComment,
     status: ReviewComment["status"],
   ) => void;
+  onReply: (comment: ReviewComment, body: string) => void;
   onDelete: (comment: ReviewComment) => void;
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function ReplyComposer({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (body: string) => void;
+  onCancel: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const submit = () => {
+    if (body.trim()) {
+      onSubmit(body.trim());
+      setBody("");
+    }
+  };
+  return (
+    <div className="mt-2 space-y-1.5">
+      <Textarea
+        value={body}
+        onChange={(event) => setBody(event.target.value)}
+        placeholder="Reply…"
+        className="min-h-16 resize-y text-sm"
+        autoFocus
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            submit();
+          } else if (event.key === "Escape") {
+            onCancel();
+          }
+        }}
+      />
+      <div className="flex justify-end gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={!body.trim()}
+          onClick={submit}
+        >
+          Reply
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function ReviewCommentsPanel({
@@ -39,9 +105,11 @@ export function ReviewCommentsPanel({
   onSelect,
   onGoToSource,
   onSetStatus,
+  onReply,
   onDelete,
 }: ReviewCommentsPanelProps) {
   const [showResolved, setShowResolved] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const visibleComments = useMemo(
     () =>
       comments
@@ -63,7 +131,7 @@ export function ReviewCommentsPanel({
     >
       <div className="flex h-[calc(44px+var(--titlebar-height))] shrink-0 items-end justify-between border-border border-b px-3 pb-2">
         <div>
-          <h2 className="font-medium text-sm">Review comments</h2>
+          <h2 className="font-medium text-sm">Review</h2>
           <p className="text-muted-foreground text-xs">
             {openCount} open · {comments.length} total
           </p>
@@ -89,11 +157,12 @@ export function ReviewCommentsPanel({
             <MessageSquareIcon className="mx-auto mb-3 size-8 text-muted-foreground/50" />
             <p className="font-medium text-sm">
               {comments.length === 0
-                ? "No review comments"
-                : "No open comments"}
+                ? "No annotations yet"
+                : "No open annotations"}
             </p>
             <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
-              Select text in the PDF or right-click a location to add one.
+              Select text in the PDF, or pick the highlighter or comment tool
+              from the toolbar below.
             </p>
           </div>
         ) : (
@@ -117,26 +186,72 @@ export function ReviewCommentsPanel({
                   <div className="mb-2 flex items-center gap-2 text-muted-foreground text-xs">
                     {comment.status === "resolved" ? (
                       <CheckCircle2Icon className="size-3.5 text-emerald-600" />
+                    ) : comment.kind === "highlight" ? (
+                      <HighlighterIcon className="size-3.5 text-yellow-600" />
                     ) : (
                       <CircleIcon className="size-3.5" />
                     )}
-                    <span>Page {comment.anchor.page}</span>
-                    {comment.anchor.source && (
-                      <span className="min-w-0 flex-1 truncate text-right font-mono">
-                        {comment.anchor.source.file}:
-                        {comment.anchor.source.line}
-                      </span>
-                    )}
+                    <span className="max-w-24 truncate font-medium text-foreground">
+                      {comment.author}
+                    </span>
+                    <span>p. {comment.anchor.page}</span>
+                    <span className="ml-auto shrink-0">
+                      {formatTimestamp(comment.createdAt)}
+                    </span>
                   </div>
                   {comment.anchor.selectedText && (
-                    <blockquote className="mb-2 line-clamp-3 border-muted-foreground/30 border-l-2 pl-2 text-muted-foreground text-xs">
+                    <blockquote
+                      className={cn(
+                        "mb-2 line-clamp-3 border-l-2 pl-2 text-muted-foreground text-xs",
+                        comment.kind === "highlight"
+                          ? "border-yellow-500/60"
+                          : "border-muted-foreground/30",
+                      )}
+                    >
                       {comment.anchor.selectedText}
                     </blockquote>
                   )}
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {comment.body}
-                  </p>
+                  {comment.body ? (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {comment.body}
+                    </p>
+                  ) : comment.kind === "highlight" ? (
+                    <p className="text-muted-foreground text-xs italic">
+                      Highlight
+                    </p>
+                  ) : null}
                 </button>
+
+                {comment.replies.length > 0 && (
+                  <div className="mt-2 space-y-2 border-border border-l-2 pl-2">
+                    {comment.replies.map((reply) => (
+                      <div key={reply.id} className="text-sm">
+                        <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                          <CornerDownRightIcon className="size-3" />
+                          <span className="max-w-32 truncate font-medium text-foreground">
+                            {reply.author}
+                          </span>
+                          <span className="ml-auto shrink-0">
+                            {formatTimestamp(reply.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 whitespace-pre-wrap pl-4 leading-relaxed">
+                          {reply.body}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {replyingTo === comment.id && (
+                  <ReplyComposer
+                    onSubmit={(body) => {
+                      onReply(comment, body);
+                      setReplyingTo(null);
+                    }}
+                    onCancel={() => setReplyingTo(null)}
+                  />
+                )}
 
                 <div className="mt-3 flex items-center gap-1 border-border border-t pt-2">
                   {comment.anchor.source && (
@@ -150,6 +265,19 @@ export function ReviewCommentsPanel({
                       Source
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={() =>
+                      setReplyingTo((current) =>
+                        current === comment.id ? null : comment.id,
+                      )
+                    }
+                  >
+                    <ReplyIcon className="size-3.5" />
+                    Reply
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -167,7 +295,7 @@ export function ReviewCommentsPanel({
                     variant="ghost"
                     size="icon"
                     className="ml-auto size-7 text-muted-foreground hover:text-destructive"
-                    aria-label="Delete comment"
+                    aria-label="Delete annotation"
                     onClick={() => onDelete(comment)}
                   >
                     <Trash2Icon className="size-3.5" />

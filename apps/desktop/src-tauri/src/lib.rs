@@ -1,4 +1,5 @@
 mod ai;
+mod export;
 mod history;
 mod language_tool;
 mod latex;
@@ -743,6 +744,8 @@ pub fn run() {
             metadata::clear_metadata_cache,
             project_import::import_zip_project,
             project_import::import_github_project,
+            export::export_project_zip,
+            export::get_default_reviewer_name,
             reference_sources::read_external_bibliography,
             reference_sources::fetch_citedrive_bibliography,
             // Unified AI provider commands
