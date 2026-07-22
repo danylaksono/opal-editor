@@ -112,9 +112,9 @@ function openWithDefaultApp(absolutePath: string) {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).catch((err) =>
-    log.warn(`Clipboard write failed: ${String(err)}`),
-  );
+  navigator.clipboard
+    .writeText(text)
+    .catch((err) => log.warn(`Clipboard write failed: ${String(err)}`));
 }
 
 // ─── Document Outline ───
@@ -1472,12 +1472,16 @@ function FileTreeNode({
             <PanelTopIcon className="mr-2 size-4" />
             Open in New Tab
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => openWithDefaultApp(file.absolutePath)}>
+          <ContextMenuItem
+            onClick={() => openWithDefaultApp(file.absolutePath)}
+          >
             <ExternalLinkIcon className="mr-2 size-4" />
             Open in Default App
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={() => revealInFileManager(file.absolutePath)}>
+          <ContextMenuItem
+            onClick={() => revealInFileManager(file.absolutePath)}
+          >
             <FolderOpenIcon className="mr-2 size-4" />
             Reveal in {FILE_MANAGER_NAME}
           </ContextMenuItem>
