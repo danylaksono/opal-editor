@@ -18,6 +18,7 @@ import {
   MessageSquareTextIcon,
   Minimize2Icon,
   SparklesIcon,
+  GaugeIcon,
 } from "lucide-react";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -45,12 +46,23 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { HistoryPanel } from "@/components/workspace/history-panel";
 import {
   compileLatex,
   synctexEdit,
   resolveCompileTarget,
   formatCompileError,
+  effectiveCompileProfile,
+  profilesEqual,
   type CompileFailure,
 } from "@/lib/latex-compiler";
 import {
@@ -399,6 +411,36 @@ export function PdfPreview() {
   // Whether the project has a compilable .tex root — compiling works from any
   // active file (.bib, .sty, images), so gate on the root, not the active file.
   const isCompilable = rootEntry?.type === "tex" || files.length === 0;
+
+  // Fast-preview build options and the profile of the currently displayed PDF
+  const fastCompile = useDocumentStore((s) => s.fastCompile);
+  const setFastCompile = useDocumentStore((s) => s.setFastCompile);
+  const displayedBuildProfile = useDocumentStore(
+    (s) => s.pdfBuildProfiles.get(currentRootFileId) ?? null,
+  );
+  const fastCompileActive =
+    fastCompile.onlyCurrentChapter ||
+    fastCompile.skipFigures ||
+    fastCompile.singlePass;
+  const partialPreviewLabel = displayedBuildProfile
+    ? [
+        displayedBuildProfile.includeOnly
+          ? `${displayedBuildProfile.includeOnly} only`
+          : null,
+        displayedBuildProfile.draft ? "no figures" : null,
+        displayedBuildProfile.singlePass ? "single pass" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+  const runFullBuild = () => {
+    setFastCompile({
+      onlyCurrentChapter: false,
+      skipFigures: false,
+      singlePass: false,
+    });
+    handleCompile(true);
+  };
 
   // Normalized compile failure, available regardless of whether a stale PDF
   // is still on screen — so error details stay reachable even when the
@@ -902,6 +944,13 @@ export function PdfPreview() {
   const handleExport = async () => {
     const currentPdf = getCurrentPdfBytes();
     if (!currentPdf) return;
+    // Never let a fast-preview build slip out as if it were the final PDF
+    if (partialPreviewLabel) {
+      const proceed = window.confirm(
+        `This PDF is a partial fast preview (${partialPreviewLabel}) — not the final document.\n\nExport it anyway?`,
+      );
+      if (!proceed) return;
+    }
     const mainFile = files.find(
       (f) => f.name === "main.tex" || f.name === "document.tex",
     );
@@ -991,14 +1040,21 @@ export function PdfPreview() {
       return;
     }
     const { rootId, targetPath: targetFile } = resolved;
+    const buildProfile = effectiveCompileProfile(
+      rootId,
+      activeFileId,
+      allFiles,
+      state.fastCompile,
+    );
     // Skip recompile if no edits since last successful compile of this root
-    // (unless force=true, e.g. user clicked Recompile button)
+    // with the same build profile (unless force=true, e.g. Recompile button)
     if (!force) {
       const lastGen = state.lastCompiledGenerations.get(rootId);
       if (
         hasPdfData() &&
         lastGen !== undefined &&
-        state.contentGeneration === lastGen
+        state.contentGeneration === lastGen &&
+        profilesEqual(state.pdfBuildProfiles.get(rootId) ?? null, buildProfile)
       )
         return;
     }
@@ -1010,8 +1066,13 @@ export function PdfPreview() {
     try {
       await saveAllFiles();
       const texlive = useSettingsStore.getState().compilerBackend === "texlive";
-      const data = await compileLatex(state.projectRoot, targetFile, texlive);
-      setPdfData(data, rootId);
+      const data = await compileLatex(
+        state.projectRoot,
+        targetFile,
+        texlive,
+        buildProfile,
+      );
+      setPdfData(data, rootId, buildProfile);
     } catch (error) {
       setCompileError(formatCompileError(error), rootId);
     } finally {
@@ -1410,6 +1471,79 @@ export function PdfPreview() {
               </span>
             </Button>
           )}
+          {isCompilable && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={
+                    fastCompileActive
+                      ? "h-7 gap-1.5 bg-amber-500/10 px-2.5 text-amber-700 text-xs hover:bg-amber-500/20 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300"
+                      : "h-7 gap-1.5 px-2.5 text-muted-foreground text-xs"
+                  }
+                  title={
+                    fastCompileActive
+                      ? "Fast preview builds are on — the PDF is not final"
+                      : "Build mode: full (final PDF)"
+                  }
+                >
+                  <GaugeIcon className="size-3.5" />
+                  <span className="@[34rem]/pv:inline hidden">
+                    {fastCompileActive ? "Fast" : "Full"}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="text-muted-foreground text-xs">
+                  Fast preview — builds are quicker but the PDF is not final
+                </DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={fastCompile.onlyCurrentChapter}
+                  onCheckedChange={(v) =>
+                    setFastCompile({ onlyCurrentChapter: Boolean(v) })
+                  }
+                >
+                  <div>
+                    <div>Only current chapter</div>
+                    <div className="text-muted-foreground text-xs">
+                      \includeonly the file being edited (when \include'd)
+                    </div>
+                  </div>
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={fastCompile.skipFigures}
+                  onCheckedChange={(v) =>
+                    setFastCompile({ skipFigures: Boolean(v) })
+                  }
+                >
+                  <div>
+                    <div>Skip figures (draft)</div>
+                    <div className="text-muted-foreground text-xs">
+                      Figures render as empty boxes
+                    </div>
+                  </div>
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={fastCompile.singlePass}
+                  onCheckedChange={(v) =>
+                    setFastCompile({ singlePass: Boolean(v) })
+                  }
+                >
+                  <div>
+                    <div>Single pass</div>
+                    <div className="text-muted-foreground text-xs">
+                      Skip bibliography and reference stabilization
+                    </div>
+                  </div>
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={runFullBuild}>
+                  Run full build now
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {!isSaving && !isCompiling && compileError && (
             <Button
               variant="ghost"
@@ -1584,6 +1718,21 @@ export function PdfPreview() {
           Showing the last successful PDF — the latest compile failed.{" "}
           <span className="underline">View details</span>
         </button>
+      )}
+      {/* Partial-preview ribbon: stays as long as the displayed PDF was built
+          with fast-preview options, so a draft is never mistaken for final. */}
+      {pdfData && partialPreviewLabel && (
+        <div className="absolute top-[calc(48px+var(--titlebar-height))] right-4 z-30 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-100 px-3 py-2 font-medium text-amber-950 text-xs shadow dark:bg-amber-950 dark:text-amber-100">
+          <GaugeIcon className="size-3.5 shrink-0" />
+          <span>Not the final PDF — {partialPreviewLabel}</span>
+          <button
+            type="button"
+            onClick={runFullBuild}
+            className="shrink-0 underline underline-offset-2 hover:opacity-80"
+          >
+            Run full build
+          </button>
+        </div>
       )}
       <Dialog
         open={staleErrorDialogOpen && Boolean(compileFailure)}

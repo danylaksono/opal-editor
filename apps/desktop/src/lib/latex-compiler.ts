@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { resolveTexRoot, type ProjectFile } from "@/stores/document-store";
+import {
+  resolveTexRoot,
+  type ProjectFile,
+  type FastCompileOptions,
+  type UsedCompileProfile,
+} from "@/stores/document-store";
 import { createLogger } from "@/lib/debug/logger";
 import { friendlyCompileError } from "@/lib/latex-guidance";
 
@@ -84,20 +89,78 @@ export function formatCompileError(error: unknown): CompileFailure {
   };
 }
 
+/** Resolve the user's fast-compile toggles into the profile actually sent to
+ *  the compiler, or `null` for a full build. "Only current chapter" applies
+ *  only when the active file is a .tex file that the root `\include`s —
+ *  otherwise that toggle silently falls back to building everything. */
+export function effectiveCompileProfile(
+  rootId: string,
+  activeFileId: string,
+  files: ProjectFile[],
+  fast: FastCompileOptions,
+): UsedCompileProfile | null {
+  let includeOnly: string | null = null;
+  if (fast.onlyCurrentChapter && activeFileId !== rootId) {
+    const active = files.find((f) => f.id === activeFileId);
+    const root = files.find((f) => f.id === rootId);
+    if (active?.type === "tex" && root?.content) {
+      const stem = active.relativePath.replace(/\.tex$/i, "");
+      const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Only \include'd files are valid \includeonly targets
+      const includeRe = new RegExp(
+        `\\\\include\\{\\s*(?:\\./)?${escaped}\\s*\\}`,
+      );
+      if (includeRe.test(root.content)) includeOnly = stem;
+    }
+  }
+  if (!includeOnly && !fast.skipFigures && !fast.singlePass) return null;
+  return {
+    includeOnly,
+    draft: fast.skipFigures,
+    singlePass: fast.singlePass,
+  };
+}
+
+/** True when two build profiles are equivalent (null = full build). */
+export function profilesEqual(
+  a: UsedCompileProfile | null,
+  b: UsedCompileProfile | null,
+): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.includeOnly === b.includeOnly &&
+    a.draft === b.draft &&
+    a.singlePass === b.singlePass
+  );
+}
+
 export async function compileLatex(
   projectDir: string,
   mainFile: string = "main.tex",
   useTexlive: boolean = false,
+  profile: UsedCompileProfile | null = null,
 ): Promise<Uint8Array> {
   log.info(
-    `Compiling ${mainFile} (backend: ${useTexlive ? "texlive" : "tectonic"})`,
+    `Compiling ${mainFile} (backend: ${useTexlive ? "texlive" : "tectonic"}${
+      profile
+        ? `, fast: ${[
+            profile.includeOnly && `only ${profile.includeOnly}`,
+            profile.draft && "draft",
+            profile.singlePass && "single-pass",
+          ]
+            .filter(Boolean)
+            .join("+")}`
+        : ""
+    })`,
   );
   const start = performance.now();
   // compile_latex returns raw PDF bytes via Tauri IPC Response
+  // (profile omitted entirely for full builds — serde treats it as None)
   const buffer = await invoke<ArrayBuffer>("compile_latex", {
     projectDir,
     mainFile,
     useTexlive,
+    ...(profile ? { profile } : {}),
   });
 
   const result = new Uint8Array(buffer);

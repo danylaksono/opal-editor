@@ -27,6 +27,23 @@ import type { CompileFailure } from "@/lib/latex-compiler";
 
 const log = createLogger("document");
 
+/** User-facing fast-preview toggles (session-only). */
+export interface FastCompileOptions {
+  /** \includeonly the chapter being edited (when it is \include'd by the root). */
+  onlyCurrentChapter: boolean;
+  /** Add the `draft` class option: figures render as boxes. */
+  skipFigures: boolean;
+  /** Single TeX pass: no bibtex / rerun loop, references may be stale. */
+  singlePass: boolean;
+}
+
+/** The profile a PDF was actually built with (mirrors Rust's CompileProfile). */
+export interface UsedCompileProfile {
+  includeOnly: string | null;
+  draft: boolean;
+  singlePass: boolean;
+}
+
 export interface ProjectFile {
   id: string; // relativePath is the id
   name: string;
@@ -117,7 +134,18 @@ interface DocumentState {
   requestJumpToPosition: (position: number) => void;
   clearJumpRequest: () => void;
   setThreadOpen: (open: boolean) => void;
-  setPdfData: (data: Uint8Array | null, rootFileId?: string) => void;
+  setPdfData: (
+    data: Uint8Array | null,
+    rootFileId?: string,
+    buildProfile?: UsedCompileProfile | null,
+  ) => void;
+  /** Session-only fast-preview options. Reset on every app start so the
+   *  default is always a full, final build. */
+  fastCompile: FastCompileOptions;
+  setFastCompile: (opts: Partial<FastCompileOptions>) => void;
+  /** rootFileId → the profile the *displayed* PDF was built with (null/absent
+   *  = full build). Drives the "partial preview" ribbon. */
+  pdfBuildProfiles: Map<string, UsedCompileProfile | null>;
   setCompileError: (
     error: CompileFailure | string | null,
     rootFileId?: string,
@@ -321,6 +349,12 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   isCompiling: false,
   pendingRecompile: false,
   lastCompileStats: null,
+  fastCompile: {
+    onlyCurrentChapter: false,
+    skipFigures: false,
+    singlePass: false,
+  },
+  pdfBuildProfiles: new Map(),
   isSaving: false,
   initialized: false,
   contentGeneration: 0,
@@ -398,6 +432,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       compileError: null,
       compileErrorCache: new Map(),
       lastCompiledGenerations: new Map(),
+      pdfBuildProfiles: new Map(),
       initialized: true,
       cursorPosition: 0,
       selectionRange: null,
@@ -447,6 +482,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       compileError: null,
       compileErrorCache: new Map(),
       lastCompiledGenerations: new Map(),
+      pdfBuildProfiles: new Map(),
       initialized: false,
     });
   },
@@ -705,7 +741,7 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
 
   setThreadOpen: (open) => set({ isThreadOpen: open }),
 
-  setPdfData: (data, rootFileId?) => {
+  setPdfData: (data, rootFileId?, buildProfile?) => {
     if (data) {
       const key = rootFileId ?? "__default__";
       _pdfBytesCache.set(key, data);
@@ -721,13 +757,16 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
         const s = get();
         const compileErrorCache = new Map(s.compileErrorCache);
         const lastCompiledGenerations = new Map(s.lastCompiledGenerations);
+        const pdfBuildProfiles = new Map(s.pdfBuildProfiles);
         compileErrorCache.delete(rootFileId);
         lastCompiledGenerations.set(rootFileId, s.contentGeneration);
+        pdfBuildProfiles.set(rootFileId, buildProfile ?? null);
         set((prev) => ({
           pdfRevision: prev.pdfRevision + 1,
           compileError: null,
           compileErrorCache,
           lastCompiledGenerations,
+          pdfBuildProfiles,
         }));
       } else {
         set((prev) => ({
@@ -760,6 +799,8 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
   setIsCompiling: (isCompiling) => set({ isCompiling }),
   setPendingRecompile: (pending) => set({ pendingRecompile: pending }),
   setLastCompileStats: (stats) => set({ lastCompileStats: stats }),
+  setFastCompile: (opts) =>
+    set((s) => ({ fastCompile: { ...s.fastCompile, ...opts } })),
 
   setIsSaving: (isSaving) => set({ isSaving }),
 

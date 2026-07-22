@@ -74,6 +74,8 @@ import {
   compileLatex,
   resolveCompileTarget,
   formatCompileError,
+  effectiveCompileProfile,
+  profilesEqual,
   synctexView,
 } from "@/lib/latex-compiler";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -1114,6 +1116,12 @@ export function LatexEditor() {
       return;
     }
     const { rootId, targetPath } = resolved;
+    const buildProfile = effectiveCompileProfile(
+      rootId,
+      state.activeFileId,
+      allFiles,
+      state.fastCompile,
+    );
     // Implicit compiles (save-triggered, auto mode, queued follow-ups) bail
     // when nothing changed since the last successful compile of this root,
     // and defer while the post-build cooldown is active — 1.5× the last
@@ -1121,7 +1129,8 @@ export function LatexEditor() {
     // back-to-back. Explicit compiles (Ctrl+Enter, buttons) always run now.
     if (skipIfUnchanged) {
       if (
-        state.lastCompiledGenerations.get(rootId) === state.contentGeneration
+        state.lastCompiledGenerations.get(rootId) === state.contentGeneration &&
+        profilesEqual(state.pdfBuildProfiles.get(rootId) ?? null, buildProfile)
       ) {
         return;
       }
@@ -1155,8 +1164,13 @@ export function LatexEditor() {
         .catch(() => {});
       const useTexlive =
         useSettingsStore.getState().compilerBackend === "texlive";
-      const data = await compileLatex(projectRoot, targetPath, useTexlive);
-      setPdfData(data, rootId);
+      const data = await compileLatex(
+        projectRoot,
+        targetPath,
+        useTexlive,
+        buildProfile,
+      );
+      setPdfData(data, rootId, buildProfile);
     } catch (error) {
       setCompileError(formatCompileError(error), rootId);
     } finally {

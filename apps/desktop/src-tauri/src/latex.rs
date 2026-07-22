@@ -201,6 +201,87 @@ fn error_source_file(log: &str, work_dir: &Path) -> Option<String> {
     None
 }
 
+/// Fast-preview options for a single compile. All off (the default) = full build.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CompileProfile {
+    /// `\includeonly{<name>}` target — build only this `\include`d file.
+    pub include_only: Option<String>,
+    /// Add the `draft` class option: figures render as boxes, skipping the
+    /// expensive image embedding step.
+    pub draft: bool,
+    /// Single TeX pass — no bibtex / rerun loop. References may be stale.
+    pub single_pass: bool,
+}
+
+impl CompileProfile {
+    pub fn is_full(&self) -> bool {
+        self.include_only.is_none() && !self.draft && !self.single_pass
+    }
+}
+
+/// Rewrite root-document source for a fast-preview build: add the `draft`
+/// class option and/or insert `\includeonly{...}` before `\begin{document}`.
+/// Applied only to the *build-dir copy* — the project's own files are never
+/// touched, and the build dir is re-synced from the project on every compile,
+/// so the injection is re-applied (or dropped) per build.
+fn inject_profile_into_source(src: &str, profile: &CompileProfile) -> String {
+    let mut out = src.to_string();
+    if profile.draft {
+        if let Some(with_draft) = add_draft_option(&out) {
+            out = with_draft;
+        }
+    }
+    if let Some(name) = &profile.include_only {
+        if let Some(pos) = out.find("\\begin{document}") {
+            out.insert_str(pos, &format!("\\includeonly{{{}}}\n", name));
+        }
+    }
+    out
+}
+
+/// Insert the `draft` option into the first non-commented `\documentclass`.
+/// Returns `None` when no suitable `\documentclass` is found.
+fn add_draft_option(src: &str) -> Option<String> {
+    let mut abs = 0usize;
+    for line in src.split_inclusive('\n') {
+        // Code portion of the line: everything before an unescaped `%`.
+        let bytes = line.as_bytes();
+        let mut comment = line.len();
+        for i in 0..bytes.len() {
+            if bytes[i] == b'%' && (i == 0 || bytes[i - 1] != b'\\') {
+                comment = i;
+                break;
+            }
+        }
+        let code = &line[..comment];
+        if let Some(idx) = code.find("\\documentclass") {
+            let after = abs + idx + "\\documentclass".len();
+            let rest = &src[after..];
+            let rest_trimmed = rest.trim_start();
+            let ws = rest.len() - rest_trimmed.len();
+            if rest_trimmed.starts_with('[') {
+                let open = after + ws;
+                let close = open + src[open..].find(']')?;
+                let opts = src[open + 1..close].trim();
+                let insert = if opts.is_empty() { "draft" } else { ",draft" };
+                let mut out = src.to_string();
+                out.insert_str(close, insert);
+                return Some(out);
+            }
+            if rest_trimmed.starts_with('{') {
+                let brace = after + ws;
+                let mut out = src.to_string();
+                out.insert_str(brace, "[draft]");
+                return Some(out);
+            }
+            return None;
+        }
+        abs += line.len();
+    }
+    None
+}
+
 /// Map a filename token from the TeX log to a real file in the build dir.
 /// Tokens may carry a `./` prefix or omit the `.tex` extension.
 fn resolve_log_filename(work_dir: &Path, name: &str) -> Option<String> {
@@ -586,7 +667,11 @@ fn lower_thread_priority() {
 
 // --- Tectonic Compilation ---
 
-pub(crate) fn compile_with_tectonic(work_dir: &Path, main_file: &str) -> Result<(), String> {
+pub(crate) fn compile_with_tectonic(
+    work_dir: &Path,
+    main_file: &str,
+    single_pass: bool,
+) -> Result<(), String> {
     use tectonic::config::PersistentConfig;
     use tectonic::driver::{OutputFormat, PassSetting, ProcessingSessionBuilder};
     use tectonic::status::NoopStatusBackend;
@@ -617,7 +702,11 @@ pub(crate) fn compile_with_tectonic(work_dir: &Path, main_file: &str) -> Result<
         .format_name("latex")
         .format_cache_path(format_cache)
         .output_format(OutputFormat::Pdf)
-        .pass(PassSetting::Default)
+        .pass(if single_pass {
+            PassSetting::Tex
+        } else {
+            PassSetting::Default
+        })
         .synctex(true)
         .keep_intermediates(true)
         .keep_logs(true);
@@ -640,13 +729,20 @@ pub(crate) fn compile_with_tectonic(work_dir: &Path, main_file: &str) -> Result<
 ///
 /// By spawning a subprocess, each compilation gets a fresh process with
 /// clean global state, and cleanup happens automatically on process exit.
-fn compile_with_tectonic_subprocess(work_dir: &Path, main_file: &str) -> Result<(), String> {
+fn compile_with_tectonic_subprocess(
+    work_dir: &Path,
+    main_file: &str,
+    single_pass: bool,
+) -> Result<(), String> {
     let exe = std::env::current_exe()
         .map_err(|e| format!("Failed to get current executable path: {}", e))?;
 
     let mut cmd = std::process::Command::new(&exe);
-    cmd.args(["--tectonic-compile", &work_dir.to_string_lossy(), main_file])
-        .stdout(std::process::Stdio::piped())
+    cmd.args(["--tectonic-compile", &work_dir.to_string_lossy(), main_file]);
+    if single_pass {
+        cmd.arg("--single-pass");
+    }
+    cmd.stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -726,6 +822,7 @@ fn compile_with_texlive(
     main_file: &str,
     engine: Option<TexEngine>,
     tex_content: &str,
+    single_pass: bool,
 ) -> Result<(), String> {
     let engine_name = match engine {
         Some(TexEngine::XeLaTeX) | None => "xelatex",
@@ -740,7 +837,12 @@ fn compile_with_texlive(
         engine_name,
         engine_path.display()
     );
-    let bib_tool = detect_bib_tool(tex_content);
+    // Single-pass preview: skip bibliography and stabilization passes.
+    let bib_tool = if single_pass {
+        BibTool::None
+    } else {
+        detect_bib_tool(tex_content)
+    };
 
     // Use "." as output-directory since current_dir is already work_dir.
     // Absolute paths break when they contain ~ (e.g. iCloud's com~apple~CloudDocs)
@@ -808,12 +910,14 @@ fn compile_with_texlive(
         BibTool::None => {}
     }
 
-    // Pass 2: resolve references / TOC
-    run_texlive_pass(&engine_path, &common_args, &main_file_path, work_dir)?;
-
-    // Pass 3: stabilize citations (only if bib was used)
-    if !matches!(bib_tool, BibTool::None) {
+    // Pass 2: resolve references / TOC (skipped in single-pass preview)
+    if !single_pass {
         run_texlive_pass(&engine_path, &common_args, &main_file_path, work_dir)?;
+
+        // Pass 3: stabilize citations (only if bib was used)
+        if !matches!(bib_tool, BibTool::None) {
+            run_texlive_pass(&engine_path, &common_args, &main_file_path, work_dir)?;
+        }
     }
 
     let pdf_path = work_dir.join(format!("{}.pdf", main_stem));
@@ -1224,6 +1328,7 @@ pub async fn compile_latex(
     project_dir: String,
     main_file: String,
     use_texlive: Option<bool>,
+    profile: Option<CompileProfile>,
 ) -> Result<tauri::ipc::Response, CompileFailure> {
     // Acquire semaphore permit (non-blocking)
     let _permit = state
@@ -1300,6 +1405,21 @@ pub async fn compile_latex(
         )));
     }
 
+    // Fast-preview profile: rewrite the build-dir copy of the root document.
+    // The build dir is freshly synced above, so this is re-applied (or
+    // naturally dropped) on every compile.
+    let profile = profile.unwrap_or_default();
+    if !profile.is_full() {
+        let src = std::fs::read_to_string(&main_tex_path).unwrap_or_default();
+        let injected = inject_profile_into_source(&src, &profile);
+        std::fs::write(&main_tex_path, injected)
+            .map_err(|e| format!("Failed to prepare fast-preview build: {}", e))?;
+        eprintln!(
+            "[latex] fast profile: include_only={:?} draft={} single_pass={}",
+            profile.include_only, profile.draft, profile.single_pass
+        );
+    }
+
     // Detect TeX engine from magic comment (root file only — that's where
     // `% !TEX program` conventionally lives)
     let main_tex_content = std::fs::read_to_string(&main_tex_path).unwrap_or_default();
@@ -1332,6 +1452,7 @@ pub async fn compile_latex(
         }
     }
 
+    let single_pass = profile.single_pass;
     let compile_result = if use_texlive {
         let work_dir_clone = work_dir.clone();
         let main_file_clone = main_file.clone();
@@ -1342,6 +1463,7 @@ pub async fn compile_latex(
                 &main_file_clone,
                 engine,
                 &project_tex_content,
+                single_pass,
             )
         })
         .await
@@ -1358,7 +1480,7 @@ pub async fn compile_latex(
         let main_file_clone = main_file.clone();
         let result = tokio::task::spawn_blocking(move || {
             lower_thread_priority();
-            compile_with_tectonic_subprocess(&work_dir_clone, &main_file_clone)
+            compile_with_tectonic_subprocess(&work_dir_clone, &main_file_clone, single_pass)
         })
         .await
         .map_err(|e| format!("Compilation task panicked: {}", e))?;
@@ -1405,7 +1527,7 @@ pub async fn compile_latex(
 
         if needs_retry {
             let retry_result = tokio::task::spawn_blocking(move || {
-                compile_with_tectonic_subprocess(&work_dir_clone, &main_file_clone)
+                compile_with_tectonic_subprocess(&work_dir_clone, &main_file_clone, single_pass)
             })
             .await
             .map_err(|e| format!("Retry task panicked: {}", e))?;
@@ -2075,6 +2197,55 @@ l.23 \\bottomrule
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("main.tex"), "x").unwrap();
         assert_eq!(error_source_file("(main.tex)\nAll good.", dir.path()), None);
+    }
+
+    // --- inject_profile_into_source ---
+
+    #[test]
+    fn test_add_draft_option_with_existing_options() {
+        let src = "\\documentclass[12pt,a4paper]{book}\n\\begin{document}x\\end{document}";
+        assert_eq!(
+            add_draft_option(src).unwrap(),
+            "\\documentclass[12pt,a4paper,draft]{book}\n\\begin{document}x\\end{document}"
+        );
+    }
+
+    #[test]
+    fn test_add_draft_option_without_options() {
+        let src = "\\documentclass{article}\n";
+        assert_eq!(
+            add_draft_option(src).unwrap(),
+            "\\documentclass[draft]{article}\n"
+        );
+    }
+
+    #[test]
+    fn test_add_draft_option_skips_commented_documentclass() {
+        let src = "% \\documentclass{scratch}\n\\documentclass{report}\n";
+        assert_eq!(
+            add_draft_option(src).unwrap(),
+            "% \\documentclass{scratch}\n\\documentclass[draft]{report}\n"
+        );
+    }
+
+    #[test]
+    fn test_inject_includeonly_before_begin_document() {
+        let profile = CompileProfile {
+            include_only: Some("chapter04".to_string()),
+            ..Default::default()
+        };
+        let src = "\\documentclass{book}\n\\begin{document}\n\\include{chapter04}\n\\end{document}";
+        let out = inject_profile_into_source(src, &profile);
+        assert!(out.contains("\\includeonly{chapter04}\n\\begin{document}"));
+    }
+
+    #[test]
+    fn test_inject_profile_full_is_identity() {
+        let src = "\\documentclass{book}\n\\begin{document}x\\end{document}";
+        assert_eq!(
+            inject_profile_into_source(src, &CompileProfile::default()),
+            src
+        );
     }
 
     // --- detect_tex_engine ---
