@@ -174,8 +174,8 @@ function EditorSection() {
           <div className="font-medium text-sm">Auto-compile (experimental)</div>
           <div className="text-muted-foreground text-xs">
             Rebuild automatically after you stop typing, paced by how long the
-            last build took. Not recommended for large projects with slow
-            builds — Ctrl+S and Compile always work regardless.
+            last build took. Not recommended for large projects with slow builds
+            — Ctrl+S and Compile always work regardless.
           </div>
         </div>
         <input

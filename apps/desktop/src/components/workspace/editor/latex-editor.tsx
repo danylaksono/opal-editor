@@ -1133,7 +1133,8 @@ export function LatexEditor() {
       if (wait > 0) {
         // Defer rather than drop: the build still happens once the project
         // has had breathing room. A single timer absorbs repeated requests.
-        if (deferredCompileRef.current) clearTimeout(deferredCompileRef.current);
+        if (deferredCompileRef.current)
+          clearTimeout(deferredCompileRef.current);
         deferredCompileRef.current = setTimeout(() => {
           deferredCompileRef.current = null;
           compileRef.current({ skipIfUnchanged: true });
