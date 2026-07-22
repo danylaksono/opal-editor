@@ -161,8 +161,8 @@ export function ReviewCommentsPanel({
                 : "No open annotations"}
             </p>
             <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
-              Select text in the PDF, or pick the highlighter or comment tool
-              from the toolbar below.
+              Pick the highlighter or comment tool in the toolbar, then drag a
+              box or click on the PDF.
             </p>
           </div>
         ) : (

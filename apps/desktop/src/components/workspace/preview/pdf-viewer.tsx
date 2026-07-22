@@ -115,6 +115,11 @@ interface PdfViewerProps {
    *  interacting with the text layer. */
   commentPlacementMode?: boolean;
   onPlacePointComment?: (target: PdfReviewTarget) => void;
+  /** Review "highlighter" tool: drag a box over the PDF to highlight it.
+   *  Deliberately not based on text selection, so it also covers figures,
+   *  equations, and tables. */
+  highlightPlacementMode?: boolean;
+  onPlaceHighlight?: (target: PdfReviewTarget) => void;
 }
 
 export function PdfViewer({
@@ -143,6 +148,8 @@ export function PdfViewer({
   onAddReviewComment,
   commentPlacementMode = false,
   onPlacePointComment,
+  highlightPlacementMode = false,
+  onPlaceHighlight,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -710,27 +717,34 @@ export function PdfViewer({
     return () => container.removeEventListener("click", handleClick, true);
   }, [openPdfHref]);
 
-  // ESC during capture: cancel drag or cancel capture mode
+  // The capture tool and the review highlighter share the drag-a-box gesture.
+  const dragMode = captureMode
+    ? ("capture" as const)
+    : highlightPlacementMode
+      ? ("highlight" as const)
+      : null;
+
+  // ESC during a drag mode: cancel drag (or capture mode itself)
   useEffect(() => {
-    if (!captureMode) return;
+    if (!dragMode) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (dragStart) {
           setDragStart(null);
           setDragEnd(null);
-        } else {
+        } else if (captureMode) {
           onCancelCapture?.();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [captureMode, dragStart, onCancelCapture]);
+  }, [dragMode, captureMode, dragStart, onCancelCapture]);
 
-  // Capture mode: drag to select region
+  // Drag to select a region
   const handleCaptureMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (!captureMode) return;
+      if (!dragMode || e.button !== 0) return;
       const target = e.target as HTMLElement;
       const pageEl = target.closest(".mupdf-page") as HTMLElement | null;
       if (!pageEl) return;
@@ -743,20 +757,20 @@ export function PdfViewer({
       setDragStart({ x: e.clientX, y: e.clientY });
       setDragEnd(null);
     },
-    [captureMode],
+    [dragMode],
   );
 
   const handleCaptureMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!captureMode || !dragStart) return;
+      if (!dragMode || !dragStart) return;
       setDragEnd({ x: e.clientX, y: e.clientY });
     },
-    [captureMode, dragStart],
+    [dragMode, dragStart],
   );
 
   const handleCaptureMouseUp = useCallback(
     (e: React.MouseEvent) => {
-      if (!captureMode || !dragStart) {
+      if (!dragMode || !dragStart) {
         setDragStart(null);
         setDragEnd(null);
         return;
@@ -764,6 +778,31 @@ export function PdfViewer({
       const end = { x: e.clientX, y: e.clientY };
       const w = Math.abs(end.x - dragStart.x);
       const h = Math.abs(end.y - dragStart.y);
+
+      // Highlighter: convert the dragged box to page-relative PDF coordinates.
+      if (dragMode === "highlight") {
+        setDragStart(null);
+        setDragEnd(null);
+        if (w < 6 || h < 6 || !onPlaceHighlight) return;
+        const pageEl = containerRef.current?.querySelector(
+          `.mupdf-page[data-page-number="${dragPageNum}"]`,
+        ) as HTMLElement | null;
+        if (!pageEl) return;
+        const pageRect = pageEl.getBoundingClientRect();
+        const left = Math.max(0, Math.min(dragStart.x, end.x) - pageRect.left);
+        const top = Math.max(0, Math.min(dragStart.y, end.y) - pageRect.top);
+        const currentScale = scaleRef.current;
+        onPlaceHighlight({
+          kind: "text",
+          page: dragPageNum,
+          x: left / currentScale,
+          y: top / currentScale,
+          width: Math.min(pageRect.width - left, w) / currentScale,
+          height: Math.min(pageRect.height - top, h) / currentScale,
+          selectedText: "",
+        });
+        return;
+      }
 
       if (w < 10 || h < 10 || !onCapture) {
         setDragStart(null);
@@ -821,7 +860,7 @@ export function PdfViewer({
       setDragStart(null);
       setDragEnd(null);
     },
-    [captureMode, dragStart, dragPageNum, onCapture],
+    [dragMode, dragStart, dragPageNum, onCapture, onPlaceHighlight],
   );
 
   // Text layer click for onTextClick; in comment-placement mode the click
@@ -941,8 +980,9 @@ export function PdfViewer({
           {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
           className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
           style={{
-            cursor:
-              captureMode || commentPlacementMode ? "crosshair" : undefined,
+            cursor: dragMode || commentPlacementMode ? "crosshair" : undefined,
+            // Drag modes draw a box — suppress incidental text selection.
+            userSelect: dragMode ? "none" : undefined,
           }}
           onContextMenu={handleContextMenu}
           onMouseDownCapture={() => containerRef.current?.focus()}
@@ -983,7 +1023,11 @@ export function PdfViewer({
           </div>
           {selRect && (
             <div
-              className="pointer-events-none fixed border-2 border-primary bg-primary/10"
+              className={
+                dragMode === "highlight"
+                  ? "pointer-events-none fixed rounded-sm bg-yellow-300/40 ring-1 ring-yellow-500/60"
+                  : "pointer-events-none fixed border-2 border-primary bg-primary/10"
+              }
               style={selRect}
             />
           )}

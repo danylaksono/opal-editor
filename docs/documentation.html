@@ -840,7 +840,7 @@
       <span>Opal <span class="brand-context">/ Documentation</span></span>
     </a>
     <nav class="header-links" aria-label="Site links">
-      <a href="index.html">Product website</a>
+      <a href="index.html">Home page</a>
       <a href="https://github.com/danylaksono/tectonic-editor">GitHub</a>
     </nav>
   </header>
@@ -1150,9 +1150,8 @@
             the project.</p>
 
           <figure class="interface-figure">
-            <div class="screenshot-frame">
-              <img src="assets/reference-panel.png"
-                alt="The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected bibliography scope." />
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/reference-panel.png" style="width: 80%; height: auto;" alt="References panel" />
             </div>
             <figcaption>The References panel searches keys, metadata, DOIs, and raw BibTeX across the selected
               bibliography scope.</figcaption>
@@ -1247,8 +1246,8 @@
             should keep its own copy. Records added in Zotero flow in on the next sync — citations you have already
             inserted keep working because the <code>.bib</code> file stays in the project.</p>
           <figure class="interface-figure">
-            <div class="screenshot-frame">
-              <img src="assets/zotero.png" alt="Zotero collections view" />
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/zotero.png" style="width: 80%; height: auto;" alt="Zotero collections view" />
             </div>
             <figcaption>Synced collections show which bibliography file they update; the connection can be switched
               between Desktop and Cloud at any time.</figcaption>
@@ -1367,7 +1366,7 @@
             and LaTeX structure yourself.
           </p>
           <figure class="interface-figure">
-            <div class="screenshot-frame">
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
               <img src="assets/ai-edit.png" alt="AI edit review" />
             </div>
             <figcaption>Every AI edit waits in the review queue; nothing reaches the source until you accept it.
@@ -1402,15 +1401,13 @@
                   resolved</strong> to include completed feedback.</span></li>
           </ol>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of Review mode">
-              <span>Screenshot placeholder — Review mode with a highlighted PDF passage, its anchored comment, and the
-                Review comments panel.</span>
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/review-comments.png" alt="Review comments panel" />
             </div>
             <figcaption>Comments anchor to the page and, when SyncTeX resolves, to the matching source location.
             </figcaption>
           </figure>
-          <p>Review comments are saved with the project in <code>.tectonic-editor/review-comments.json</code>. They are
+          <p>Review comments are saved with the project in each project folder. They are
             separate from AI proposed changes and do not alter the PDF or source until you make an edit.</p>
         </div>
       </section>
@@ -1435,10 +1432,8 @@
                 document.</span></li>
           </ol>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the Grammar panel">
-              <span>Screenshot placeholder — Grammar panel listing spelling, grammar, and style suggestions with one
-                issue highlighted in the editor.</span>
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/grammar-check.png" style="width: 50%; height: auto;" alt="Grammar check panel" />
             </div>
             <figcaption>Suggestion categories use distinct colours in both the panel and the editor.</figcaption>
           </figure>
@@ -1486,10 +1481,8 @@
               unused.</li>
           </ul>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the Project health panel">
-              <span>Screenshot placeholder — Project health panel with categorised issues and a missing-package fix
-                button.</span>
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/project-health.png" style="width: 50%; height: auto;" alt="Project health panel" />
             </div>
             <figcaption>Errors block or corrupt output; warnings and notes are judgement calls you can act on or ignore.
             </figcaption>
@@ -1520,10 +1513,8 @@
             <li><span>Choose <strong>Restore</strong> to return the project files to that snapshot.</span></li>
           </ol>
           <figure class="interface-figure">
-            <div class="screenshot-frame placeholder" role="img"
-              aria-label="Placeholder for a screenshot of the version history panel">
-              <span>Screenshot placeholder — History panel with a list of snapshots, one labelled, and its diff shown in
-                the editor.</span>
+            <div class="screenshot-frame" style="display: flex; justify-content: center;">
+              <img src="assets/version-history.png" style="width: 80%; height: auto;" alt="Version history panel" />
             </div>
             <figcaption>Snapshot history lives inside the project and works alongside Git or any other version control
               you already use.</figcaption>
@@ -1602,7 +1593,7 @@
           </details>
           <details>
             <summary>Where is the full compile log?</summary>
-            <p>Opal keeps build artefacts in the project's hidden <code>.tectonic-editor/build/</code> folder; the
+            <p>Opal keeps build artefacts in the project's hidden <code>/build/</code> folder; the
               engine log is stored there next to the output as <code>&lt;root&gt;.log</code>. The Problems area
               summarises errors, but the raw log is the place to check warnings such as overfull boxes or undefined
               references. With AI configured, you can also ask chat to read and explain the build log.</p>

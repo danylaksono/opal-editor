@@ -18,7 +18,6 @@ import {
   MessageSquareTextIcon,
   Minimize2Icon,
   HighlighterIcon,
-  MousePointer2Icon,
   SparklesIcon,
   GaugeIcon,
 } from "lucide-react";
@@ -378,13 +377,13 @@ export function PdfPreview() {
   const [reviewDraft, setReviewDraft] = useState<ReviewCommentDraft | null>(
     null,
   );
-  // Active tool while review mode is on: plain selection, instant highlighter,
-  // or click-to-pin comments.
+  // Armed tool while review mode is on: drag-a-box highlighter or
+  // click-to-pin comments. "none" leaves the PDF in plain browse mode.
   const [reviewTool, setReviewTool] = useState<
-    "select" | "highlight" | "comment"
-  >("select");
+    "none" | "highlight" | "comment"
+  >("none");
   useEffect(() => {
-    if (!reviewMode) setReviewTool("select");
+    if (!reviewMode) setReviewTool("none");
   }, [reviewMode]);
   const [fitMode, setFitMode] = useState<FitMode>(null);
   const [containerSize, setContainerSize] = useState<{
@@ -657,30 +656,10 @@ export function PdfPreview() {
     [projectRoot, rootFileName, addReviewComment],
   );
 
-  const handleTextSelect = useCallback(
-    (selection: PdfTextSelection | null) => {
-      // Highlighter tool: releasing a selection paints it immediately instead
-      // of opening the selection toolbar.
-      if (selection && reviewMode && reviewTool === "highlight") {
-        void createHighlightAnnotation({
-          kind: "text",
-          page: selection.pageNumber,
-          x: selection.pdfX,
-          y: selection.pdfY,
-          width: selection.pdfWidth,
-          height: selection.pdfHeight,
-          selectedText: selection.text,
-        });
-        window.getSelection()?.removeAllRanges();
-        setPdfSelection(null);
-        setResolvedSource(null);
-        return;
-      }
-      setPdfSelection(selection);
-      setResolvedSource(null);
-    },
-    [reviewMode, reviewTool, createHighlightAnnotation],
-  );
+  const handleTextSelect = useCallback((selection: PdfTextSelection | null) => {
+    setPdfSelection(selection);
+    setResolvedSource(null);
+  }, []);
 
   // When PDF selection changes, resolve source via synctex
   useEffect(() => {
@@ -1439,6 +1418,12 @@ export function PdfPreview() {
                   onPlacePointComment={
                     isActive ? startReviewComment : undefined
                   }
+                  highlightPlacementMode={
+                    isActive && reviewMode && reviewTool === "highlight"
+                  }
+                  onPlaceHighlight={
+                    isActive ? createHighlightAnnotation : undefined
+                  }
                 />
               </div>
             </ErrorBoundary>
@@ -1635,6 +1620,44 @@ export function PdfPreview() {
         </div>
         <div data-tauri-drag-region className="flex-1 self-stretch" />
         <div className="flex shrink-0 items-center gap-1">
+          {/* Review tools — the wide review view leaves plenty of toolbar
+              room, so they live here rather than floating over the PDF.
+              Click a tool again to disarm it and go back to browsing. */}
+          {pdfData && reviewMode && (
+            <>
+              <Button
+                variant={reviewTool === "highlight" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                title="Highlighter — drag a box over the PDF to highlight it"
+                aria-label="Highlighter"
+                aria-pressed={reviewTool === "highlight"}
+                onClick={() =>
+                  setReviewTool((tool) =>
+                    tool === "highlight" ? "none" : "highlight",
+                  )
+                }
+              >
+                <HighlighterIcon className="size-3.5" />
+              </Button>
+              <Button
+                variant={reviewTool === "comment" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                title="Comment — click the PDF to pin a comment"
+                aria-label="Comment pin"
+                aria-pressed={reviewTool === "comment"}
+                onClick={() =>
+                  setReviewTool((tool) =>
+                    tool === "comment" ? "none" : "comment",
+                  )
+                }
+              >
+                <MessageSquarePlusIcon className="size-3.5" />
+              </Button>
+              <div className="mx-1 h-4 w-px bg-border" />
+            </>
+          )}
           {pdfData && (
             <>
               <Button
@@ -1791,46 +1814,6 @@ export function PdfPreview() {
           )}
           {reviewMode ? "Exit review" : "Review"}
         </Button>
-      )}
-      {/* Review tool pill — only while review mode is active. Shifted left of
-          the comments panel like the exit button above. */}
-      {pdfData && !pdfError && reviewMode && (
-        <div className="absolute bottom-4 left-[calc(50%-10rem)] z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur-sm">
-          {[
-            {
-              id: "select" as const,
-              label: "Select text",
-              icon: MousePointer2Icon,
-            },
-            {
-              id: "highlight" as const,
-              label: "Highlight — select text to highlight it",
-              icon: HighlighterIcon,
-            },
-            {
-              id: "comment" as const,
-              label: "Comment — click the PDF to pin a comment",
-              icon: MessageSquarePlusIcon,
-            },
-          ].map((tool) => {
-            const Icon = tool.icon;
-            const active = reviewTool === tool.id;
-            return (
-              <Button
-                key={tool.id}
-                variant={active ? "secondary" : "ghost"}
-                size="icon"
-                className="size-7"
-                title={tool.label}
-                aria-label={tool.label}
-                aria-pressed={active}
-                onClick={() => setReviewTool(tool.id)}
-              >
-                <Icon className="size-3.5" />
-              </Button>
-            );
-          })}
-        </div>
       )}
       {compileFailure && pdfData && (
         <button
