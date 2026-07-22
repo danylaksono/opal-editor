@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  effectiveCompileProfile,
-  profilesEqual,
-} from "@/lib/latex-compiler";
+import { effectiveCompileProfile, profilesEqual } from "@/lib/latex-compiler";
 import type { ProjectFile } from "@/stores/document-store";
 
 function makeFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
@@ -18,7 +15,11 @@ function makeFile(overrides: Partial<ProjectFile> = {}): ProjectFile {
   };
 }
 
-const FULL = { onlyCurrentChapter: false, skipFigures: false, singlePass: false };
+const FULL = {
+  onlyCurrentChapter: false,
+  skipFigures: false,
+  singlePass: false,
+};
 
 describe("effectiveCompileProfile", () => {
   const root = makeFile({
@@ -43,14 +44,21 @@ describe("effectiveCompileProfile", () => {
   const files = [root, chapter, preamble];
 
   it("returns null when all fast options are off", () => {
-    expect(effectiveCompileProfile("_main.tex", "chapter04.tex", files, FULL)).toBeNull();
+    expect(
+      effectiveCompileProfile("_main.tex", "chapter04.tex", files, FULL),
+    ).toBeNull();
   });
 
   it("targets an \\include'd chapter for includeOnly", () => {
-    const profile = effectiveCompileProfile("_main.tex", "chapter04.tex", files, {
-      ...FULL,
-      onlyCurrentChapter: true,
-    });
+    const profile = effectiveCompileProfile(
+      "_main.tex",
+      "chapter04.tex",
+      files,
+      {
+        ...FULL,
+        onlyCurrentChapter: true,
+      },
+    );
     expect(profile).toEqual({
       includeOnly: "chapter04",
       draft: false,
@@ -94,7 +102,11 @@ describe("profilesEqual", () => {
 
   it("distinguishes full from fast builds", () => {
     expect(
-      profilesEqual(null, { includeOnly: null, draft: true, singlePass: false }),
+      profilesEqual(null, {
+        includeOnly: null,
+        draft: true,
+        singlePass: false,
+      }),
     ).toBe(false);
   });
 
