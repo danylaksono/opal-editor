@@ -122,6 +122,9 @@ interface CompileErrorDetailsProps {
   onRetry: () => void;
   onExplain: () => void;
   onFixWithChat: () => void;
+  /** Jump to the error location in the editor. Absent when the source file
+   *  could not be matched to a project file. */
+  onGoToSource?: () => void;
 }
 
 /** The "what happened / where / suggested action" panel for a failed
@@ -140,7 +143,11 @@ function CompileErrorDetails({
   onRetry,
   onExplain,
   onFixWithChat,
+  onGoToSource,
 }: CompileErrorDetailsProps) {
+  const locationLabel = `${failure.sourceFile ?? rootFileName}${
+    failure.sourceLine ? `, line ${failure.sourceLine}` : ""
+  }`;
   return (
     <div className="w-full max-w-lg">
       <div className="mb-4 flex items-start gap-3">
@@ -169,8 +176,18 @@ function CompileErrorDetails({
           </div>
           <div>
             <span className="font-medium">Where:</span>{" "}
-            {failure.sourceFile ?? rootFileName}
-            {failure.sourceLine ? `, line ${failure.sourceLine}` : ""}
+            {onGoToSource ? (
+              <button
+                type="button"
+                onClick={onGoToSource}
+                title="Go to this location in the editor"
+                className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+              >
+                {locationLabel}
+              </button>
+            ) : (
+              locationLabel
+            )}
           </div>
           <div>
             <span className="font-medium">Suggested action:</span>{" "}
@@ -466,15 +483,14 @@ export function PdfPreview() {
     [content, requestJumpToPosition],
   );
 
-  const handleSynctexClick = useCallback(
-    async (page: number, x: number, y: number) => {
-      if (!projectRoot) return;
-      const result = await synctexEdit(projectRoot, page, x, y);
-      if (!result) return;
-
+  /** Open a project file (by path relative to the project root) and move the
+   *  cursor to a 1-based line and optional column. Shared by SyncTeX clicks
+   *  and the compile-error "Where:" link. */
+  const jumpToFileLine = useCallback(
+    (file: string, line: number, column = 0) => {
       const normalize = (p: string) =>
         p.replace(/\\/g, "/").replace(/^\.\//, "");
-      const normalizedTarget = normalize(result.file);
+      const normalizedTarget = normalize(file);
       const targetFile = files.find(
         (f) => normalize(f.relativePath) === normalizedTarget,
       );
@@ -492,16 +508,13 @@ export function PdfPreview() {
 
       const fileContent = targetFile.content ?? "";
       const fileLines = fileContent.split("\n");
-      const targetLine = Math.max(1, Math.min(result.line, fileLines.length));
+      const targetLine = Math.max(1, Math.min(line, fileLines.length));
       let offset = 0;
       for (let i = 0; i < targetLine - 1; i++) {
         offset += fileLines[i].length + 1;
       }
-      if (result.column > 0) {
-        offset += Math.min(
-          result.column,
-          fileLines[targetLine - 1]?.length ?? 0,
-        );
+      if (column > 0) {
+        offset += Math.min(column, fileLines[targetLine - 1]?.length ?? 0);
       }
 
       if (needsSwitch || leavingReview) {
@@ -510,14 +523,17 @@ export function PdfPreview() {
         requestJumpToPosition(offset);
       }
     },
-    [
-      projectRoot,
-      files,
-      reviewMode,
-      setReviewMode,
-      setActiveFile,
-      requestJumpToPosition,
-    ],
+    [files, reviewMode, setReviewMode, setActiveFile, requestJumpToPosition],
+  );
+
+  const handleSynctexClick = useCallback(
+    async (page: number, x: number, y: number) => {
+      if (!projectRoot) return;
+      const result = await synctexEdit(projectRoot, page, x, y);
+      if (!result) return;
+      jumpToFileLine(result.file, result.line, result.column);
+    },
+    [projectRoot, jumpToFileLine],
   );
 
   // Resolved source location from synctex
@@ -1060,6 +1076,22 @@ export function PdfPreview() {
       .finally(() => setIsExplaining(false));
   };
 
+  // Jump target for the compile error's "Where:" link — only offered when the
+  // reported (or fallback root) file actually exists in the project.
+  const errorSourceTarget = useMemo(() => {
+    if (!compileFailure) return null;
+    const file = compileFailure.sourceFile ?? rootFileName;
+    const normalize = (p: string) => p.replace(/\\/g, "/").replace(/^\.\//, "");
+    const exists = files.some(
+      (f) => normalize(f.relativePath) === normalize(file),
+    );
+    return exists ? { file, line: compileFailure.sourceLine ?? 1 } : null;
+  }, [compileFailure, rootFileName, files]);
+
+  const handleGoToErrorSource = errorSourceTarget
+    ? () => jumpToFileLine(errorSourceTarget.file, errorSourceTarget.line)
+    : undefined;
+
   const renderContent = () => {
     if (compileFailure && !pdfData) {
       return (
@@ -1075,6 +1107,7 @@ export function PdfPreview() {
             onRetry={() => handleCompile(true)}
             onExplain={handleExplainError}
             onFixWithChat={handleFixWithChat}
+            onGoToSource={handleGoToErrorSource}
           />
         </div>
       );
@@ -1519,6 +1552,14 @@ export function PdfPreview() {
               }}
               onExplain={handleExplainError}
               onFixWithChat={handleFixWithChat}
+              onGoToSource={
+                handleGoToErrorSource
+                  ? () => {
+                      setStaleErrorDialogOpen(false);
+                      handleGoToErrorSource();
+                    }
+                  : undefined
+              }
             />
           )}
         </DialogContent>

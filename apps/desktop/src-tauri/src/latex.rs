@@ -161,6 +161,61 @@ fn has_real_errors(log: &str) -> bool {
         .any(|l| l.starts_with('!') || l.contains("Error:"))
 }
 
+/// Determine which source file the first TeX error occurred in by replaying
+/// the `(file` / `)` nesting the engine prints as it opens and closes files.
+/// TeX interleaves these markers with arbitrary message text (package credits
+/// like `(DPC,SPQR)`, wrapped lines) and sometimes prints the name exactly as
+/// given to \input — without the `.tex` extension. So every stack entry is
+/// validated against the build dir, and the innermost entry that maps to a
+/// real file wins. Returns a path relative to the build dir (e.g. "mainText.tex").
+fn error_source_file(log: &str, work_dir: &Path) -> Option<String> {
+    let mut stack: Vec<&str> = Vec::new();
+    for line in log.lines() {
+        if line.starts_with('!') || line.contains("Error:") || line.contains("error:") {
+            return stack
+                .iter()
+                .rev()
+                .find_map(|name| resolve_log_filename(work_dir, name));
+        }
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'(' => {
+                    // Filename token runs until whitespace or another paren.
+                    let rest = &line[i + 1..];
+                    let end = rest
+                        .find(|c: char| c == '(' || c == ')' || c.is_whitespace())
+                        .unwrap_or(rest.len());
+                    stack.push(&rest[..end]);
+                    i += 1 + end;
+                }
+                b')' => {
+                    stack.pop();
+                    i += 1;
+                }
+                _ => i += 1,
+            }
+        }
+    }
+    None
+}
+
+/// Map a filename token from the TeX log to a real file in the build dir.
+/// Tokens may carry a `./` prefix or omit the `.tex` extension.
+fn resolve_log_filename(work_dir: &Path, name: &str) -> Option<String> {
+    let clean = name.trim_start_matches("./").trim_start_matches(".\\");
+    if clean.is_empty() {
+        return None;
+    }
+    for cand in [clean.to_string(), format!("{clean}.tex")] {
+        if work_dir.join(&cand).is_file() {
+            return Some(cand);
+        }
+    }
+    None
+}
+
 #[derive(Debug, PartialEq)]
 enum TexEngine {
     Latex,
@@ -1391,6 +1446,9 @@ pub async fn compile_latex(
     } else {
         let log_content = std::fs::read_to_string(&log_path).unwrap_or_default();
         let details = extract_error_lines(&log_content);
+        // The error snippet loses the `(file` nesting context, so resolve the
+        // offending file from the full log before it is discarded.
+        let source_file = error_source_file(&log_content, &work_dir);
         let msg = if details.is_empty() {
             match compile_result {
                 Err(e) => e,
@@ -1399,10 +1457,15 @@ pub async fn compile_latex(
         } else {
             details
         };
-        Err(CompileFailure::from_output(
+        let mut failure = CompileFailure::from_output(
             &backend_label,
             format!("Compilation failed ({})\n\n{}", backend_label, msg),
-        ))
+        );
+        failure.source_file = source_file.clone();
+        if let Some(diag) = failure.related_diagnostics.first_mut() {
+            diag.file = source_file;
+        }
+        Err(failure)
     }
 }
 
@@ -1947,6 +2010,71 @@ Postamble:
     #[test]
     fn test_has_real_errors_none() {
         assert!(!has_real_errors("This is pdfTeX\nNo pages of output.\n"));
+    }
+
+    // --- error_source_file ---
+
+    #[test]
+    fn test_error_source_file_tracks_input_stack() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("frontMatter.tex"), "x").unwrap();
+        std::fs::write(dir.path().join("mainText.tex"), "x").unwrap();
+        // Mirrors a real Tectonic log: the included file is opened as
+        // `(mainText` (extension omitted) right before the error fires.
+        let log = "\
+(frontMatter.tex
+(elsarticle.cls (article.cls))
+ (umsb.fd
+File: umsb.fd 2013/01/14 v3.01 AMS symbols B
+) (mainText
+! Misplaced \\noalign.
+l.23 \\bottomrule
+";
+        assert_eq!(
+            error_source_file(log, dir.path()),
+            Some("mainText.tex".to_string())
+        );
+    }
+
+    #[test]
+    fn test_error_source_file_root_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.tex"), "x").unwrap();
+        let log = "(main.tex (foo.sty)\n! Undefined control sequence.\nl.5 \\foo\n";
+        assert_eq!(
+            error_source_file(log, dir.path()),
+            Some("main.tex".to_string())
+        );
+    }
+
+    #[test]
+    fn test_error_source_file_skips_non_file_parens() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.tex"), "x").unwrap();
+        // Package-credit parens like `(DPC,SPQR` must not shadow the real file.
+        let log = "(main.tex\n(graphicx.sty (DPC,SPQR\n! Some error.\n";
+        assert_eq!(
+            error_source_file(log, dir.path()),
+            Some("main.tex".to_string())
+        );
+    }
+
+    #[test]
+    fn test_error_source_file_dot_slash_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("chapter1.tex"), "x").unwrap();
+        let log = "(./main.tex (./chapter1.tex\n! Missing $ inserted.\n";
+        assert_eq!(
+            error_source_file(log, dir.path()),
+            Some("chapter1.tex".to_string())
+        );
+    }
+
+    #[test]
+    fn test_error_source_file_no_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.tex"), "x").unwrap();
+        assert_eq!(error_source_file("(main.tex)\nAll good.", dir.path()), None);
     }
 
     // --- detect_tex_engine ---
