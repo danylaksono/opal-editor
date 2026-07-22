@@ -283,8 +283,6 @@ export function PdfPreview() {
   const activeFile = useDocumentStore((s) => {
     return s.files.find((f) => f.id === s.activeFileId) ?? null;
   });
-  const activeFileType = activeFile?.type ?? "tex";
-  const isTexActive = activeFileType === "tex";
 
   // AI explanation of the current compile error (one-shot, outside chat)
   const [errorExplanation, setErrorExplanation] = useState<string | null>(null);
@@ -365,8 +363,11 @@ export function PdfPreview() {
       ? s.lastCompiledGenerations.get(currentRootFileId)
       : undefined,
   );
-  const rootFileName =
-    files.find((f) => f.id === currentRootFileId)?.relativePath ?? "main.tex";
+  const rootEntry = files.find((f) => f.id === currentRootFileId);
+  const rootFileName = rootEntry?.relativePath ?? "main.tex";
+  // Whether the project has a compilable .tex root — compiling works from any
+  // active file (.bib, .sty, images), so gate on the root, not the active file.
+  const isCompilable = rootEntry?.type === "tex" || files.length === 0;
 
   // Normalized compile failure, available regardless of whether a stale PDF
   // is still on screen — so error details stay reachable even when the
@@ -416,7 +417,7 @@ export function PdfPreview() {
   );
   const previewIsStale =
     !!pdfData &&
-    isTexActive &&
+    isCompilable &&
     lastCompiledGeneration !== undefined &&
     contentGeneration !== lastCompiledGeneration;
   const [aliveOrder, setAliveOrder] = useState<string[]>([]);
@@ -949,8 +950,8 @@ export function PdfPreview() {
     }
     const allFiles = state.files;
     const activeFileId = state.activeFileId;
-    const activeEntry = allFiles.find((f) => f.id === activeFileId);
-    if (!activeEntry || activeEntry.type !== "tex") return;
+    // Any active file is fine — resolveCompileTarget finds the .tex root
+    // (and returns null when the project has none).
     const resolved = resolveCompileTarget(activeFileId, allFiles);
     if (!resolved) {
       setCompileError(
@@ -1135,10 +1136,11 @@ export function PdfPreview() {
             PDF Preview
           </h2>
           <p className="mb-4 text-center text-muted-foreground text-sm">
-            Save (Ctrl+S) or click Compile to build {rootFileName} — this works
-            from any file in the project.
+            {isCompilable
+              ? `Save (Ctrl+S) or click Compile to build ${rootFileName} — this works from any file in the project.`
+              : "No compilable .tex file found in this project."}
           </p>
-          {isTexActive && (
+          {isCompilable && (
             <Button
               variant="outline"
               size="sm"
@@ -1326,7 +1328,7 @@ export function PdfPreview() {
             !isCompiling &&
             !compileError &&
             pdfData &&
-            isTexActive && (
+            isCompilable && (
               <div
                 className={
                   previewIsStale
@@ -1341,7 +1343,7 @@ export function PdfPreview() {
                 )}
               </div>
             )}
-          {!isSaving && !isCompiling && !compileError && isTexActive && (
+          {!isSaving && !isCompiling && !compileError && isCompilable && (
             <Button
               variant="ghost"
               size="sm"
@@ -1361,7 +1363,7 @@ export function PdfPreview() {
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-destructive text-xs hover:text-destructive"
               onClick={() => handleCompile(true)}
-              disabled={!isTexActive}
+              disabled={!isCompilable}
               title="Retry compile"
             >
               <RefreshCwIcon className="size-3.5" />

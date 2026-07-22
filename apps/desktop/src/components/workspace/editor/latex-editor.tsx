@@ -1085,10 +1085,12 @@ export function LatexEditor() {
     }
   };
 
-  // Compile: save all files first, then compile via Tauri command
+  // Compile: save all files first, then compile via Tauri command.
+  // Works from any active file (.bib, .sty, …) — resolveCompileTarget
+  // finds the .tex root regardless.
   compileRef.current = async ({ skipIfUnchanged = false } = {}) => {
     const state = useDocumentStore.getState();
-    if (!projectRoot || activeFile?.type !== "tex") return;
+    if (!projectRoot || !activeFile) return;
     if (state.isCompiling) {
       // Queue a recompile after the current one finishes
       state.setPendingRecompile(true);

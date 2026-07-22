@@ -1252,24 +1252,33 @@ export function Sidebar({ activePanel }: SidebarProps) {
 function DroppableRoot({
   children,
   nativeDragOver,
-  onKeyDown,
-}: {
-  children: React.ReactNode;
+  className,
+  ref,
+  ...rest
+}: React.HTMLAttributes<HTMLDivElement> & {
   nativeDragOver?: boolean;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  ref?: React.Ref<HTMLDivElement>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "__root__" });
   return (
+    // Rest props must be spread onto the div: ContextMenuTrigger asChild
+    // delivers its onContextMenu/ref through them, and dropping them silently
+    // kills the empty-area right-click menu.
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        if (typeof ref === "function") ref(el);
+        else if (ref) ref.current = el;
+      }}
       data-drop-folder="__root__"
       role="tree"
       aria-label="Project files"
-      onKeyDown={onKeyDown}
       className={cn(
         "min-h-0 flex-1 overflow-y-auto p-1",
         (isOver || nativeDragOver) && "bg-accent/30",
+        className,
       )}
+      {...rest}
     >
       {children}
     </div>

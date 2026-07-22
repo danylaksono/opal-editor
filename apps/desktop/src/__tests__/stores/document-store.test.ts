@@ -96,6 +96,55 @@ describe("resolveTexRoot", () => {
     // The real root resolves to itself
     expect(resolveTexRoot("_main.tex", files)).toBe("_main.tex");
   });
+
+  it("resolves the root from non-tex files (.sty, .bib, images)", () => {
+    const files = [
+      makeFile({
+        id: "frontMatter.tex",
+        name: "frontMatter.tex",
+        relativePath: "frontMatter.tex",
+        content: "\\documentclass{elsarticle}\n\\begin{document}",
+      }),
+      makeFile({
+        id: "tkz-graph.sty",
+        name: "tkz-graph.sty",
+        relativePath: "tkz-graph.sty",
+        type: "style",
+        content: "\\ProvidesPackage{tkz-graph}",
+      }),
+      makeFile({
+        id: "refs.bib",
+        name: "refs.bib",
+        relativePath: "refs.bib",
+        type: "bib",
+        content: "@article{a, title={T}}",
+      }),
+      makeFile({
+        id: "fig.png",
+        name: "fig.png",
+        relativePath: "fig.png",
+        type: "image",
+        content: undefined,
+      }),
+    ];
+
+    expect(resolveTexRoot("tkz-graph.sty", files)).toBe("frontMatter.tex");
+    expect(resolveTexRoot("refs.bib", files)).toBe("frontMatter.tex");
+    expect(resolveTexRoot("fig.png", files)).toBe("frontMatter.tex");
+  });
+
+  it("falls back to the file itself when no root exists", () => {
+    const files = [
+      makeFile({
+        id: "notes.sty",
+        name: "notes.sty",
+        relativePath: "notes.sty",
+        type: "style",
+        content: "\\ProvidesPackage{notes}",
+      }),
+    ];
+    expect(resolveTexRoot("notes.sty", files)).toBe("notes.sty");
+  });
 });
 
 describe("useDocumentStore", () => {
