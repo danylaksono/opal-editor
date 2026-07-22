@@ -8,8 +8,13 @@ import {
   FileTextIcon,
   MousePointer2Icon,
   SparklesIcon,
+  TargetIcon,
 } from "lucide-react";
-import { hasPdfData, useDocumentStore } from "@/stores/document-store";
+import {
+  hasPdfData,
+  resolveTexRoot,
+  useDocumentStore,
+} from "@/stores/document-store";
 import { useProblemsStore } from "@/stores/problems-store";
 import { useProposedChangesStore } from "@/stores/proposed-changes-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -44,6 +49,14 @@ export function StatusBar() {
   );
 
   const activeFile = files.find((f) => f.id === activeFileId);
+  // Compile target (.tex root) — shown next to the backend, mirroring what
+  // the preview toolbar used to display before it moved here.
+  const rootFileName = useMemo(() => {
+    if (!activeFileId) return null;
+    const rootId = resolveTexRoot(activeFileId, files);
+    const root = files.find((f) => f.id === rootId);
+    return root?.type === "tex" ? root.relativePath : null;
+  }, [activeFileId, files]);
   const isTextFile =
     activeFile && activeFile.type !== "image" && activeFile.type !== "pdf";
 
@@ -171,6 +184,15 @@ export function StatusBar() {
           >
             <FileTextIcon className="size-3" />
             {currentPage}/{pageCount} pages
+          </span>
+        )}
+        {rootFileName && (
+          <span
+            className="flex items-center gap-1"
+            title={`Compile target: ${rootFileName}`}
+          >
+            <TargetIcon className="size-3" />
+            <span className="max-w-[160px] truncate">{rootFileName}</span>
           </span>
         )}
         <span className="uppercase tracking-wide">{compilerBackend}</span>

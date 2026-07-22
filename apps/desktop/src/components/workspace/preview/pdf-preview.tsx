@@ -1403,13 +1403,6 @@ export function PdfPreview() {
               <SelectItem value="texlive">TeXLive</SelectItem>
             </SelectContent>
           </Select>
-          <div
-            className="@[34rem]/pv:flex hidden max-w-32 items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1 text-muted-foreground text-xs"
-            title={`Compile target: ${rootFileName}`}
-          >
-            <FileTextIcon className="size-3.5 shrink-0" />
-            <span className="truncate">{rootFileName}</span>
-          </div>
           {isSaving && (
             <div
               className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1"
@@ -1665,22 +1658,6 @@ export function PdfPreview() {
               </Select>
               <div className="mx-1 h-4 w-px bg-border" />
               <Button
-                variant={reviewMode ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={() => setReviewMode(!reviewMode)}
-                title={reviewMode ? "Exit PDF review" : "Review PDF"}
-              >
-                {reviewMode ? (
-                  <Minimize2Icon className="size-3.5" />
-                ) : (
-                  <MessageSquareTextIcon className="size-3.5" />
-                )}
-                <span className="@[34rem]/pv:inline hidden">
-                  {reviewMode ? "Exit review" : "Review"}
-                </span>
-              </Button>
-              <Button
                 variant="ghost"
                 size="icon"
                 className="size-7"
@@ -1709,6 +1686,30 @@ export function PdfPreview() {
         </div>
       </div>
       {renderContent()}
+      {/* Floating review toggle — lives over the PDF instead of the toolbar
+          to keep the toolbar compact. Shifts left of the comments panel
+          (w-80, z-40) while review mode is open, since the panel has no
+          close button of its own. */}
+      {pdfData && !pdfError && (
+        <Button
+          variant={reviewMode ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setReviewMode(!reviewMode)}
+          title={reviewMode ? "Exit PDF review" : "Review PDF"}
+          className={`absolute bottom-4 z-30 h-8 gap-1.5 px-3 text-xs shadow-lg ${
+            reviewMode
+              ? "right-[21rem]"
+              : "right-4 bg-background/95 backdrop-blur-sm"
+          }`}
+        >
+          {reviewMode ? (
+            <Minimize2Icon className="size-3.5" />
+          ) : (
+            <MessageSquareTextIcon className="size-3.5" />
+          )}
+          {reviewMode ? "Exit review" : "Review"}
+        </Button>
+      )}
       {compileFailure && pdfData && (
         <button
           type="button"
