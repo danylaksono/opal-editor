@@ -1552,9 +1552,10 @@
   </header>
 
   <aside class="compatibility-advisory" aria-label="Release compatibility notice">
-    <strong>Compatibility notice for v1.4.1:</strong>
-    Windows is verified. On Linux, use the AppImage on Ubuntu 22.04 or newer. macOS support is temporarily
-    deferred, while the Debian/Ubuntu <code>.deb</code> and Fedora/RPM packages remain under investigation.
+    <strong>Compatibility notice:</strong>
+    Windows is verified. On Linux, use the AppImage on Ubuntu 22.04 or newer. macOS builds are provided
+    <strong>unsigned</strong> — after downloading, run <code>xattr -cr /Applications/Opal.app</code> or
+    right-click &rarr; Open to get past Gatekeeper. The Fedora/RPM package remains under investigation.
     <a href="#download">Review package status</a> before downloading.
   </aside>
 
@@ -1897,15 +1898,19 @@
                     d="M17.1 12.5c0-2.9 2.4-4.3 2.5-4.4a5.2 5.2 0 0 0-4.1-2.2c-1.7-.2-3.4 1-4.3 1s-2.2-1-3.7-.9a5.5 5.5 0 0 0-4.7 2.8c-2 3.5-.5 8.7 1.4 11.5 1 1.4 2.1 2.9 3.6 2.8 1.4-.1 2-1 3.7-1s2.2 1 3.7 1 2.5-1.4 3.4-2.8a12.5 12.5 0 0 0 1.6-3.3 5 5 0 0 1-3.1-4.5ZM14.3 4.1A5 5 0 0 0 15.5.5a5.1 5.1 0 0 0-3.3 1.7A4.7 4.7 0 0 0 11 5.7a4.2 4.2 0 0 0 3.3-1.6Z" />
                 </svg>
               </span>
-              <span class="package-badge warning">Support deferred</span>
+              <span class="package-badge warning">Unsigned build</span>
             </div>
             <h3>macOS</h3>
-            <p class="platform-copy">macOS 11 or later</p>
-            <p class="package-note warning">Current macOS downloads are unsupported. Signed and notarized builds will return when the project has sponsorship.</p>
+            <p class="platform-copy">macOS 11 or later · Apple Silicon &amp; Intel</p>
+            <p class="package-note warning">These builds are <strong>unsigned</strong> — there is no paid Apple certificate yet, so macOS blocks them on first launch. After downloading, remove the quarantine flag: open Terminal and run <code>xattr -cr /Applications/Opal.app</code>, or right-click the app in Finder and choose <strong>Open</strong>, then confirm.</p>
             <div class="asset-links">
-              <a class="asset-link compatibility-limited"
-                href="https://github.com/danylaksono/opal-editor/issues">
-                <span class="asset-link-label">Follow macOS support status<small class="asset-caveat">Downloads paused</small></span><span class="asset-size"></span>
+              <a class="asset-link" id="mac-arm"
+                href="https://github.com/danylaksono/opal-editor/releases/latest">
+                <span class="asset-link-label">Apple Silicon (.dmg)<small class="asset-caveat recommended">Recommended</small></span><span class="asset-size"></span>
+              </a>
+              <a class="asset-link" id="mac-intel"
+                href="https://github.com/danylaksono/opal-editor/releases/latest">
+                <span class="asset-link-label">Intel (.dmg)</span><span class="asset-size"></span>
               </a>
             </div>
           </article>
@@ -1998,16 +2003,16 @@
 
       const platformLabels = {
         windows: "Download for Windows",
-        macos: "Review macOS compatibility",
+        macos: "Download for macOS",
         linux: "Download for Linux",
         other: "Download latest release",
       };
 
       primaryDownloadLabel.textContent = platformLabels[platform];
+      document.querySelector(`[data-platform-card="${platform}"]`)?.classList.add("recommended");
       if (platform === "macos") {
+        // Resolved to an actual .dmg once the release fetch completes below.
         primaryDownload.href = "#download";
-      } else {
-        document.querySelector(`[data-platform-card="${platform}"]`)?.classList.add("recommended");
       }
 
       const featureTrack = document.querySelector("#feature-track");
@@ -2105,6 +2110,9 @@
         if (platform === "linux") {
           return findAsset(assets, [/linux.*\.AppImage$/i, /\.AppImage$/i, /linux.*\.deb$/i]);
         }
+        if (platform === "macos") {
+          return findAsset(assets, [/(aarch64|arm64).*\.dmg$/i, /\.dmg$/i]);
+        }
         return null;
       };
 
@@ -2135,19 +2143,25 @@
           const linuxAppImage = findAsset(assets, [/linux.*\.AppImage$/i, /\.AppImage$/i]);
           const linuxDeb = findAsset(assets, [/linux.*\.deb$/i, /\.deb$/i]);
           const linuxRpm = findAsset(assets, [/linux.*\.rpm$/i, /\.rpm$/i]);
+          const macArm = findAsset(assets, [/(aarch64|arm64).*\.dmg$/i]);
+          const macIntel = findAsset(assets, [/(x86_64|x64|intel).*\.dmg$/i]);
 
           setAssetLink("#windows-exe", windowsExe);
           setAssetLink("#windows-msi", windowsMsi);
           setAssetLink("#linux-appimage", linuxAppImage);
           setAssetLink("#linux-deb", linuxDeb);
           setAssetLink("#linux-rpm", linuxRpm);
+          setAssetLink("#mac-arm", macArm);
+          setAssetLink("#mac-intel", macIntel);
 
           const primaryAsset = choosePrimaryAsset(assets);
           if (primaryAsset) {
             primaryDownload.href = primaryAsset.browser_download_url;
           } else if (platform === "macos") {
+            // No macOS asset in the latest release yet — send Mac users to the
+            // download section rather than a dead link.
             primaryDownload.href = "#download";
-            primaryDownloadLabel.textContent = "Review macOS compatibility";
+            primaryDownloadLabel.textContent = "See macOS downloads";
           }
 
           const version = release.tag_name || "latest";

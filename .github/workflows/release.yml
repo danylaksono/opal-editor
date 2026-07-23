@@ -82,6 +82,24 @@ jobs:
             tauri-args: "--bundles deb,appimage"
             audit: linux
 
+          - name: macOS-ARM64
+            os: macos-15
+            rust-target: aarch64-apple-darwin
+            vcpkg-triplet: arm64-osx
+            tauri-args: "--target aarch64-apple-darwin --bundles app,dmg"
+            audit: macos
+            macos-arch: arm64
+            macos-min: "11.0"
+
+          - name: macOS-x86_64
+            os: macos-15-intel
+            rust-target: x86_64-apple-darwin
+            vcpkg-triplet: x64-osx
+            tauri-args: "--target x86_64-apple-darwin --bundles app,dmg"
+            audit: macos
+            macos-arch: x86_64
+            macos-min: "11.0"
+
           - name: Windows-x86_64
             os: windows-latest
             rust-target: ""
@@ -107,6 +125,12 @@ jobs:
       - name: Install Rust stable
         if: matrix.rust-target == ''
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust stable with target
+        if: matrix.rust-target != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
 
       - name: Cache Rust build artifacts
         uses: swatinem/rust-cache@v2
@@ -153,6 +177,42 @@ jobs:
           echo "PKG_CONFIG_PATH=$vcpkg_root/installed/${{ matrix.vcpkg-triplet }}/lib/pkgconfig" >> "$GITHUB_ENV"
           # Recent vcpkg ICU headers require C++17; tectonic_xetex_layout
           # defaults to -std=c++14, and cc-rs appends CXXFLAGS last so this wins.
+          echo "CXXFLAGS=-std=c++17" >> "$GITHUB_ENV"
+
+      - name: Install static Tectonic dependencies (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Pin the deployment target before vcpkg compiles the native deps so
+          # ICU/HarfBuzz/etc target the same minimum as the app. GitHub's macOS
+          # runners default much higher, which would raise the app's minimum.
+          export MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos-min }}
+
+          # pkg-config and the autotools vcpkg's fontconfig/gperf ports need are
+          # not guaranteed on the runner; Rust/Node/vcpkg already are.
+          brew install pkg-config autoconf autoconf-archive automake libtool
+
+          vcpkg_executable=$(command -v vcpkg || true)
+          if [ -z "$vcpkg_executable" ]; then
+            echo "Error: the hosted runner does not provide a usable vcpkg installation"
+            exit 1
+          fi
+          vcpkg_root=${VCPKG_INSTALLATION_ROOT:-$(dirname "$(readlink -f "$vcpkg_executable")")}
+
+          "$vcpkg_executable" install \
+            'harfbuzz[graphite2]' freetype icu fontconfig \
+            --triplet "${{ matrix.vcpkg-triplet }}"
+
+          # Same static-portability strategy as Linux: link Tectonic's native
+          # deps statically from the vcpkg tree via pkg-config (the vcpkg backend
+          # under-emits the closure), so the .app carries no Homebrew/absolute
+          # dylib paths and runs on a clean Mac. macOS system frameworks stay
+          # dynamic. This is an UNSIGNED build -- no Apple Developer ID or
+          # notarization -- so users must clear the Gatekeeper quarantine flag
+          # (documented on the website).
+          echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos-min }}" >> "$GITHUB_ENV"
+          echo "TECTONIC_DEP_BACKEND=pkg-config" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$vcpkg_root/installed/${{ matrix.vcpkg-triplet }}/lib/pkgconfig" >> "$GITHUB_ENV"
           echo "CXXFLAGS=-std=c++17" >> "$GITHUB_ENV"
 
       - name: Install Windows dependencies
@@ -233,6 +293,16 @@ jobs:
         if: matrix.audit == 'linux'
         shell: bash
         run: bash scripts/audit-linux-bundle.sh
+
+      - name: Audit macOS bundle (unsigned)
+        if: matrix.audit == 'macos'
+        shell: bash
+        run: |
+          bash scripts/audit-macos-bundle.sh \
+            "${{ matrix.rust-target }}" \
+            "${{ matrix.macos-arch }}" \
+            "${{ matrix.macos-min }}" \
+            unsigned
 
       - name: Audit Windows installer outputs
         if: matrix.audit == 'windows'

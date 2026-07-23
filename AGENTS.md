@@ -31,17 +31,23 @@ GitHub releases must remain drafts during build and verification. Do not use a b
 
 ### macOS Intel and Apple Silicon
 
-macOS distribution is deferred until the project has sponsorship for the paid Apple Developer Program membership. Do not build or upload macOS release assets from the active release workflow. Keep the following requirements for restoring macOS support:
+macOS ships as an **unsigned** build. Signed and notarized distribution is deferred until the project has sponsorship for the paid Apple Developer Program membership; the two tracks are independent and the unsigned track must not wait on the signed one.
 
-- Build each architecture on its native GitHub runner.
-- Reject every Mach-O dependency outside system paths and bundle-relative `@rpath`, `@loader_path`, or `@executable_path` references.
-- Require a Developer ID Application signature, hardened runtime, successful Gatekeeper assessment, notarization, and stapled tickets for both the application and DMG.
-- Verify the executable architecture and minimum supported macOS version.
+**Unsigned track (current):**
+
+- Build each architecture on its native GitHub runner (`macos-15` for arm64, `macos-15-intel` for x86_64).
+- Link Tectonic's native deps statically from the vcpkg tree via the pkg-config backend (`arm64-osx` / `x64-osx` triplets), exactly as the Linux job does. This is what makes the `.app` self-contained and runnable on a clean Mac; a Homebrew-based build (as in v1.4.0) is not acceptable because Tauri does not bundle Homebrew dylibs, so the app would reference absolute `/opt/homebrew` paths and crash off the build machine.
+- Pin `MACOSX_DEPLOYMENT_TARGET` before vcpkg builds so the native deps do not raise the app's minimum macOS version.
+- Audit the bundle with `scripts/audit-macos-bundle.sh <triple> <arch> <min> unsigned`: it rejects every Mach-O dependency outside system paths and bundle-relative `@rpath`/`@loader_path`/`@executable_path` references (fatal — this is the portability gate), verifies the architecture, and reports the effective minimum macOS version (informational on this track — correct the website copy if it rises above the advertised minimum). It intentionally skips Developer ID, Gatekeeper, and notarization checks.
+- Do **not** sign: no `APPLE_*` secrets, no `signingIdentity` in `tauri.conf.json`. The binary keeps its automatic ad-hoc signature so it launches on Apple Silicon once quarantine is cleared.
+- The website must disclose that macOS builds are unsigned and document the Gatekeeper bypass (right-click → Open, or `xattr -cr /Applications/Opal.app`). Keep that disclosure until signed builds ship.
+
+**Signed track (deferred until Apple sponsorship):**
+
+- Require a Developer ID Application signature, hardened runtime, successful Gatekeeper assessment, notarization, and stapled tickets for both the application and DMG (run the audit without the `unsigned` argument).
 - Mount the DMG and launch the copied application from a clean user context.
 
-Required CI secrets are expected to include the updater signing key plus an Apple Developer ID certificate and App Store Connect notarization credentials. Tauri updater signing and Apple application signing are separate requirements.
-
-When macOS distribution is restored, the release workflow will require these secret names:
+Tauri updater signing (`TAURI_PRIVATE_KEY`, free, self-generated) and Apple application signing are separate requirements. When the signed track is restored, the release workflow will require these secret names:
 
 - `TAURI_PRIVATE_KEY` and `TAURI_KEY_PASSWORD` for updater artifacts.
 - `APPLE_CERTIFICATE`: single-line base64-encoded Developer ID Application `.p12` certificate.
@@ -72,7 +78,7 @@ Keep the existing x86_64 installer build, updater signature verification, and a 
 
 ## Release progression
 
-Use a prerelease such as `v1.4.2-rc.1` for the first portable Linux-package candidate. Before promotion to a stable Windows/Linux release, obtain confirmation from Ubuntu 22.04, Ubuntu 24.04, and Windows. macOS and RPM are separate future release tracks and must not be advertised as supported until their own gates pass.
+Use a prerelease such as `v1.4.2-rc.1` for the first portable Linux-package candidate. Before promotion to a stable Windows/Linux release, obtain confirmation from Ubuntu 22.04, Ubuntu 24.04, and Windows. Unsigned macOS builds ship alongside these but must be advertised as unsigned (with the Gatekeeper-bypass instructions) and confirmed to launch on a clean Mac before being called supported. Signed/notarized macOS and RPM remain separate future tracks and must not be advertised until their own gates pass.
 
 Keep the compatibility notice in `docs/index.html` until those gates and external confirmations pass. Update or remove the notice in the same change that promotes the verified stable release.
 
@@ -80,12 +86,12 @@ The scripts under `scripts/build-*.{sh,ps1}` predate this contract. Treat them a
 
 ## Current implementation status
 
-The repository currently stages Windows and Linux release assets into a draft, builds Tectonic's Linux dependencies through a static vcpkg triplet, vendors Tectonic's native TLS implementation, pauses macOS and RPM generation, and audits Linux native dependency closure. Clean Ubuntu 22.04 and Ubuntu 24.04 jobs test both the AppImage and Debian package by compiling a LaTeX fixture and keeping the GUI alive under Xvfb. The workflow intentionally leaves the release as a draft because updater-manifest consolidation and the remaining gates below are not implemented yet.
+The repository currently stages Windows, Linux, and unsigned macOS (arm64 + x86_64) release assets into a draft, links Tectonic's Linux and macOS native deps statically from vcpkg via the pkg-config backend, vendors Tectonic's native TLS implementation, pauses signed macOS and RPM generation, and audits native dependency closure on Linux and macOS. Clean Ubuntu 22.04 and Ubuntu 24.04 jobs test both the AppImage and Debian package by compiling a LaTeX fixture and keeping the GUI alive under Xvfb. The workflow intentionally leaves the release as a draft because updater-manifest consolidation and the remaining gates below are not implemented yet.
 
 Before publishing the first release candidate, complete these remaining pipeline items:
 
 1. Consolidate updater-manifest generation into one final job rather than relying on parallel platform uploads.
 2. Add a clean Windows install/launch regression job.
 3. Add the final publication job only after the required verification jobs and updater manifest succeed.
-4. Restore macOS only with Developer ID signing, notarization, and DMG smoke tests on both architectures.
+4. Add a clean-Mac install/launch smoke test for the unsigned macOS builds (blocked on access to macOS runners with a GUI or a manual tester), then upgrade the macOS track to Developer ID signing and notarization once Apple sponsorship is available.
 5. Restore RPM only with its Fedora-native build and verification matrix.
