@@ -352,7 +352,15 @@ jobs:
       - name: Install clean-machine test harness
         run: |
           sudo apt-get update
-          sudo apt-get install -y dbus-x11 file xauth xvfb
+          # dbus/xvfb drive the headless GUI launch. The GL/Mesa runtime
+          # (libEGL.so.1 etc.) is the graphics stack every real Linux desktop
+          # provides but a headless runner does not; the AppImage deliberately
+          # does not bundle it (drivers must match the host GPU), so without
+          # this the app fails to load libEGL.so.1 at startup. LIBGL_ALWAYS_
+          # SOFTWARE=1 in the smoke script uses the mesa swrast driver.
+          sudo apt-get install -y \
+            dbus-x11 file xauth xvfb \
+            libegl1 libgl1 libgl1-mesa-dri libglx-mesa0 libgbm1
 
       - name: Compile and launch both package formats
         run: bash scripts/smoke-test-linux-packages.sh artifacts
