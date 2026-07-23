@@ -10,7 +10,11 @@ interface CachedDoc {
   lastAccess: number;
 }
 
-const MAX_OPEN_DOCS = 5;
+// Each open doc pins its full PDF bytes plus parsed structures in the WASM
+// heap — which never shrinks — so keep residency low. Recompiles additionally
+// invalidate the replaced version eagerly (see PdfViewer), so slots are only
+// needed for keep-alive across different root files.
+const MAX_OPEN_DOCS = 3;
 const cache = new Map<string, CachedDoc>();
 
 /** Create a fast fingerprint from PDF bytes (length + sampled bytes). */

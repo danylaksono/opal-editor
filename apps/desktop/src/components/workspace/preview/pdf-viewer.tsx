@@ -13,6 +13,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import {
   getCachedDocument,
   getOrOpenDocument,
+  invalidateDoc,
 } from "@/lib/mupdf/pdf-doc-cache";
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
 import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
@@ -388,6 +389,14 @@ export function PdfViewer({
       try {
         const { docId, pageSizes: sizes } = await getOrOpenDocument(pdfData);
         if (gen !== loadGenRef.current) return;
+
+        // A fresh open in this viewer means the previous version of this
+        // root's PDF was replaced (recompile) — close it eagerly instead of
+        // letting up to MAX_OPEN_DOCS stale versions pile up in WASM memory.
+        const prevDocId = docIdRef.current;
+        if (prevDocId > 0 && prevDocId !== docId) {
+          invalidateDoc(prevDocId);
+        }
 
         docIdRef.current = docId;
         setPageSizes(sizes);

@@ -76,6 +76,12 @@ export const MupdfPage = memo(function MupdfPage({
   const [textData, setTextData] = useState<StructuredTextData | null>(null);
   const [links, setLinks] = useState<LinkData[]>([]);
   const renderGenRef = useRef(0);
+  // Single-flight render guard: at most one drawPage in the worker per page,
+  // with latest-wins coalescing. Without this, scroll/zoom bursts queue an
+  // unbounded number of renders, each producing a multi-MB pixel buffer —
+  // a sustained burst allocates faster than GC frees and OOMs the renderer.
+  const renderInFlightRef = useRef(false);
+  const renderQueuedRef = useRef(false);
 
   const cssW = pageWidth * scale;
   const cssH = pageHeight * scale;
@@ -83,34 +89,49 @@ export const MupdfPage = memo(function MupdfPage({
   /** Re-render the page onto the canvas via MuPDF worker. */
   const renderPage = useCallback(() => {
     if (!isVisible || docId <= 0) return;
+    if (renderInFlightRef.current) {
+      // Coalesce: re-render once with the latest params when the current
+      // render completes, no matter how many requests arrived meanwhile.
+      renderQueuedRef.current = true;
+      return;
+    }
 
     const gen = ++renderGenRef.current;
+    renderInFlightRef.current = true;
     const client = getMupdfClient();
     const dpr = window.devicePixelRatio || 1;
     const dpi = capRenderDpi(scale * 72 * dpr, pageWidth, pageHeight);
 
     client
       .drawPage(docId, pageIndex, dpi)
-      .then(async (imageData) => {
+      .then((imageData) => {
         if (gen !== renderGenRef.current) return;
         const canvas = canvasRef.current;
         if (!canvas) return;
         canvas.width = imageData.width;
         canvas.height = imageData.height;
-        const bitmap = await createImageBitmap(imageData);
-        if (gen !== renderGenRef.current) {
-          bitmap.close();
-          return;
-        }
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(bitmap, 0, 0);
-        bitmap.close();
+        // Synchronous copy — the ImageData buffer is released immediately.
+        // (createImageBitmap added an async hop that retained every buffer
+        // in a burst until the compositor caught up.)
+        canvas.getContext("2d")!.putImageData(imageData, 0, 0);
       })
       .catch((err) => {
         if (gen !== renderGenRef.current) return;
         log.error(`Render error page ${pageIndex}`, { error: String(err) });
+      })
+      .finally(() => {
+        renderInFlightRef.current = false;
+        if (renderQueuedRef.current) {
+          renderQueuedRef.current = false;
+          renderPageRef.current();
+        }
       });
   }, [docId, pageIndex, scale, isVisible, pageWidth, pageHeight]);
+
+  // Latest renderPage identity, so a queued follow-up uses current params
+  // instead of the closure that started the in-flight render.
+  const renderPageRef = useRef(renderPage);
+  renderPageRef.current = renderPage;
 
   // Release the canvas backing store when the page scrolls far out of view
   // (beyond the IntersectionObserver margin). Without this, every visited page
@@ -121,6 +142,7 @@ export const MupdfPage = memo(function MupdfPage({
   useEffect(() => {
     if (isVisible) return;
     renderGenRef.current++; // cancel any in-flight render
+    renderQueuedRef.current = false;
     const canvas = canvasRef.current;
     if (canvas && canvas.width > 0) {
       canvas.width = 0;
@@ -131,28 +153,36 @@ export const MupdfPage = memo(function MupdfPage({
   // Initial render and re-render on dependency changes
   useEffect(() => {
     if (!isVisible || docId <= 0) return;
-
     renderPage();
-
-    const client = getMupdfClient();
-    const gen = renderGenRef.current;
-
-    client
-      .getPageText(docId, pageIndex)
-      .then((data) => {
-        if (gen !== renderGenRef.current) return;
-        setTextData(data);
-      })
-      .catch(() => {});
-
-    client
-      .getPageLinks(docId, pageIndex)
-      .then((data) => {
-        if (gen !== renderGenRef.current) return;
-        setLinks(data);
-      })
-      .catch(() => {});
   }, [docId, pageIndex, scale, isVisible, renderPage]);
+
+  // Text + link layers depend only on the document, not the zoom level —
+  // fetch once per doc instead of on every scale change and visibility flip.
+  const textFetchedDocIdRef = useRef(0);
+  useEffect(() => {
+    if (!isVisible || docId <= 0) return;
+    if (textFetchedDocIdRef.current === docId) return;
+
+    let cancelled = false;
+    const client = getMupdfClient();
+
+    Promise.all([
+      client.getPageText(docId, pageIndex).then((data) => {
+        if (!cancelled) setTextData(data);
+      }),
+      client.getPageLinks(docId, pageIndex).then((data) => {
+        if (!cancelled) setLinks(data);
+      }),
+    ])
+      .then(() => {
+        if (!cancelled) textFetchedDocIdRef.current = docId;
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [docId, pageIndex, isVisible]);
 
   // Re-render canvas when returning from background if content was lost
   useEffect(() => {

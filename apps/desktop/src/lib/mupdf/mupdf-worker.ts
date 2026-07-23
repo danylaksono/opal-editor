@@ -51,6 +51,10 @@ methods.closeDocument = (docId: number): void => {
     // heap balloons), so without this every closed document leaks its full
     // parsed PDF in the WASM heap.
     doc.destroy();
+    // Trim the shared store (decoded images, glyphs) — an image-heavy document
+    // can leave hundreds of MB of decoded resources cached with no pressure
+    // signal that would ever evict them.
+    mupdf.shrinkStore(50);
   }
 };
 
