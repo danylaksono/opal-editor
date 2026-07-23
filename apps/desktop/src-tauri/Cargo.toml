@@ -32,10 +32,9 @@ git2 = { version = "0.20", default-features = false, features = ["vendored-libgi
 chrono = "0.4"
 uuid = { version = "1", features = ["v4"] }
 which = "7"
-tectonic = { version = "0.15", default-features = true, features = ["external-harfbuzz"] }
-# NOTE: Building tectonic requires external harfbuzz/graphite2/icu/freetype:
-#   macOS:   brew install icu4c harfbuzz pkg-config
-#   Linux:   apt install libicu-dev libgraphite2-dev libharfbuzz-dev libfreetype-dev libfontconfig-dev
+tectonic = { version = "0.15", default-features = true, features = ["external-harfbuzz", "native-tls-vendored"] }
+# NOTE: Tectonic release builds provide HarfBuzz, Graphite2, ICU, FreeType, and
+# Fontconfig through static vcpkg triplets. See AGENTS.md and release.yml.
 #   Windows: vcpkg install harfbuzz[graphite2] freetype icu fontconfig (with TECTONIC_DEP_BACKEND=vcpkg)
 flate2 = "1"
 async-trait = "0.1"

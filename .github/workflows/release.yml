@@ -42,7 +42,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; keeping its existing notes."
+            if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "Error: release $RELEASE_TAG is already public; refusing to replace its assets"
+              exit 1
+            fi
+
+            echo "Draft release $RELEASE_TAG already exists; keeping its existing notes."
             exit 0
           fi
 
@@ -53,17 +58,25 @@ jobs:
 
           gh release create "$RELEASE_TAG" \
             --verify-tag \
+            --draft \
             --title "Opal $RELEASE_TAG" \
             --notes-file release-notes.md \
             "${prerelease_args[@]}"
 
-  publish:
+  build-and-stage:
     name: ${{ matrix.name }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
 
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos-deployment-target }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
 
     strategy:
       fail-fast: false
@@ -72,22 +85,38 @@ jobs:
           - name: Linux-x86_64
             os: ubuntu-22.04
             rust-target: ""
-            tauri-args: ""
+            vcpkg-triplet: x64-linux
+            tauri-args: "--bundles deb,appimage"
+            audit: linux
+            expected-arch: x86-64
+            macos-deployment-target: ""
 
           - name: macOS-ARM64
             os: macos-15
             rust-target: aarch64-apple-darwin
+            vcpkg-triplet: arm64-osx
             tauri-args: "--target aarch64-apple-darwin"
+            audit: macos
+            expected-arch: arm64
+            macos-deployment-target: "11.0"
 
           - name: macOS-x86_64
             os: macos-15-intel
             rust-target: x86_64-apple-darwin
+            vcpkg-triplet: x64-osx
             tauri-args: "--target x86_64-apple-darwin"
+            audit: macos
+            expected-arch: x86_64
+            macos-deployment-target: "11.0"
 
           - name: Windows-x86_64
             os: windows-latest
             rust-target: ""
+            vcpkg-triplet: x64-windows-static-md
             tauri-args: ""
+            audit: windows
+            expected-arch: x86-64
+            macos-deployment-target: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -125,18 +154,85 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev \
-            libicu-dev libgraphite2-dev libharfbuzz-dev \
-            libfreetype-dev libfontconfig-dev
+            librsvg2-dev patchelf libssl-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install icu4c harfbuzz pkg-config
-          harfbuzz_prefix="$(brew --prefix harfbuzz)"
-          echo "PKG_CONFIG_PATH=$(brew --prefix icu4c)/lib/pkgconfig:$harfbuzz_prefix/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
-          echo "CFLAGS=-I$harfbuzz_prefix/include" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=-std=c++17 -I$harfbuzz_prefix/include" >> "$GITHUB_ENV"
+          brew install autoconf-archive automake libtool pkg-config
+          echo "CXXFLAGS=-std=c++17" >> "$GITHUB_ENV"
+
+      - name: Install static Tectonic dependencies
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          vcpkg_executable=$(command -v vcpkg || true)
+          if [ -z "$vcpkg_executable" ]; then
+            echo "Error: the hosted runner does not provide a usable vcpkg installation"
+            exit 1
+          fi
+
+          vcpkg_executable=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$vcpkg_executable")
+          vcpkg_root=${VCPKG_INSTALLATION_ROOT:-$(dirname "$vcpkg_executable")}
+
+          packages=('harfbuzz[graphite2]' freetype icu)
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            packages+=(fontconfig)
+          fi
+
+          "$vcpkg_executable" install \
+            "${packages[@]}" \
+            --triplet "${{ matrix.vcpkg-triplet }}"
+
+          echo "TECTONIC_DEP_BACKEND=vcpkg" >> "$GITHUB_ENV"
+          echo "VCPKG_ROOT=$vcpkg_root" >> "$GITHUB_ENV"
+          echo "VCPKG_DEFAULT_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
+          echo "VCPKGRS_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
+
+      - name: Import Apple signing certificate
+        if: runner.os == 'macOS'
+        run: |
+          required=(
+            APPLE_CERTIFICATE
+            APPLE_CERTIFICATE_PASSWORD
+            APPLE_SIGNING_IDENTITY
+            APPLE_API_ISSUER
+            APPLE_API_KEY
+            APPLE_API_KEY_BASE64
+          )
+
+          for variable_name in "${required[@]}"; do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "Error: required macOS release secret $variable_name is not configured"
+              exit 1
+            fi
+          done
+
+          certificate_path="$RUNNER_TEMP/apple-certificate.p12"
+          keychain_path="$RUNNER_TEMP/opal-signing.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+
+          printf '%s' "$APPLE_CERTIFICATE" | openssl base64 -d -A > "$certificate_path"
+          printf '%s' "$APPLE_API_KEY_BASE64" | openssl base64 -d -A > "$api_key_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -t cert \
+            -f pkcs12 \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+
+          echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
 
       - name: Install Windows dependencies
         if: runner.os == 'Windows'
@@ -149,7 +245,7 @@ jobs:
           echo "VCPKGRS_TRIPLET=x64-windows-static-md" >> "$env:GITHUB_ENV"
           echo "CXXFLAGS=/std:c++17" >> "$env:GITHUB_ENV"
 
-      - name: Build and publish Tauri release
+      - name: Build and stage Tauri release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -159,10 +255,37 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ env.RELEASE_TAG }}
           releaseName: "Opal ${{ env.RELEASE_TAG }}"
-          releaseDraft: false
+          releaseDraft: true
           prerelease: ${{ contains(env.RELEASE_TAG, '-rc') || contains(env.RELEASE_TAG, '-beta') || contains(env.RELEASE_TAG, '-alpha') }}
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
           updaterJsonPreferNsis: true
           releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
           args: ${{ matrix.tauri-args }}
+
+      - name: Audit macOS application and DMG
+        if: matrix.audit == 'macos'
+        shell: bash
+        run: bash scripts/audit-macos-bundle.sh "${{ matrix.rust-target }}" "${{ matrix.expected-arch }}" "${{ matrix.macos-deployment-target }}"
+
+      - name: Audit Linux application and packages
+        if: matrix.audit == 'linux'
+        shell: bash
+        run: bash scripts/audit-linux-bundle.sh
+
+      - name: Audit Windows installer outputs
+        if: matrix.audit == 'windows'
+        shell: pwsh
+        run: |
+          $bundleRoot = "apps/desktop/src-tauri/target/release/bundle"
+          $installers = @(
+            Get-ChildItem -LiteralPath $bundleRoot -Recurse -File |
+              Where-Object { $_.Extension -in @('.exe', '.msi') }
+          )
+          $installers | Select-Object FullName, Length
+          if (-not ($installers.Extension -contains '.exe')) {
+            throw 'NSIS installer was not generated'
+          }
+          if (-not ($installers.Extension -contains '.msi')) {
+            throw 'MSI installer was not generated'
+          }
