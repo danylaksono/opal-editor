@@ -143,6 +143,9 @@ jobs:
           echo "VCPKG_ROOT=$vcpkg_root" >> "$GITHUB_ENV"
           echo "VCPKG_DEFAULT_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
           echo "VCPKGRS_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
+          # Recent vcpkg ICU headers require C++17; tectonic_xetex_layout
+          # defaults to -std=c++14, and cc-rs appends CXXFLAGS last so this wins.
+          echo "CXXFLAGS=-std=c++17" >> "$GITHUB_ENV"
 
       - name: Install Windows dependencies
         if: runner.os == 'Windows'
