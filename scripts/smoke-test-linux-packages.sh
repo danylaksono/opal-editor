@@ -93,10 +93,13 @@ run_gui_test "AppImage" env APPIMAGE_EXTRACT_AND_RUN=1 "$appimage_path"
 echo "==> Installing Debian package and declared runtime dependencies"
 sudo apt-get install -y "$deb_path"
 
-deb_binary=$(dpkg-deb --contents "$deb_path" | awk '$6 ~ /^(\.\/)?usr\/bin\/[^/]+$/ {
+# Print only the first usr/bin entry, but let awk read the whole stream: an
+# early `exit` here closes the pipe while dpkg-deb is still writing, which
+# raises SIGPIPE and fails the pipeline under `set -o pipefail`.
+deb_binary=$(dpkg-deb --contents "$deb_path" | awk '$6 ~ /^(\.\/)?usr\/bin\/[^/]+$/ && !seen {
   sub(/^\.\//, "", $6)
   print "/" $6
-  exit
+  seen = 1
 }')
 
 if [ -z "$deb_binary" ] || [ ! -x "$deb_binary" ]; then
