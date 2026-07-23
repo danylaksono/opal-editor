@@ -135,6 +135,7 @@ export function EditorToolbar({
     useState(false);
   const [figurePickerOpen, setFigurePickerOpen] = useState(false);
   const [droppedFigurePath, setDroppedFigurePath] = useState<string>();
+  const [pastedImageFile, setPastedImageFile] = useState<File>();
   const [environmentPickerOpen, setEnvironmentPickerOpen] = useState(false);
   const [tableEditorOpen, setTableEditorOpen] = useState(false);
   const [mathEditorOpen, setMathEditorOpen] = useState(false);
@@ -370,14 +371,23 @@ export function EditorToolbar({
       setDroppedFigurePath(
         (event as CustomEvent<{ path: string }>).detail.path,
       );
+      setPastedImageFile(undefined);
+      setFigurePickerOpen(true);
+    };
+    const handlePastedImage = (event: Event) => {
+      setPastedImageFile((event as CustomEvent<{ file: File }>).detail.file);
+      setDroppedFigurePath(undefined);
       setFigurePickerOpen(true);
     };
     window.addEventListener("image-dropped-for-figure", handleDroppedFigure);
-    return () =>
+    window.addEventListener("image-pasted-for-figure", handlePastedImage);
+    return () => {
       window.removeEventListener(
         "image-dropped-for-figure",
         handleDroppedFigure,
       );
+      window.removeEventListener("image-pasted-for-figure", handlePastedImage);
+    };
   }, []);
 
   const zoomIn = () => onImageScaleChange?.(Math.min(4, imageScale + 0.25));
@@ -727,9 +737,17 @@ export function EditorToolbar({
       />
       <FigurePicker
         open={figurePickerOpen}
-        onOpenChange={setFigurePickerOpen}
+        onOpenChange={(next) => {
+          setFigurePickerOpen(next);
+          if (!next) {
+            setDroppedFigurePath(undefined);
+            setPastedImageFile(undefined);
+          }
+        }}
         files={files}
         initialPath={droppedFigurePath}
+        pendingImage={pastedImageFile}
+        onDiscardPending={() => setPastedImageFile(undefined)}
         onInsert={(source) => {
           void confirmPackageRequirements(["figures"]).then((confirmed) => {
             if (confirmed) insertBlock(source);

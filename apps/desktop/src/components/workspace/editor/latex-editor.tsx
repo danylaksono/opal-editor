@@ -158,6 +158,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { dispatchEditorAction } from "@/lib/editor-actions";
+import { clipboardImageFile } from "@/lib/pasted-image";
 import { open as openExternalUrl } from "@tauri-apps/plugin-shell";
 import { findTables } from "@/lib/latex-tables";
 import { findMathNodes } from "@/lib/latex-math";
@@ -1633,6 +1634,21 @@ export function LatexEditor() {
                   if (openMathEditorAt(view, position)) return false;
                   openEnvironmentEditorAt(view, position);
                   return false;
+                },
+                paste: (event) => {
+                  // Image-only clipboards (screenshots, copied image files)
+                  // open the figure dialog; the bytes are written to
+                  // figures/ only when the user confirms Insert. Clipboards
+                  // carrying text keep CodeMirror's default paste.
+                  const file = clipboardImageFile(event.clipboardData);
+                  if (!file) return false;
+                  event.preventDefault();
+                  window.dispatchEvent(
+                    new CustomEvent("image-pasted-for-figure", {
+                      detail: { file },
+                    }),
+                  );
+                  return true;
                 },
               }),
             ]

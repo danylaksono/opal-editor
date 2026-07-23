@@ -1,6 +1,7 @@
 import {
   readTextFile,
   writeTextFile,
+  writeFile,
   readDir,
   exists,
   mkdir,
@@ -317,6 +318,33 @@ export async function copyFileToProject(
     }
   }
   await copyFile(sourcePath, fullPath);
+  return uniqueName;
+}
+
+/**
+ * Write binary content into the project, deduplicating the filename and
+ * creating parent directories as needed. Returns the actual (possibly
+ * deduplicated) relative path.
+ */
+export async function createBinaryFileOnDisk(
+  rootPath: string,
+  targetName: string,
+  bytes: Uint8Array,
+): Promise<string> {
+  const uniqueName = await getUniqueTargetName(rootPath, targetName);
+  const fullPath = await join(rootPath, uniqueName);
+  // Ensure parent directory exists (e.g., figures/)
+  const lastSlash = Math.max(
+    fullPath.lastIndexOf("/"),
+    fullPath.lastIndexOf("\\"),
+  );
+  if (lastSlash > 0) {
+    const parentDir = fullPath.substring(0, lastSlash);
+    if (!(await exists(parentDir))) {
+      await mkdir(parentDir, { recursive: true });
+    }
+  }
+  await writeFile(fullPath, bytes);
   return uniqueName;
 }
 

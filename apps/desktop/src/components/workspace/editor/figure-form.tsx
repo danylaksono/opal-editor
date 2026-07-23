@@ -23,6 +23,11 @@ interface FigureFormProps {
   onChange: (draft: FigureDraft) => void;
   onImportImage?: () => void;
   importingImage?: boolean;
+  /** A pasted image waiting to be written on Insert. Replaces the
+   *  project-image Select with a preview and filename input. */
+  pendingImage?: { name: string; previewUrl: string };
+  onPendingNameChange?: (name: string) => void;
+  onDiscardPendingImage?: () => void;
 }
 
 export function FigureForm({
@@ -31,8 +36,53 @@ export function FigureForm({
   onChange,
   onImportImage,
   importingImage = false,
+  pendingImage,
+  onPendingNameChange,
+  onDiscardPendingImage,
 }: FigureFormProps) {
   const images = projectImageFiles(files);
+  if (pendingImage) {
+    return (
+      <div className="space-y-3">
+        <div className="space-y-2 text-muted-foreground text-xs">
+          <span id="figure-image-label">Pasted image</span>
+          <div className="flex justify-center rounded-md border border-border bg-muted/30 p-2">
+            <img
+              src={pendingImage.previewUrl}
+              alt="Pasted image preview"
+              className="max-h-40 max-w-full rounded object-contain"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              id="figure-pending-name"
+              aria-label="Image file name"
+              value={pendingImage.name}
+              onChange={(event) => onPendingNameChange?.(event.target.value)}
+              className="h-8 flex-1 font-mono text-sm"
+              placeholder="pasted-image.png"
+            />
+            {onDiscardPendingImage && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0"
+                onClick={onDiscardPendingImage}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+          <p className="text-[11px]">
+            Will be saved as <span className="font-mono">figures/</span>
+            {pendingImage.name || "…"} when you insert.
+          </p>
+        </div>
+        <FigureDetailsFields value={value} onChange={onChange} />
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
       <div className="space-y-1 text-muted-foreground text-xs">
@@ -89,7 +139,20 @@ export function FigureForm({
           </p>
         )}
       </div>
+      <FigureDetailsFields value={value} onChange={onChange} />
+    </div>
+  );
+}
 
+function FigureDetailsFields({
+  value,
+  onChange,
+}: {
+  value: FigureDraft;
+  onChange: (draft: FigureDraft) => void;
+}) {
+  return (
+    <>
       <div className="grid grid-cols-[1fr_120px] gap-2">
         <div className="space-y-1 text-muted-foreground text-xs">
           <label htmlFor="figure-caption">Caption</label>
@@ -160,6 +223,6 @@ export function FigureForm({
         />
         Centre the image
       </label>
-    </div>
+    </>
   );
 }

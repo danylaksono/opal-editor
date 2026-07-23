@@ -7,6 +7,7 @@ import {
   readImageAsDataUrl,
   createFileOnDisk,
   copyFileToProject,
+  createBinaryFileOnDisk,
   deleteFileFromDisk,
   deleteFolderFromDisk,
   renameFileOnDisk,
@@ -174,6 +175,14 @@ interface DocumentState {
     sourcePaths: string[],
     targetFolder?: string,
   ) => Promise<string[]>;
+  /** Write in-memory image bytes into the project (e.g. a pasted screenshot).
+   *  Returns the actual (possibly deduplicated) relative path, or null when
+   *  no project is open. */
+  importImageBytes: (
+    bytes: Uint8Array,
+    targetFolder: string | undefined,
+    fileName: string,
+  ) => Promise<string | null>;
   moveFile: (fileId: string, targetFolder: string | null) => Promise<void>;
   moveFolder: (
     folderPath: string,
@@ -992,6 +1001,22 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
     }
     await state.refreshFiles();
     return importedPaths;
+  },
+
+  importImageBytes: async (bytes, targetFolder, fileName) => {
+    const state = get();
+    if (!state.projectRoot) return null;
+
+    const targetName = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+    // createBinaryFileOnDisk dedupes the name and creates parent folders;
+    // refreshFiles rescans, so files and folders state pick up the new entry.
+    const actualName = await createBinaryFileOnDisk(
+      state.projectRoot,
+      targetName,
+      bytes,
+    );
+    await state.refreshFiles();
+    return actualName;
   },
 
   moveFile: async (fileId, targetFolder) => {
