@@ -593,6 +593,40 @@ export function PdfViewer({
     };
   }, [captureMode]);
 
+  // Fast-scroll (fling) detection: pages first painted during a fling render
+  // at half resolution so painting keeps up with the scroll; they upgrade to
+  // full quality when scrolling settles (MupdfPage handles the upgrade).
+  const [fastScroll, setFastScroll] = useState(false);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isActive) return;
+
+    let lastTop = container.scrollTop;
+    let lastTime = performance.now();
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleScroll = () => {
+      const now = performance.now();
+      const dt = now - lastTime;
+      const dy = Math.abs(container.scrollTop - lastTop);
+      lastTop = container.scrollTop;
+      lastTime = now;
+
+      // > 3 px/ms ≈ flinging multiple pages per second
+      if (dt > 0 && dt < 200 && dy / dt > 3) {
+        setFastScroll(true);
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => setFastScroll(false), 200);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (settleTimer) clearTimeout(settleTimer);
+    };
+  }, [pageSizes, isActive]);
+
   // Track current visible page on scroll
   const currentPageChangeRef = useRef(onCurrentPageChange);
   currentPageChangeRef.current = onCurrentPageChange;
@@ -1029,6 +1063,7 @@ export function PdfViewer({
                 pageWidth={size.width}
                 pageHeight={size.height}
                 isVisible={visiblePages.has(i + 1)}
+                fastScroll={fastScroll}
                 highlight={
                   highlightLocation?.page === i + 1 ? highlightLocation : null
                 }

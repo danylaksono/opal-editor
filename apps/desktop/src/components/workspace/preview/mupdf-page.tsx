@@ -36,6 +36,10 @@ interface MupdfPageProps {
   pageWidth: number;
   pageHeight: number;
   isVisible: boolean;
+  /** True while the user is flinging through the document — pages first
+   *  painted during a fast scroll render at half resolution, then upgrade
+   *  when scrolling settles. */
+  fastScroll?: boolean;
   highlight?: {
     x: number;
     y: number;
@@ -71,6 +75,7 @@ export const MupdfPage = memo(function MupdfPage({
   pageWidth,
   pageHeight,
   isVisible,
+  fastScroll = false,
   highlight,
   reviewAnnotations = [],
   selectedReviewAnnotationId,
@@ -87,66 +92,103 @@ export const MupdfPage = memo(function MupdfPage({
   // a sustained burst allocates faster than GC frees and OOMs the renderer.
   const renderInFlightRef = useRef(false);
   const renderQueuedRef = useRef(false);
+  // What the canvas currently shows — used to skip redundant renders and to
+  // upgrade half-resolution fast-scroll paints once scrolling settles.
+  const renderedRef = useRef({ docId: 0, dpi: 0 });
+
+  // Debounced zoom: CSS scales the existing canvas instantly (cssW/cssH below
+  // track the live scale), while the expensive re-render at the new DPI only
+  // happens once the scale stops changing — a pinch gesture no longer issues
+  // a render per tick.
+  const [settledScale, setSettledScale] = useState(scale);
+  useEffect(() => {
+    if (scale === settledScale) return;
+    const timer = setTimeout(() => setSettledScale(scale), 180);
+    return () => clearTimeout(timer);
+  }, [scale, settledScale]);
 
   const cssW = pageWidth * scale;
   const cssH = pageHeight * scale;
 
-  /** Re-render the page onto the canvas via MuPDF worker. */
-  const renderPage = useCallback(() => {
-    if (!isVisible || docId <= 0) return;
-    if (renderInFlightRef.current) {
-      // Coalesce: re-render once with the latest params when the current
-      // render completes, no matter how many requests arrived meanwhile.
-      renderQueuedRef.current = true;
-      return;
-    }
+  /** Re-render the page onto the canvas via MuPDF worker.
+   *  Pass force=true to bypass the already-rendered check (e.g. when the
+   *  canvas content was lost while backgrounded). */
+  const renderPage = useCallback(
+    (force = false) => {
+      if (!isVisible || docId <= 0) return;
+      if (renderInFlightRef.current) {
+        // Coalesce: re-render once with the latest params when the current
+        // render completes, no matter how many requests arrived meanwhile.
+        renderQueuedRef.current = true;
+        return;
+      }
 
-    const gen = ++renderGenRef.current;
-    renderInFlightRef.current = true;
-    const client = getMupdfClient();
-    // Lightweight preview: render at CSS resolution (no DPR upscale) with a
-    // tighter pixel budget — 2-4× less memory and decode work per page.
-    const dpr = simplePreview ? 1 : window.devicePixelRatio || 1;
-    const dpi = capRenderDpi(
-      scale * 72 * dpr,
+      // Lightweight preview: render at CSS resolution (no DPR upscale) with a
+      // tighter pixel budget — 2-4× less memory and decode work per page.
+      const dpr = simplePreview ? 1 : window.devicePixelRatio || 1;
+      const fullDpi = capRenderDpi(
+        settledScale * 72 * dpr,
+        pageWidth,
+        pageHeight,
+        simplePreview ? SIMPLE_MAX_RENDER_PIXELS : undefined,
+      );
+      // First paint during a fling: render at half resolution — cheap enough
+      // to keep up with the scroll; the settle pass below upgrades it.
+      const firstPaint =
+        renderedRef.current.docId !== docId || renderedRef.current.dpi === 0;
+      const dpi = fastScroll && firstPaint ? fullDpi / 2 : fullDpi;
+
+      // Skip when the canvas already shows this document at (or above) the
+      // requested resolution — makes redundant effect re-runs free.
+      if (
+        !force &&
+        renderedRef.current.docId === docId &&
+        renderedRef.current.dpi >= dpi - 0.01
+      ) {
+        return;
+      }
+
+      const gen = ++renderGenRef.current;
+      renderInFlightRef.current = true;
+      const client = getMupdfClient();
+
+      client
+        .drawPage(docId, pageIndex, dpi)
+        .then((imageData) => {
+          if (gen !== renderGenRef.current) return;
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          canvas.width = imageData.width;
+          canvas.height = imageData.height;
+          // Synchronous copy — the ImageData buffer is released immediately.
+          // (createImageBitmap added an async hop that retained every buffer
+          // in a burst until the compositor caught up.)
+          canvas.getContext("2d")!.putImageData(imageData, 0, 0);
+          renderedRef.current = { docId, dpi };
+        })
+        .catch((err) => {
+          if (gen !== renderGenRef.current) return;
+          log.error(`Render error page ${pageIndex}`, { error: String(err) });
+        })
+        .finally(() => {
+          renderInFlightRef.current = false;
+          if (renderQueuedRef.current) {
+            renderQueuedRef.current = false;
+            renderPageRef.current();
+          }
+        });
+    },
+    [
+      docId,
+      pageIndex,
+      settledScale,
+      isVisible,
       pageWidth,
       pageHeight,
-      simplePreview ? SIMPLE_MAX_RENDER_PIXELS : undefined,
-    );
-
-    client
-      .drawPage(docId, pageIndex, dpi)
-      .then((imageData) => {
-        if (gen !== renderGenRef.current) return;
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        canvas.width = imageData.width;
-        canvas.height = imageData.height;
-        // Synchronous copy — the ImageData buffer is released immediately.
-        // (createImageBitmap added an async hop that retained every buffer
-        // in a burst until the compositor caught up.)
-        canvas.getContext("2d")!.putImageData(imageData, 0, 0);
-      })
-      .catch((err) => {
-        if (gen !== renderGenRef.current) return;
-        log.error(`Render error page ${pageIndex}`, { error: String(err) });
-      })
-      .finally(() => {
-        renderInFlightRef.current = false;
-        if (renderQueuedRef.current) {
-          renderQueuedRef.current = false;
-          renderPageRef.current();
-        }
-      });
-  }, [
-    docId,
-    pageIndex,
-    scale,
-    isVisible,
-    pageWidth,
-    pageHeight,
-    simplePreview,
-  ]);
+      simplePreview,
+      fastScroll,
+    ],
+  );
 
   // Latest renderPage identity, so a queued follow-up uses current params
   // instead of the closure that started the in-flight render.
@@ -163,6 +205,7 @@ export const MupdfPage = memo(function MupdfPage({
     if (isVisible) return;
     renderGenRef.current++; // cancel any in-flight render
     renderQueuedRef.current = false;
+    renderedRef.current = { docId: 0, dpi: 0 };
     const canvas = canvasRef.current;
     if (canvas && canvas.width > 0) {
       canvas.width = 0;
@@ -170,11 +213,12 @@ export const MupdfPage = memo(function MupdfPage({
     }
   }, [isVisible]);
 
-  // Initial render and re-render on dependency changes
+  // Initial render and re-render on dependency changes (the already-rendered
+  // check inside renderPage makes redundant runs free).
   useEffect(() => {
     if (!isVisible || docId <= 0) return;
     renderPage();
-  }, [docId, pageIndex, scale, isVisible, renderPage]);
+  }, [docId, pageIndex, isVisible, renderPage]);
 
   // Text + link layers depend only on the document, not the zoom level —
   // fetch once per doc instead of on every scale change and visibility flip.
@@ -222,7 +266,7 @@ export const MupdfPage = memo(function MupdfPage({
         log.warn(
           `Canvas blank after visibility restore, re-rendering page ${pageIndex}`,
         );
-        renderPage();
+        renderPage(true);
       }
     };
 
@@ -232,7 +276,7 @@ export const MupdfPage = memo(function MupdfPage({
         APP_VISIBILITY_RESTORED,
         handleVisibilityRestored,
       );
-  }, [docId, pageIndex, scale, isVisible, renderPage]);
+  }, [docId, pageIndex, isVisible, renderPage]);
 
   return (
     <div

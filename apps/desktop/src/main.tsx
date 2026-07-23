@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { initializeAppZoom } from "./lib/app-zoom";
 import { createLogger } from "./lib/debug/logger";
+import { startMemoryGuard } from "./lib/debug/memory-guard";
 import { APP_VISIBILITY_RESTORED } from "./lib/debug/log-store";
 import "./styles/globals.css";
 
@@ -83,6 +84,7 @@ async function bootstrap() {
   }
 
   // Main app window
+  startMemoryGuard();
   const { App } = await import("./App");
   ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
