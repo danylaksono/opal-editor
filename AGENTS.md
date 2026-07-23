@@ -27,6 +27,8 @@ GitHub releases must remain drafts during build and verification. Do not use a b
 
 ### macOS Intel and Apple Silicon
 
+macOS distribution is deferred until the project has sponsorship for the paid Apple Developer Program membership. Do not build or upload macOS release assets from the active release workflow. Keep the following requirements for restoring macOS support:
+
 - Build each architecture on its native GitHub runner.
 - Reject every Mach-O dependency outside system paths and bundle-relative `@rpath`, `@loader_path`, or `@executable_path` references.
 - Require a Developer ID Application signature, hardened runtime, successful Gatekeeper assessment, notarization, and stapled tickets for both the application and DMG.
@@ -35,7 +37,7 @@ GitHub releases must remain drafts during build and verification. Do not use a b
 
 Required CI secrets are expected to include the updater signing key plus an Apple Developer ID certificate and App Store Connect notarization credentials. Tauri updater signing and Apple application signing are separate requirements.
 
-The release workflow currently expects these secret names:
+When macOS distribution is restored, the release workflow will require these secret names:
 
 - `TAURI_PRIVATE_KEY` and `TAURI_KEY_PASSWORD` for updater artifacts.
 - `APPLE_CERTIFICATE`: single-line base64-encoded Developer ID Application `.p12` certificate.
@@ -64,7 +66,7 @@ Keep the existing x86_64 installer build, updater signature verification, and a 
 
 ## Release progression
 
-Use a prerelease such as `v1.4.2-rc.1` for the first portable-package candidate. Before promotion to a stable release, obtain confirmation from Intel macOS, Apple Silicon macOS, Ubuntu 22.04, Ubuntu 24.04, current Fedora if RPM is restored, and Windows.
+Use a prerelease such as `v1.4.2-rc.1` for the first portable Linux-package candidate. Before promotion to a stable Windows/Linux release, obtain confirmation from Ubuntu 22.04, Ubuntu 24.04, and Windows. macOS and RPM are separate future release tracks and must not be advertised as supported until their own gates pass.
 
 Keep the compatibility notice in `docs/index.html` until those gates and external confirmations pass. Update or remove the notice in the same change that promotes the verified stable release.
 
@@ -72,13 +74,12 @@ The scripts under `scripts/build-*.{sh,ps1}` predate this contract. Treat them a
 
 ## Current implementation status
 
-The repository currently stages release assets into a draft, builds Tectonic's macOS and Linux dependencies through static vcpkg triplets, vendors Tectonic's native TLS implementation, pauses RPM generation, audits macOS Homebrew paths/signing/notarization, and audits Linux native dependency closure. It intentionally leaves the release as a draft because the clean-machine gates and updater-manifest consolidation below are not implemented yet.
+The repository currently stages Windows and Linux release assets into a draft, builds Tectonic's Linux dependencies through a static vcpkg triplet, vendors Tectonic's native TLS implementation, pauses macOS and RPM generation, and audits Linux native dependency closure. Clean Ubuntu 22.04 and Ubuntu 24.04 jobs test both the AppImage and Debian package by compiling a LaTeX fixture and keeping the GUI alive under Xvfb. The workflow intentionally leaves the release as a draft because updater-manifest consolidation and the remaining gates below are not implemented yet.
 
-Before the first release candidate, complete these remaining pipeline items:
+Before publishing the first release candidate, complete these remaining pipeline items:
 
-1. Add clean Ubuntu 22.04 and Ubuntu 24.04 install/launch/compile jobs for the AppImage and Debian package.
-2. Consolidate updater-manifest generation into one final job rather than relying on parallel platform uploads.
-3. Add a DMG mount/copy/launch smoke test after the macOS dependency and signing audit.
-4. Add a clean Windows install/launch regression job.
-5. Add the final publication job only after the required verification jobs and updater manifest succeed.
-6. Restore RPM only with its Fedora-native build and verification matrix.
+1. Consolidate updater-manifest generation into one final job rather than relying on parallel platform uploads.
+2. Add a clean Windows install/launch regression job.
+3. Add the final publication job only after the required verification jobs and updater manifest succeed.
+4. Restore macOS only with Developer ID signing, notarization, and DMG smoke tests on both architectures.
+5. Restore RPM only with its Fedora-native build and verification matrix.

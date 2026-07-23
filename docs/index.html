@@ -1553,8 +1553,8 @@
 
   <aside class="compatibility-advisory" aria-label="Release compatibility notice">
     <strong>Compatibility notice for v1.4.1:</strong>
-    Windows is verified. On Linux, use the AppImage on Ubuntu 22.04 or newer. The macOS, Debian/Ubuntu
-    <code>.deb</code>, and Fedora/RPM packages are under investigation and may not launch on a clean system.
+    Windows is verified. On Linux, use the AppImage on Ubuntu 22.04 or newer. macOS support is temporarily
+    deferred, while the Debian/Ubuntu <code>.deb</code> and Fedora/RPM packages remain under investigation.
     <a href="#download">Review package status</a> before downloading.
   </aside>
 
@@ -1897,19 +1897,15 @@
                     d="M17.1 12.5c0-2.9 2.4-4.3 2.5-4.4a5.2 5.2 0 0 0-4.1-2.2c-1.7-.2-3.4 1-4.3 1s-2.2-1-3.7-.9a5.5 5.5 0 0 0-4.7 2.8c-2 3.5-.5 8.7 1.4 11.5 1 1.4 2.1 2.9 3.6 2.8 1.4-.1 2-1 3.7-1s2.2 1 3.7 1 2.5-1.4 3.4-2.8a12.5 12.5 0 0 0 1.6-3.3 5 5 0 0 1-3.1-4.5ZM14.3 4.1A5 5 0 0 0 15.5.5a5.1 5.1 0 0 0-3.3 1.7A4.7 4.7 0 0 0 11 5.7a4.2 4.2 0 0 0 3.3-1.6Z" />
                 </svg>
               </span>
-              <span class="package-badge warning">Under investigation</span>
+              <span class="package-badge warning">Support deferred</span>
             </div>
             <h3>macOS</h3>
             <p class="platform-copy">macOS 11 or later</p>
-            <p class="package-note warning">Both builds may fail to launch because required native libraries are not yet bundled.</p>
+            <p class="package-note warning">Current macOS downloads are unsupported. Signed and notarized builds will return when the project has sponsorship.</p>
             <div class="asset-links">
-              <a class="asset-link compatibility-limited" id="macos-arm"
-                href="https://github.com/danylaksono/opal-editor/releases/latest">
-                <span class="asset-link-label">Apple silicon (.dmg)<small class="asset-caveat">May not launch</small></span><span class="asset-size"></span>
-              </a>
-              <a class="asset-link compatibility-limited" id="macos-intel"
-                href="https://github.com/danylaksono/opal-editor/releases/latest">
-                <span class="asset-link-label">Intel Mac (.dmg)<small class="asset-caveat">May not launch</small></span><span class="asset-size"></span>
+              <a class="asset-link compatibility-limited"
+                href="https://github.com/danylaksono/opal-editor/issues">
+                <span class="asset-link-label">Follow macOS support status<small class="asset-caveat">Downloads paused</small></span><span class="asset-size"></span>
               </a>
             </div>
           </article>
@@ -2136,16 +2132,12 @@
 
           const windowsExe = findAsset(assets, [/windows.*setup\.exe$/i, /setup\.exe$/i]);
           const windowsMsi = findAsset(assets, [/windows.*\.msi$/i, /\.msi$/i]);
-          const macosArm = findAsset(assets, [/darwin.*(?:aarch64|arm64).*\.dmg$/i, /(?:aarch64|arm64).*\.dmg$/i]);
-          const macosIntel = findAsset(assets, [/darwin.*(?:x64|x86_64).*\.dmg$/i, /(?:x64|x86_64).*\.dmg$/i]);
           const linuxAppImage = findAsset(assets, [/linux.*\.AppImage$/i, /\.AppImage$/i]);
           const linuxDeb = findAsset(assets, [/linux.*\.deb$/i, /\.deb$/i]);
           const linuxRpm = findAsset(assets, [/linux.*\.rpm$/i, /\.rpm$/i]);
 
           setAssetLink("#windows-exe", windowsExe);
           setAssetLink("#windows-msi", windowsMsi);
-          setAssetLink("#macos-arm", macosArm);
-          setAssetLink("#macos-intel", macosIntel);
           setAssetLink("#linux-appimage", linuxAppImage);
           setAssetLink("#linux-deb", linuxDeb);
           setAssetLink("#linux-rpm", linuxRpm);
