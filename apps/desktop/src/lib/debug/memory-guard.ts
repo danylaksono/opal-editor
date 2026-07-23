@@ -24,9 +24,8 @@ interface PerformanceMemory {
 }
 
 function readHeap(): PerformanceMemory | null {
-  const memory = (
-    performance as Performance & { memory?: PerformanceMemory }
-  ).memory;
+  const memory = (performance as Performance & { memory?: PerformanceMemory })
+    .memory;
   return memory && memory.usedJSHeapSize > 0 ? memory : null;
 }
 
