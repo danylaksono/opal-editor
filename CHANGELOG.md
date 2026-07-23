@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [1.4.2-rc.1] - 2026-07-23
+
+This prerelease is the first portable Linux-package candidate. It is intended
+for compatibility testing before a stable Windows/Linux release.
+
+### Fixed
+
+- Rebuilt Tectonic's ICU, HarfBuzz, Graphite2, FreeType, Fontconfig, and
+  OpenSSL dependencies for static linkage so the Debian package no longer
+  depends on library versions installed on the build runner.
+- Prevented release builds from producing an Ubuntu-built RPM with incomplete
+  Fedora dependency metadata.
+
+### Release verification
+
+- Added native dependency and architecture audits for Linux release binaries.
+- Added clean Ubuntu 22.04 and Ubuntu 24.04 checks that install, launch, and
+  compile a LaTeX document with both the AppImage and Debian package.
+- Changed release automation to stage artifacts in a private draft until all
+  required verification and updater-manifest steps are complete.
+
+### Package availability
+
+- Windows remains supported and included in the release candidate.
+- macOS packaging is deferred until signed and notarized distribution can be
+  sponsored.
+- RPM packaging is deferred until Fedora-native build and test jobs are
+  available.
+
 ## [1.4.1] - 2026-07-23
 
 Opal 1.4.1 strengthens compilation, PDF review, and everyday project editing,

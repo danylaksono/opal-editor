@@ -53,4 +53,24 @@ fi
 echo "==> Debian package metadata"
 dpkg-deb --field "$deb_path" Package Version Architecture Depends
 
+app_version=$(node -p "require('./package.json').version")
+expected_deb_version="$app_version"
+if [[ "$app_version" == *-* ]]; then
+  expected_deb_version="${app_version%%-*}~${app_version#*-}"
+fi
+
+actual_deb_version=$(dpkg-deb --field "$deb_path" Version)
+if [ "$actual_deb_version" != "$expected_deb_version" ]; then
+  echo "Error: Debian package version is $actual_deb_version; expected $expected_deb_version" >&2
+  exit 1
+fi
+
+if [[ "$app_version" == *-* ]]; then
+  stable_version="${app_version%%-*}"
+  if ! dpkg --compare-versions "$stable_version" gt "$actual_deb_version"; then
+    echo "Error: Debian would not treat stable $stable_version as an upgrade from $actual_deb_version" >&2
+    exit 1
+  fi
+fi
+
 echo "Linux bundle audit passed"

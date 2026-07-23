@@ -52,6 +52,7 @@ When macOS distribution is restored, the release workflow will require these sec
 - Build on Ubuntu 22.04, the oldest supported baseline.
 - Test the AppImage and Debian package on clean Ubuntu 22.04 and Ubuntu 24.04 environments.
 - Run dependency closure checks and reject `not found` results.
+- For SemVer prereleases, rewrite only the Debian control version from forms such as `1.4.2-rc.1` to `1.4.2~rc.1`, replace the staged `.deb`, remove any signature made for the pre-normalized archive, and verify with `dpkg --compare-versions` that stable `1.4.2` is newer.
 - Launch under Xvfb with isolated `HOME`, `XDG_CONFIG_HOME`, and `XDG_CACHE_HOME` directories.
 - Verify that an included LaTeX example compiles and produces a PDF.
 - Treat AppImage as the default Linux download until native packages pass the wider compatibility matrix.

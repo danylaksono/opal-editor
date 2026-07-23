@@ -172,6 +172,29 @@ jobs:
           releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
           args: ${{ matrix.tauri-args }}
 
+      - name: Normalize Debian prerelease version and replace staged package
+        if: matrix.audit == 'linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          app_version=$(node -p "require('./package.json').version")
+          bash scripts/normalize-debian-prerelease.sh "$app_version"
+
+          deb_path=$(find apps/desktop/src-tauri/target/release/bundle/deb \
+            -maxdepth 1 -name '*.deb' -type f -print -quit)
+          staged_name="Opal_${app_version}_linux_amd64.deb"
+          staged_path="$RUNNER_TEMP/$staged_name"
+          cp "$deb_path" "$staged_path"
+
+          gh release upload "$RELEASE_TAG" "$staged_path" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+          gh release delete-asset "$RELEASE_TAG" "${staged_name}.sig" \
+            --repo "$GITHUB_REPOSITORY" \
+            --yes || true
+
       - name: Audit Linux application and packages
         if: matrix.audit == 'linux'
         shell: bash
