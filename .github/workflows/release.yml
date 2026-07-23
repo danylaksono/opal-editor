@@ -139,10 +139,18 @@ jobs:
             'harfbuzz[graphite2]' freetype icu fontconfig \
             --triplet "${{ matrix.vcpkg-triplet }}"
 
-          echo "TECTONIC_DEP_BACKEND=vcpkg" >> "$GITHUB_ENV"
-          echo "VCPKG_ROOT=$vcpkg_root" >> "$GITHUB_ENV"
-          echo "VCPKG_DEFAULT_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
-          echo "VCPKGRS_TRIPLET=${{ matrix.vcpkg-triplet }}" >> "$GITHUB_ENV"
+          # Resolve Tectonic's native deps (ICU/HarfBuzz/Graphite2/FreeType/
+          # Fontconfig) through pkg-config against the vcpkg tree rather than the
+          # vcpkg backend. The vcpkg backend fails to emit the full transitive
+          # closure for the static x64-linux triplet (missing graphite2 and the
+          # ICU data/i18n libs -> undefined symbols at link time), whereas the
+          # vcpkg .pc files carry the complete Requires chain. The vcpkg lib dir
+          # ships only static .a archives, so these link statically for a
+          # portable package, while GTK/WebKit still resolve dynamically from the
+          # default system pkgconfig paths. Do NOT set PKG_CONFIG_ALL_STATIC: it
+          # forces GTK/WebKit static too and drags in an unavailable -lsystemd.
+          echo "TECTONIC_DEP_BACKEND=pkg-config" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$vcpkg_root/installed/${{ matrix.vcpkg-triplet }}/lib/pkgconfig" >> "$GITHUB_ENV"
           # Recent vcpkg ICU headers require C++17; tectonic_xetex_layout
           # defaults to -std=c++14, and cc-rs appends CXXFLAGS last so this wins.
           echo "CXXFLAGS=-std=c++17" >> "$GITHUB_ENV"
