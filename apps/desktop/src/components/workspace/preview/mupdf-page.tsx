@@ -138,7 +138,15 @@ export const MupdfPage = memo(function MupdfPage({
           renderPageRef.current();
         }
       });
-  }, [docId, pageIndex, scale, isVisible, pageWidth, pageHeight, simplePreview]);
+  }, [
+    docId,
+    pageIndex,
+    scale,
+    isVisible,
+    pageWidth,
+    pageHeight,
+    simplePreview,
+  ]);
 
   // Latest renderPage identity, so a queued follow-up uses current params
   // instead of the closure that started the in-flight render.
