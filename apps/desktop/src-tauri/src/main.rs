@@ -11,7 +11,9 @@ fn main() {
         let main_file = &args[3];
         let single_pass = args.iter().any(|a| a == "--single-pass");
         match tectonic_editor_desktop_lib::tectonic_compile_subprocess(
-            work_dir, main_file, single_pass,
+            work_dir,
+            main_file,
+            single_pass,
         ) {
             Ok(()) => std::process::exit(0),
             Err(e) => {

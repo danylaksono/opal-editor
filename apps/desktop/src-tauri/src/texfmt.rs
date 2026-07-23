@@ -48,8 +48,7 @@ mod tests {
             "\\item a very long line that would be wrapped at eighty characters if wrapping were enabled here\n",
             "\\end{itemize}\n",
         );
-        let output =
-            tauri::async_runtime::block_on(format_latex(input.to_string())).unwrap();
+        let output = tauri::async_runtime::block_on(format_latex(input.to_string())).unwrap();
         assert!(output.contains("\n  \\item one\n"));
         // No wrapping: the long line stays intact.
         assert!(output.contains("wrapping were enabled here\n"));

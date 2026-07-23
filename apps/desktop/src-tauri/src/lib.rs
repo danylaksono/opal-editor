@@ -177,7 +177,9 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
         let target = if is_dir {
             p.clone()
         } else {
-            p.parent().map(Path::to_path_buf).unwrap_or_else(|| p.clone())
+            p.parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| p.clone())
         };
         std::process::Command::new("xdg-open")
             .arg(&target)

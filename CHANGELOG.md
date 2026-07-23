@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-23
+
+Opal 1.4.1 strengthens compilation, PDF review, and everyday project editing,
+with particular attention to large documents and lower-memory systems.
+
+### Added
+
+- Added a draft compilation mode with clearer progress feedback while a
+  document is building.
+- Added automatic LaTeX formatting on save, plus a manual **Format document**
+  action.
+- Added direct clipboard-image pasting into the figure workflow, including a
+  preview and editable filename before insertion.
+- Added contextual file-browser actions, including revealing project items in
+  the operating system's file manager.
+- Added a lightweight PDF preview option for lower-memory or lower-power
+  systems.
+
+### Improved
+
+- Expanded PDF review with reviewer names, coloured highlights, replies,
+  improved comment navigation, and review export support.
+- Made recent-project discovery and last-modified information more robust.
+- Improved compilation diagnostics with clearer explanations and guidance for
+  common LaTeX errors.
+- Improved main-document resolution and save-to-compile behaviour in
+  multi-file projects.
+- Reduced PDF rendering memory pressure with safer page limits, leaner
+  off-screen rendering, and memory guardrails.
+- Widened the Settings dialog to make the growing set of options easier to
+  navigate.
+
+### Fixed
+
+- Fixed project-wizard state handling and project-root resolution edge cases.
+- Fixed missing compile errors and several preview state inconsistencies.
+- Fixed LaTeX onboarding reset behaviour.
+
 ## [1.4.0] - 2026-07-20
 
 Opal 1.4 is the first release under the **Opal** name—formerly
