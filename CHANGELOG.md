@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-07-23
+
+Opal 1.4.2 delivers portable Windows, Linux, and macOS packages built and
+verified through the gated release pipeline.
+
+### Added
+
+- Added unsigned macOS builds for Apple Silicon and Intel. Because these are
+  not signed with a paid Apple Developer ID, macOS blocks them on first launch;
+  run `xattr -cr /Applications/Opal.app` or right-click the app and choose
+  **Open** to get past Gatekeeper.
+
+### Fixed
+
+- Linked Tectonic's ICU, HarfBuzz, Graphite2, FreeType, and Fontconfig
+  dependencies statically from vcpkg on Linux and macOS so the packages no
+  longer depend on library versions from the build machine and run on a clean
+  system.
+- Restored a working Linux release build after a vcpkg baseline change
+  (autotools for the gperf/fontconfig ports, C++17 for the ICU headers, and a
+  complete static link closure resolved through pkg-config).
+- Corrected the Windows MSI version for prerelease builds, whose non-numeric
+  identifiers the installer rejected.
+
+### Release verification
+
+- Native dependency and architecture audits for Linux and macOS release
+  binaries, rejecting non-portable dependencies.
+- Clean Ubuntu 22.04 and Ubuntu 24.04 checks that install, launch, and compile
+  a LaTeX document with both the AppImage and Debian package.
+- A local, CI-parity Docker harness (`scripts/ci-linux-repro/`) for
+  reproducing the Linux release build without a GitHub Actions run.
+
+### Package availability
+
+- Windows, Linux (AppImage and Debian package), and unsigned macOS are
+  included.
+- Signed and notarized macOS distribution is deferred until it can be
+  sponsored; RPM packaging is deferred until Fedora-native build and test jobs
+  are available.
+
 ## [1.4.2-rc.1] - 2026-07-23
 
 This prerelease is the first portable Linux-package candidate. It is intended
