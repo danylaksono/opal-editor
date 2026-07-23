@@ -26,6 +26,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 
 export function SettingsDialog({
   open,
@@ -34,9 +35,18 @@ export function SettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { style: widthStyle, handle: resizeHandle } = useResizableDialog({
+    storageKey: "tectonic-editor-settings-dialog-width",
+    minWidth: 420,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        style={widthStyle}
+      >
+        {resizeHandle}
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
