@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { getMupdfClient } from "@/lib/mupdf/mupdf-client";
+import { capRenderDpi } from "@/lib/mupdf/render-limits";
 import { createLogger } from "@/lib/debug/logger";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { StructuredTextData, LinkData } from "@/lib/mupdf/types";
@@ -86,7 +87,7 @@ export const MupdfPage = memo(function MupdfPage({
     const gen = ++renderGenRef.current;
     const client = getMupdfClient();
     const dpr = window.devicePixelRatio || 1;
-    const dpi = scale * 72 * dpr;
+    const dpi = capRenderDpi(scale * 72 * dpr, pageWidth, pageHeight);
 
     client
       .drawPage(docId, pageIndex, dpi)
@@ -109,7 +110,23 @@ export const MupdfPage = memo(function MupdfPage({
         if (gen !== renderGenRef.current) return;
         log.error(`Render error page ${pageIndex}`, { error: String(err) });
       });
-  }, [docId, pageIndex, scale, isVisible]);
+  }, [docId, pageIndex, scale, isVisible, pageWidth, pageHeight]);
+
+  // Release the canvas backing store when the page scrolls far out of view
+  // (beyond the IntersectionObserver margin). Without this, every visited page
+  // keeps a full-resolution bitmap (~10-30 MB at typical zoom × DPR) alive for
+  // the whole session — scrolling through a long document accumulates
+  // gigabytes and can OOM the renderer process. The CSS size is set separately
+  // in style, so layout is unaffected; re-entering the margin re-renders.
+  useEffect(() => {
+    if (isVisible) return;
+    renderGenRef.current++; // cancel any in-flight render
+    const canvas = canvasRef.current;
+    if (canvas && canvas.width > 0) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }, [isVisible]);
 
   // Initial render and re-render on dependency changes
   useEffect(() => {

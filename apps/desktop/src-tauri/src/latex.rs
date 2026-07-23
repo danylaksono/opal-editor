@@ -1025,6 +1025,18 @@ fn parse_synctex_data(
             break;
         }
 
+        // SyncTeX emits Input records mid-content for files first opened after
+        // a page ships out — i.e. every \include'd chapter. Missing these made
+        // sync resolve only for the root file.
+        if let Some(rest) = line.strip_prefix("Input:") {
+            if let Some(colon_pos) = rest.find(':') {
+                if let Ok(tag) = rest[..colon_pos].parse::<u32>() {
+                    inputs.insert(tag, rest[colon_pos + 1..].to_string());
+                }
+            }
+            continue;
+        }
+
         let first_byte = match line.as_bytes().first() {
             Some(b) => *b,
             None => continue,
@@ -1151,6 +1163,19 @@ fn parse_synctex_view(
 
         if line.starts_with("Postamble:") {
             break;
+        }
+
+        // Input records for \include'd files appear mid-content (the file is
+        // first opened after a page ships out) — match them as they stream by.
+        if let Some(rest) = line.strip_prefix("Input:") {
+            if let Some(colon_pos) = rest.find(':') {
+                if let Ok(tag) = rest[..colon_pos].parse::<u32>() {
+                    if synctex_paths_match(&rest[colon_pos + 1..], target_file) {
+                        target_tags.push(tag);
+                    }
+                }
+            }
+            continue;
         }
 
         let first_byte = *line.as_bytes().first()?;
@@ -2098,6 +2123,54 @@ h1,5,0:1000,2000
 Postamble:
 ";
         assert!(parse_synctex_view(data, "missing.tex", 5).is_none());
+    }
+
+    #[test]
+    fn test_parse_synctex_view_input_record_after_content() {
+        // \include'd files are first opened after a page ships out, so their
+        // Input records appear inside the content section, not the preamble.
+        let data = "\
+Input:1:C:\\project\\.tectonic-editor\\build\\_main.tex
+Magnification:1000
+Unit:65536
+X Offset:0
+Y Offset:0
+Content:
+{1
+h1,5,0:100,200:30,10,2
+}1
+Input:118:C:\\project\\.tectonic-editor\\build\\chapter01.tex
+{2
+h118,40,0:72,144:120,12,3
+}2
+Postamble:
+";
+        let result = parse_synctex_view(data, "chapter01.tex", 40).unwrap();
+        assert_eq!(result.page, 2);
+        assert!(result.x > 71.0 && result.x < 72.0);
+    }
+
+    #[test]
+    fn test_parse_synctex_data_input_record_after_content() {
+        let data = "\
+Input:1:C:\\project\\.tectonic-editor\\build\\_main.tex
+Magnification:1000
+Unit:65536
+X Offset:0
+Y Offset:0
+Content:
+{1
+h1,5,0:100,200:30,10,2
+}1
+Input:118:C:\\project\\.tectonic-editor\\build\\chapter01.tex
+{2
+h118,40,0:100,200:120,12,3
+}2
+Postamble:
+";
+        let (file, line, _col) = parse_synctex_data(data, 2, 100.0, 200.0).unwrap();
+        assert!(file.ends_with("chapter01.tex"), "got {}", file);
+        assert_eq!(line, 40);
     }
 
     // --- extract_error_lines: real errors take priority over "No pages of output" ---

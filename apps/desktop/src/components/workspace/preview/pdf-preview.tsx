@@ -1510,6 +1510,12 @@ export function PdfPreview() {
                   ? `Compiling… ${compileProgress.percent}%`
                   : "Compiling..."}
               </span>
+              {/* Narrow panes: still show the bare percentage next to the spinner */}
+              {compileProgress && (
+                <span className="@[34rem]/pv:hidden font-medium text-muted-foreground text-xs">
+                  {compileProgress.percent}%
+                </span>
+              )}
             </div>
           )}
           {!isSaving &&

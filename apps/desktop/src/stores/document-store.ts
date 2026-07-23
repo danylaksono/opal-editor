@@ -86,6 +86,31 @@ export function clearPdfBytesCache() {
   _currentPdfRootId = null;
 }
 
+// ── Persisted compile durations (projectRoot → last build ms) ──
+// Seeds the compile-progress estimate on the first build of a session, which
+// would otherwise show no percentage until the second compile.
+const COMPILE_DURATIONS_KEY = "tectonic-editor-compile-durations";
+
+function readStoredCompileDuration(rootPath: string): number | null {
+  try {
+    const map = JSON.parse(localStorage.getItem(COMPILE_DURATIONS_KEY) ?? "{}");
+    const value = map[rootPath];
+    return typeof value === "number" && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeCompileDuration(rootPath: string, durationMs: number): void {
+  try {
+    const map = JSON.parse(localStorage.getItem(COMPILE_DURATIONS_KEY) ?? "{}");
+    map[rootPath] = durationMs;
+    localStorage.setItem(COMPILE_DURATIONS_KEY, JSON.stringify(map));
+  } catch {
+    // localStorage unavailable — the estimate just starts on the second build
+  }
+}
+
 interface DocumentState {
   projectRoot: string | null;
   files: ProjectFile[];
@@ -445,6 +470,12 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
       initialized: true,
       cursorPosition: 0,
       selectionRange: null,
+      // Seed the compile-time estimate from the previous session. endedAt: 0
+      // keeps the auto-compile cooldown (endedAt + 1.5×duration) in the past.
+      lastCompileStats: (() => {
+        const stored = readStoredCompileDuration(rootPath);
+        return stored ? { endedAt: 0, durationMs: stored } : null;
+      })(),
     });
 
     // Seed "last modified" from the files' actual on-disk mtimes, so a
@@ -807,7 +838,13 @@ export const useDocumentStore = create<DocumentState>()((set, get) => ({
 
   setIsCompiling: (isCompiling) => set({ isCompiling }),
   setPendingRecompile: (pending) => set({ pendingRecompile: pending }),
-  setLastCompileStats: (stats) => set({ lastCompileStats: stats }),
+  setLastCompileStats: (stats) => {
+    const root = get().projectRoot;
+    if (root && stats.durationMs > 0) {
+      storeCompileDuration(root, stats.durationMs);
+    }
+    set({ lastCompileStats: stats });
+  },
   setFastCompile: (opts) =>
     set((s) => ({ fastCompile: { ...s.fastCompile, ...opts } })),
 

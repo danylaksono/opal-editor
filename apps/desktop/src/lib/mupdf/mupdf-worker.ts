@@ -46,6 +46,11 @@ methods.closeDocument = (docId: number): void => {
   const doc = documentMap.get(docId);
   if (doc) {
     documentMap.delete(docId);
+    // Explicitly free the WASM-side document. The FinalizationRegistry fallback
+    // rarely fires (the JS GC sees only a tiny wrapper object while the WASM
+    // heap balloons), so without this every closed document leaks its full
+    // parsed PDF in the WASM heap.
+    doc.destroy();
   }
 };
 
@@ -61,6 +66,7 @@ methods.getPageSize = (
   const doc = documentMap.get(docId)!;
   const page = doc.loadPage(pageIndex);
   const bounds = page.getBounds();
+  page.destroy();
   return {
     width: bounds[2] - bounds[0],
     height: bounds[3] - bounds[1],
@@ -76,6 +82,7 @@ methods.getAllPageSizes = (
   for (let i = 0; i < count; i++) {
     const page = doc.loadPage(i);
     const bounds = page.getBounds();
+    page.destroy();
     sizes.push({
       width: bounds[2] - bounds[0],
       height: bounds[3] - bounds[1],
@@ -97,8 +104,9 @@ methods.drawPage = (
   const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false, true);
   const w = pixmap.getWidth();
   const h = pixmap.getHeight();
+  // getPixels() returns a live view into the WASM heap — copy out to RGBA
+  // *before* destroying the pixmap (destroying first is a use-after-free).
   const rgb = pixmap.getPixels();
-  pixmap.destroy();
   // Convert RGB (3 bytes/pixel) → RGBA (4 bytes/pixel) for ImageData
   const rgba = new Uint8ClampedArray(w * h * 4);
   for (let i = 0, j = 0; i < rgb.length; i += 3, j += 4) {
@@ -107,6 +115,8 @@ methods.drawPage = (
     rgba[j + 2] = rgb[i + 2];
     rgba[j + 3] = 255; // fully opaque
   }
+  pixmap.destroy();
+  page.destroy();
   return new ImageData(rgba, w, h);
 };
 
@@ -114,7 +124,10 @@ methods.getPageText = (docId: number, pageIndex: number): unknown => {
   const doc = documentMap.get(docId)!;
   const page = doc.loadPage(pageIndex);
   const stext = page.toStructuredText("preserve-whitespace");
-  const raw = JSON.parse(stext.asJSON());
+  const json = stext.asJSON();
+  stext.destroy();
+  page.destroy();
+  const raw = JSON.parse(json);
 
   // Transform mupdf's nested spans format to our flat line format
   const blocks = (raw.blocks || []).map((block: any) => {
@@ -177,7 +190,7 @@ methods.getPageLinks = (docId: number, pageIndex: number): unknown[] => {
   const doc = documentMap.get(docId)!;
   const page = doc.loadPage(pageIndex);
   const links = page.getLinks();
-  return links.map((link: any) => {
+  const result = links.map((link: any) => {
     const bounds = link.getBounds();
     const uri: string = link.getURI() || "";
     const isExternal: boolean = link.isExternal?.() ?? uri.startsWith("http");
@@ -207,6 +220,9 @@ methods.getPageLinks = (docId: number, pageIndex: number): unknown[] => {
       isExternal,
     };
   });
+  for (const link of links) link.destroy?.();
+  page.destroy();
+  return result;
 };
 
 methods.renderThumbnail = (
@@ -224,6 +240,7 @@ methods.renderThumbnail = (
   const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false, true);
   const png = pixmap.asPNG();
   pixmap.destroy();
+  page.destroy();
   return png.buffer as ArrayBuffer;
 };
 

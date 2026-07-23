@@ -4,6 +4,7 @@ import type {
   PageSize,
   WorkerResponse,
 } from "./types";
+import { toast } from "sonner";
 import { createLogger } from "@/lib/debug/logger";
 
 const log = createLogger("mupdf-worker");
@@ -68,6 +69,13 @@ function createClient(): MupdfClient {
 
   worker.onerror = (event) => {
     log.error("Worker fatal error", { message: event.message });
+    // Surface the crash — a silent restart looks like the preview randomly
+    // going blank. Most fatal worker errors here are memory-related.
+    toast.error("PDF preview engine crashed", {
+      id: "mupdf-worker-crash",
+      description:
+        "It restarts automatically — recompile or scroll to re-render the preview. If this keeps happening, reduce the zoom level.",
+    });
     // Nullify singleton so next getMupdfClient() creates a fresh worker
     instance = null;
   };
