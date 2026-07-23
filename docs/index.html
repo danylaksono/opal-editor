@@ -151,26 +151,6 @@
       background: rgba(255, 254, 251, 0.7);
     }
 
-    .compatibility-advisory {
-      width: min(1160px, calc(100% - 40px));
-      margin: 26px auto 0;
-      padding: 15px 18px;
-      border: 1px solid rgba(212, 154, 39, 0.34);
-      border-radius: 14px;
-      background: rgba(255, 248, 228, 0.82);
-      box-shadow: 0 10px 30px rgba(73, 50, 12, 0.07);
-      color: #4f3a16;
-      font-size: 0.86rem;
-    }
-
-    .compatibility-advisory strong {
-      color: #2f220d;
-    }
-
-    .compatibility-advisory a {
-      font-weight: 720;
-      text-underline-offset: 3px;
-    }
 
     .hero {
       display: grid;
@@ -1408,10 +1388,6 @@
         width: min(100% - 28px, 1160px);
       }
 
-      .compatibility-advisory {
-        width: min(100% - 28px, 1160px);
-      }
-
       .nav-links a:not(.nav-download) {
         display: none;
       }
@@ -1550,14 +1526,6 @@
       </div>
     </nav>
   </header>
-
-  <aside class="compatibility-advisory" aria-label="Release compatibility notice">
-    <strong>Compatibility notice:</strong>
-    Windows is verified. On Linux, use the AppImage on Ubuntu 22.04 or newer. macOS builds are provided
-    <strong>unsigned</strong> — after downloading, run <code>xattr -cr /Applications/Opal.app</code> or
-    right-click &rarr; Open to get past Gatekeeper. The Fedora/RPM package remains under investigation.
-    <a href="#download">Review package status</a> before downloading.
-  </aside>
 
   <main id="main">
     <section class="hero shell" id="top">
@@ -1902,7 +1870,7 @@
             </div>
             <h3>macOS</h3>
             <p class="platform-copy">macOS 11 or later · Apple Silicon &amp; Intel</p>
-            <p class="package-note warning">These builds are <strong>unsigned</strong> — there is no paid Apple certificate yet, so macOS blocks them on first launch. After downloading, remove the quarantine flag: open Terminal and run <code>xattr -cr /Applications/Opal.app</code>, or right-click the app in Finder and choose <strong>Open</strong>, then confirm.</p>
+            <p class="package-note warning"><strong>Unsigned build.</strong> On first launch, run <code>xattr -cr /Applications/Opal.app</code> in Terminal, or right-click the app &rarr; <strong>Open</strong>.</p>
             <div class="asset-links">
               <a class="asset-link" id="mac-arm"
                 href="https://github.com/danylaksono/opal-editor/releases/latest">
