@@ -74,7 +74,7 @@ function createClient(): MupdfClient {
     toast.error("PDF preview engine crashed", {
       id: "mupdf-worker-crash",
       description:
-        "It restarts automatically — recompile or scroll to re-render the preview. If this keeps happening, reduce the zoom level.",
+        "It restarts automatically — recompile or scroll to re-render the preview. If this keeps happening, enable Lightweight PDF preview in Settings.",
     });
     // Nullify singleton so next getMupdfClient() creates a fresh worker
     instance = null;

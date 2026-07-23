@@ -9,20 +9,26 @@ const log = createLogger("render-limits");
  * canvas memory toward a renderer OOM crash. */
 const MAX_RENDER_PIXELS = 9_000_000;
 
+/** Tighter budget for the lightweight-preview setting (~A4 at 210 DPI). */
+export const SIMPLE_MAX_RENDER_PIXELS = 4_500_000;
+
 let capNotified = false;
 
-/** Cap the render DPI so the resulting bitmap stays under MAX_RENDER_PIXELS.
+/** Cap the render DPI so the resulting bitmap stays under the pixel budget.
  * The canvas is upscaled via CSS beyond the cap, trading sharpness at extreme
  * zoom for stability. Notifies the user once per session when the cap engages. */
 export function capRenderDpi(
   dpi: number,
   pageWidthPt: number,
   pageHeightPt: number,
+  maxPixels: number = MAX_RENDER_PIXELS,
 ): number {
   const pixels = (pageWidthPt / 72) * dpi * ((pageHeightPt / 72) * dpi);
-  if (pixels <= MAX_RENDER_PIXELS) return dpi;
-  const capped = dpi * Math.sqrt(MAX_RENDER_PIXELS / pixels);
-  if (!capNotified) {
+  if (pixels <= maxPixels) return dpi;
+  const capped = dpi * Math.sqrt(maxPixels / pixels);
+  // Only notify for the default budget — in lightweight-preview mode the
+  // lower cap is the user's own choice, not a surprise.
+  if (!capNotified && maxPixels === MAX_RENDER_PIXELS) {
     capNotified = true;
     log.warn("Render DPI capped to conserve memory", {
       requestedDpi: Math.round(dpi),

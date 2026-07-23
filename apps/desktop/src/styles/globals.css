@@ -361,6 +361,14 @@
       0 2px 4px color-mix(in oklab, var(--foreground) 12%, transparent),
       0 16px 42px color-mix(in oklab, var(--foreground) 17%, transparent);
   }
+
+  /* Lightweight preview: flat page chrome — the large blurred shadows and
+   * hover transitions above repaint on every scroll frame for each page. */
+  .pdf-simple .mupdf-page,
+  .pdf-simple .mupdf-page:hover {
+    box-shadow: none;
+    transition: none;
+  }
 }
 
 @layer base {

@@ -18,6 +18,7 @@ import {
 import { LOCAL_ZOOM_SHORTCUTS_ATTR } from "@/lib/app-zoom";
 import { MupdfPage, type MupdfReviewAnnotation } from "./mupdf-page";
 import { resolveReviewHighlightColor } from "@/lib/review-colors";
+import { useSettingsStore } from "@/stores/settings-store";
 import { createLogger } from "@/lib/debug/logger";
 import { scrollBehavior } from "@/lib/utils";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
@@ -158,6 +159,7 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const simplePreview = useSettingsStore((s) => s.simplePdfPreview);
 
   const [pageSizes, setPageSizes] = useState<PageSize[]>([]);
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set());
@@ -449,7 +451,9 @@ export function PdfViewer({
       },
       {
         root: container,
-        rootMargin: "200% 0px",
+        // Lightweight preview keeps fewer offscreen pages rendered — less
+        // canvas memory and fewer wasted renders while scrolling.
+        rootMargin: simplePreview ? "50% 0px" : "200% 0px",
       },
     );
 
@@ -457,7 +461,7 @@ export function PdfViewer({
     pages.forEach((p) => observer.observe(p));
 
     return () => observer.disconnect();
-  }, [pageSizes, scale, isActive, focusGen]);
+  }, [pageSizes, scale, isActive, focusGen, simplePreview]);
 
   // Report container dimensions to parent for fit-to-width/height
   useEffect(() => {
@@ -991,7 +995,9 @@ export function PdfViewer({
           ref={containerRef}
           tabIndex={-1}
           {...{ [LOCAL_ZOOM_SHORTCUTS_ATTR]: "true" }}
-          className="pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none"
+          className={`pdf-scroll-area min-h-0 flex-1 overflow-auto outline-none ${
+            simplePreview ? "pdf-simple" : ""
+          }`}
           style={{
             cursor: dragMode || commentPlacementMode ? "crosshair" : undefined,
             // Drag modes draw a box — suppress incidental text selection.

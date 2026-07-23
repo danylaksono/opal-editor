@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { getMupdfClient } from "@/lib/mupdf/mupdf-client";
-import { capRenderDpi } from "@/lib/mupdf/render-limits";
+import {
+  capRenderDpi,
+  SIMPLE_MAX_RENDER_PIXELS,
+} from "@/lib/mupdf/render-limits";
+import { useSettingsStore } from "@/stores/settings-store";
 import { createLogger } from "@/lib/debug/logger";
 import { APP_VISIBILITY_RESTORED } from "@/lib/debug/log-store";
 import type { StructuredTextData, LinkData } from "@/lib/mupdf/types";
@@ -73,6 +77,7 @@ export const MupdfPage = memo(function MupdfPage({
   onSelectReviewAnnotation,
 }: MupdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const simplePreview = useSettingsStore((s) => s.simplePdfPreview);
   const [textData, setTextData] = useState<StructuredTextData | null>(null);
   const [links, setLinks] = useState<LinkData[]>([]);
   const renderGenRef = useRef(0);
@@ -99,8 +104,15 @@ export const MupdfPage = memo(function MupdfPage({
     const gen = ++renderGenRef.current;
     renderInFlightRef.current = true;
     const client = getMupdfClient();
-    const dpr = window.devicePixelRatio || 1;
-    const dpi = capRenderDpi(scale * 72 * dpr, pageWidth, pageHeight);
+    // Lightweight preview: render at CSS resolution (no DPR upscale) with a
+    // tighter pixel budget — 2-4× less memory and decode work per page.
+    const dpr = simplePreview ? 1 : window.devicePixelRatio || 1;
+    const dpi = capRenderDpi(
+      scale * 72 * dpr,
+      pageWidth,
+      pageHeight,
+      simplePreview ? SIMPLE_MAX_RENDER_PIXELS : undefined,
+    );
 
     client
       .drawPage(docId, pageIndex, dpi)
@@ -126,7 +138,7 @@ export const MupdfPage = memo(function MupdfPage({
           renderPageRef.current();
         }
       });
-  }, [docId, pageIndex, scale, isVisible, pageWidth, pageHeight]);
+  }, [docId, pageIndex, scale, isVisible, pageWidth, pageHeight, simplePreview]);
 
   // Latest renderPage identity, so a queued follow-up uses current params
   // instead of the closure that started the in-flight render.
@@ -158,8 +170,17 @@ export const MupdfPage = memo(function MupdfPage({
 
   // Text + link layers depend only on the document, not the zoom level —
   // fetch once per doc instead of on every scale change and visibility flip.
+  // Lightweight preview skips them entirely (no text selection / clickable
+  // links; double-click sync and review tools are coordinate-based and keep
+  // working).
   const textFetchedDocIdRef = useRef(0);
   useEffect(() => {
+    if (simplePreview) {
+      textFetchedDocIdRef.current = 0;
+      setTextData(null);
+      setLinks([]);
+      return;
+    }
     if (!isVisible || docId <= 0) return;
     if (textFetchedDocIdRef.current === docId) return;
 
@@ -182,7 +203,7 @@ export const MupdfPage = memo(function MupdfPage({
     return () => {
       cancelled = true;
     };
-  }, [docId, pageIndex, isVisible]);
+  }, [docId, pageIndex, isVisible, simplePreview]);
 
   // Re-render canvas when returning from background if content was lost
   useEffect(() => {

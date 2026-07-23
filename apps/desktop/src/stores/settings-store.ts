@@ -65,6 +65,12 @@ interface SettingsState {
    *  just the default for the next highlight. */
   reviewHighlightColor: string;
   setReviewHighlightColor: (color: string) => void;
+  /** Lightweight PDF preview for low-memory / low-power machines: renders
+   *  pages at standard resolution (no DPR upscaling, lower pixel cap), skips
+   *  the text-selection and link layers, prerenders fewer offscreen pages,
+   *  and drops page shadows. Double-click sync and review tools still work. */
+  simplePdfPreview: boolean;
+  setSimplePdfPreview: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -104,6 +110,8 @@ export const useSettingsStore = create<SettingsState>()(
       setFormatLatexOnSave: (enabled) => set({ formatLatexOnSave: enabled }),
       reviewHighlightColor: "yellow",
       setReviewHighlightColor: (color) => set({ reviewHighlightColor: color }),
+      simplePdfPreview: false,
+      setSimplePdfPreview: (enabled) => set({ simplePdfPreview: enabled }),
     }),
     {
       name: "tectonic-editor-settings",
@@ -140,6 +148,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (s && typeof s.reviewHighlightColor !== "string") {
           s.reviewHighlightColor = "yellow";
+        }
+        if (s && typeof s.simplePdfPreview !== "boolean") {
+          s.simplePdfPreview = false;
         }
         return s as SettingsState;
       },

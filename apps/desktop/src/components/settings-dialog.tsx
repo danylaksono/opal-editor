@@ -95,6 +95,8 @@ function EditorSection() {
   );
   const formatLatexOnSave = useSettingsStore((s) => s.formatLatexOnSave);
   const setFormatLatexOnSave = useSettingsStore((s) => s.setFormatLatexOnSave);
+  const simplePdfPreview = useSettingsStore((s) => s.simplePdfPreview);
+  const setSimplePdfPreview = useSettingsStore((s) => s.setSimplePdfPreview);
 
   return (
     <div className="space-y-3">
@@ -186,6 +188,23 @@ function EditorSection() {
           type="checkbox"
           checked={lensExperimental}
           onChange={(event) => setLensExperimental(event.target.checked)}
+          className="size-4 accent-primary"
+        />
+      </label>
+      <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border px-3 py-2.5">
+        <div>
+          <div className="font-medium text-sm">Lightweight PDF preview</div>
+          <div className="text-muted-foreground text-xs">
+            Reduce preview memory and CPU on low-power machines: standard
+            resolution rendering, fewer prerendered pages, no text
+            selection/clickable links in the PDF, flat page styling.
+            Double-click sync and review tools keep working.
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={simplePdfPreview}
+          onChange={(event) => setSimplePdfPreview(event.target.checked)}
           className="size-4 accent-primary"
         />
       </label>
